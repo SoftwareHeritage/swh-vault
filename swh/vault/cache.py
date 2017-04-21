@@ -31,6 +31,14 @@ class VaultCache():
         storage = self._get_storage(obj_type)
         return storage.get(hashutil.hash_to_bytes(obj_id))
 
+    def add_stream(self, obj_type, obj_id, content_iter):
+        storage = self._get_storage(obj_type)
+        return storage.add_stream(content_iter, obj_id)
+
+    def get_stream(self, obj_type, obj_id):
+        storage = self._get_storage(obj_type)
+        return storage.get_stream(hashutil.hash_to_bytes(obj_id))
+
     def is_cached(self, obj_type, obj_id):
         storage = self._get_storage(obj_type)
         return hashutil.hash_to_bytes(obj_id) in storage

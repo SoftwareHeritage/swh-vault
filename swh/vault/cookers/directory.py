@@ -21,4 +21,4 @@ class DirectoryCooker(BaseVaultCooker):
 
         """
         directory_builder = DirectoryBuilder(self.storage)
-        return directory_builder.get_directory_bytes(self.obj_id)
+        yield directory_builder.get_directory_bytes(self.obj_id)

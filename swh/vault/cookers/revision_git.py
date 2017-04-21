@@ -17,9 +17,11 @@ class RevisionGitCooker(BaseVaultCooker):
     CACHE_TYPE_KEY = 'revision_git'
 
     def prepare_bundle(self):
-        commands = self.fastexport(self.storage.revision_log([self.obj_id]))
-        bundle_content = b'\n'.join(bytes(command) for command in commands)
-        return bundle_content
+        log = self.storage.revision_log([self.obj_id])
+        commands = self.fastexport(log)
+
+        for command in commands:
+            yield bytes(command)
 
     def fastexport(self, log):
         """Generate all the git fast-import commands from a given log.

@@ -3,20 +3,15 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import asyncio
+import aiohttp.web
 import click
-import re
-from flask import abort, g
-from werkzeug.routing import BaseConverter
+
 from swh.core import config
-from swh.core.api import (SWHServerAPIApp, error_handler,
-                          encode_data_server as encode_data)
-from swh.scheduler.utils import get_task
-from swh.storage.vault.api.cooking_tasks import SWHCookingTask  # noqa
-from swh.storage.vault.cache import VaultCache
+from swh.core.api_async import (SWHRemoteAPI,
+                                encode_data_server as encode_data)
 from swh.storage.vault.cookers import COOKER_TYPES
-
-
-cooking_task_name = 'swh.storage.vault.api.cooking_tasks.SWHCookingTask'
+from swh.storage.vault.backend import VaultBackend
 
 
 DEFAULT_CONFIG = {
@@ -30,56 +25,49 @@ DEFAULT_CONFIG = {
             },
         },
     }),
-    'cache': ('dict', {'root': '/tmp/vaultcache'})
+    'cache': ('dict', {'root': '/tmp/vaultcache'}),
+    'vault_db': ('str', 'dbname=swh-vault')
 }
 
 
-class CookerConverter(BaseConverter):
-    def __init__(self, url_map, *items):
-        super().__init__(url_map)
-        types = [re.escape(c) for c in COOKER_TYPES]
-        self.regex = '({})'.format('|'.join(types))
+@asyncio.coroutine
+def index(request):
+    return aiohttp.web.Response(body="SWH Vault API server")
 
 
-app = SWHServerAPIApp(__name__)
-app.url_map.converters['cooker'] = CookerConverter
+@asyncio.coroutine
+def vault_fetch(request):
+    obj_type = request.match_info['type']
+    obj_id = request.match_info['id']
+
+    if not request.app['backend'].is_available(obj_type, obj_id):
+        raise aiohttp.web.HTTPNotFound
+
+    return encode_data(request.app['backend'].fetch(obj_type, obj_id))
 
 
-@app.errorhandler(Exception)
-def my_error_handler(exception):
-    return error_handler(exception, encode_data)
+@asyncio.coroutine
+def vault_cook(request):
+    obj_type = request.match_info['type']
+    obj_id = request.match_info['id']
+    email = request.args.get('email')
 
+    if obj_type not in COOKER_TYPES:
+        raise aiohttp.web.HTTPNotFound
 
-@app.before_request
-def before_request():
-    g.cache = VaultCache(**app.config['cache'])
+    request.app['backend'].cook_request(obj_type, obj_id, email)
 
-
-@app.route('/')
-def index():
-    return 'SWH vault API server'
-
-
-@app.route('/vault/<cooker:type>/', methods=['GET'])
-def vault_ls(type):
-    return encode_data(list(
-        g.cache.ls(type)
-    ))
-
-
-@app.route('/vault/<cooker:type>/<id>/', methods=['GET'])
-def vault_fetch(type, id):
-    if not g.cache.is_cached(type, id):
-        abort(404)
-    return encode_data(g.cache.get(type, id))
-
-
-@app.route('/vault/<cooker:type>/<id>/', methods=['POST'])
-def vault_cook(type, id):
-    task = get_task(cooking_task_name)
-    task.delay(type, id, app.config['storage'], app.config['cache'])
     # Return url to get the content and 201 CREATED
-    return encode_data('/vault/%s/%s/' % (type, id)), 201
+    return encode_data('/vault/{}/{}/'.format(obj_type, obj_id), status=201)
+
+
+def make_app(config, **kwargs):
+    app = SWHRemoteAPI(**kwargs)
+    app.router.add_route('GET', '/', index)
+    app.router.add_route('GET', '/fetch/{type}/{id}', vault_fetch)
+    app.router.add_route('POST', '/cook/{type}/{id}', vault_cook)
+    app['backend'] = VaultBackend(config)
+    return app
 
 
 @click.command()
@@ -90,8 +78,8 @@ def vault_cook(type, id):
 @click.option('--debug/--nodebug', default=True,
               help="Indicates if the server should run in debug mode")
 def launch(config_path, host, port, debug):
-    app.config.update(config.read(config_path, DEFAULT_CONFIG))
-    app.run(host, port=int(port), debug=bool(debug))
+    app = make_app(config.read(config_path, DEFAULT_CONFIG), debug=bool(debug))
+    aiohttp.web.run_app(app, host=host, port=int(port))
 
 
 if __name__ == '__main__':

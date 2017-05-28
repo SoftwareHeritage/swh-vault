@@ -16,12 +16,12 @@ class SWHCookingTask(Task):
     """
     task_queue = 'swh_storage_vault_cooking'
 
-    def run(self, type, hex_id, storage_args, cache_args):
+    def run(self, obj_type, hex_id, storage_args, cache_args):
         # Initialize elements
         storage = get_storage(**storage_args)
         cache = VaultCache(**cache_args)
         # Initialize cooker
         obj_id = hashutil.hash_to_bytes(hex_id)
-        cooker = COOKER_TYPES[type](storage, cache, obj_id)
+        cooker = COOKER_TYPES[obj_type](storage, cache, obj_type, obj_id)
         # Perform the cooking
         cooker.cook()

@@ -1,0 +1,150 @@
+# Copyright (C) 2017  The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
+import celery
+import psycopg2
+import psycopg2.extras
+
+from swh.scheduler.utils import get_task
+from swh.storage.vault.cooking_tasks import SWHCookingTask  # noqa
+from swh.storage.vault.cache import VaultCache
+from swh.storage.vault.cookers import COOKER_TYPES
+
+from functools import wraps
+
+cooking_task_name = 'swh.storage.vault.cooking_tasks.SWHCookingTask'
+
+
+# TODO: Imported from swh.scheduler.backend. Factorization needed.
+def autocommit(fn):
+    @wraps(fn)
+    def wrapped(self, *args, **kwargs):
+        autocommit = False
+        # TODO: I don't like using None, it's confusing for the user. how about
+        # a NEW_CURSOR object()?
+        if 'cursor' not in kwargs or not kwargs['cursor']:
+            autocommit = True
+            kwargs['cursor'] = self.cursor()
+
+        try:
+            ret = fn(self, *args, **kwargs)
+        except:
+            if autocommit:
+                self.rollback()
+            raise
+
+        if autocommit:
+            self.commit()
+
+        return ret
+
+    return wrapped
+
+
+# TODO: This has to be factorized with other database base classes and helpers
+# (swh.scheduler.backend.SchedulerBackend, swh.storage.db.BaseDb, ...)
+# The three first methods are imported from swh.scheduler.backend.
+class VaultBackend:
+    """
+    Backend for the Software Heritage vault.
+    """
+    def __init__(self, config):
+        self.config = config
+        self.cache = VaultCache(**self.config['cache'])
+        self.db = None
+        self.reconnect()
+
+    def reconnect(self):
+        if not self.db or self.db.closed:
+            self.db = psycopg2.connect(
+                dsn=self.config['vault_db'],
+                cursor_factory=psycopg2.extras.RealDictCursor,
+            )
+
+    def cursor(self):
+        """Return a fresh cursor on the database, with auto-reconnection in case
+        of failure"""
+        cur = None
+
+        # Get a fresh cursor and reconnect at most three times
+        tries = 0
+        while True:
+            tries += 1
+            try:
+                cur = self.db.cursor()
+                cur.execute('select 1')
+                break
+            except psycopg2.OperationalError:
+                if tries < 3:
+                    self.reconnect()
+                else:
+                    raise
+        return cur
+
+    @autocommit
+    def task_info(self, obj_type, obj_id, cursor=None):
+        res = cursor.execute('''
+            SELECT id, type, object_id, task_uuid, task_status,
+                   ts_request, ts_done
+            FROM vault_bundle
+            WHERE type = %s AND object_id = %s''', obj_type, obj_id)
+        return res.fetchone()
+
+    @autocommit
+    def create_task(self, obj_type, obj_id, cursor=None):
+        assert obj_type in COOKER_TYPES
+
+        task_uuid = celery.uuid()
+        cursor.execute('''
+            INSERT INTO vault_bundle (type, object_id, task_uuid)
+            VALUES (%s, %s, %s)''', obj_type, obj_id, task_uuid)
+
+        args = [obj_type, obj_id, self.config['storage'], self.config['cache']]
+        task = get_task(cooking_task_name)
+        task.apply_async(args, task_id=task_uuid)
+
+    @autocommit
+    def add_notif_email(self, obj_type, obj_id, email, cursor=None):
+        cursor.execute('''
+            INSERT INTO vault_notif_email (email, bundle_id)
+            VALUES (%s, (SELECT id FROM vault_bundle
+                         WHERE type = %s AND object_id = %s))''',
+                       email, obj_type, obj_id)
+
+    @autocommit
+    def cook_request(self, obj_type, obj_id, email=None, cursor=None):
+        if self.task_info(obj_type, obj_id) is None:
+            self.create_task(obj_type, obj_id)
+        if email is not None:
+            self.add_notif_email(obj_type, obj_id, email)
+
+    @autocommit
+    def is_available(self, obj_type, obj_id):
+        info = self.task_info(obj_type, obj_id)
+        return (info is not None
+                and info['task_status'] == 'done'
+                and self.cache.is_cached(obj_type, obj_id))
+
+    @autocommit
+    def fetch(self, obj_type, obj_id):
+        if not self.is_available(obj_type, obj_id):
+            return None
+        return self.cache.get(obj_type, obj_id)
+
+    @autocommit
+    def set_status(self, obj_type, obj_id, status, cursor=None):
+        cursor.execute('''
+            UPDATE vault_bundle
+            SET status = %s
+            WHERE type = %s AND object_id = %s''',
+                       status, obj_type, obj_id)
+
+    @autocommit
+    def set_progress(self, obj_type, obj_id, progress, cursor=None):
+        cursor.execute('''
+            UPDATE vault_bundle
+            SET progress = %s
+            WHERE type = %s AND object_id = %s''',
+                       progress, obj_type, obj_id)

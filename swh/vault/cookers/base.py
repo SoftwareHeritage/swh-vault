@@ -41,13 +41,10 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     To define a new cooker, inherit from this class and override:
     - CACHE_TYPE_KEY: key to use for the bundle to reference in cache
     - def cook(): cook the object into a bundle
-    - def notify_bundle_ready(notif_data): notify the
-      bundle is ready.
-
     """
     CACHE_TYPE_KEY = None
 
-    def __init__(self, storage, cache, obj_id):
+    def __init__(self, storage, cache, obj_type, obj_id):
         """Initialize the cooker.
 
         The type of the object represented by the id depends on the
@@ -61,6 +58,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         """
         self.storage = storage
         self.cache = cache
+        self.obj_type = obj_type
         self.obj_id = obj_id
 
     @abc.abstractmethod

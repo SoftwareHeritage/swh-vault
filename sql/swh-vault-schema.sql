@@ -10,18 +10,31 @@ insert into dbversion (version, release, description)
 
 create domain obj_hash as bytea;
 
+create type cook_type as enum ('directory', 'revision_gitfast');
+comment on type cook_type is 'Type of the requested bundle';
+
 create type cook_status as enum ('new', 'pending', 'done');
 comment on type cook_status is 'Status of the cooking';
 
-create table cook_requests (
+create table vault_bundle (
   id bigserial primary key,
-  type text not null,
-  object_id obj_hash not null,
-  status cook_status not null
+
+  type cook_type not null,  -- requested cooking type
+  object_id obj_hash not null,  -- requested object ID
+
+  task_uuid varchar(128) not null,  -- celery UUID of the cooking task
+  task_status cook_status not null default 'new',  -- status of the task
+
+  ts_created timestamptz not null default now(),  -- timestamp of creation
+  ts_done timestamptz,  -- timestamp of the cooking result
+
+  progress_msg text, -- progress message
+
+  unique(type, object_id)
 );
 
-create table cook_notifications (
+create table vault_notif_email (
   id bigserial primary key,
-  email text not null,
-  request_id bigint not null references cook_requests(id)
+  email text not null,              -- e-mail to notify
+  bundle_id bigint not null references vault_bundle(id)
 );

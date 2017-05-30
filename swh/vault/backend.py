@@ -94,7 +94,7 @@ class VaultBackend:
             SELECT id, type, object_id, task_uuid, task_status,
                    ts_request, ts_done
             FROM vault_bundle
-            WHERE type = %s AND object_id = %s''', obj_type, obj_id)
+            WHERE type = %s AND object_id = %s''', (obj_type, obj_id))
         return res.fetchone()
 
     @autocommit
@@ -104,7 +104,7 @@ class VaultBackend:
         task_uuid = celery.uuid()
         cursor.execute('''
             INSERT INTO vault_bundle (type, object_id, task_uuid)
-            VALUES (%s, %s, %s)''', obj_type, obj_id, task_uuid)
+            VALUES (%s, %s, %s)''', (obj_type, obj_id, task_uuid))
 
         args = [self.config, obj_type, obj_id]
         task = get_task(cooking_task_name)
@@ -116,7 +116,7 @@ class VaultBackend:
             INSERT INTO vault_notif_email (email, bundle_id)
             VALUES (%s, (SELECT id FROM vault_bundle
                          WHERE type = %s AND object_id = %s))''',
-                       email, obj_type, obj_id)
+                       (email, obj_type, obj_id))
 
     @autocommit
     def cook_request(self, obj_type, obj_id, email=None, cursor=None):
@@ -149,7 +149,7 @@ class VaultBackend:
             UPDATE vault_bundle
             SET ts_last_access = NOW()
             WHERE type = %s AND object_id = %s''',
-                       obj_type, obj_id)
+                       (obj_type, obj_id))
 
     @autocommit
     def set_status(self, obj_type, obj_id, status, cursor=None):
@@ -158,7 +158,7 @@ class VaultBackend:
                SET status = %s'''
                + ('''AND ts_done = NOW()''' if status == 'done' else '')
                + '''WHERE type = %s AND object_id = %s''')
-        cursor.execute(req, status, obj_type, obj_id)
+        cursor.execute(req, (status, obj_type, obj_id))
 
     @autocommit
     def set_progress(self, obj_type, obj_id, progress, cursor=None):
@@ -166,7 +166,7 @@ class VaultBackend:
             UPDATE vault_bundle
             SET progress = %s
             WHERE type = %s AND object_id = %s''',
-                       progress, obj_type, obj_id)
+                       (progress, obj_type, obj_id))
 
     @autocommit
     def send_all_notifications(self, obj_type, obj_id, cursor=None):
@@ -175,7 +175,7 @@ class VaultBackend:
             FROM vault_notif_email
             RIGHT JOIN vault_bundle ON bundle_id = vault_bundle.id
             WHERE vault_bundle.type = %s AND vault_bundle.object_id = %s''',
-                             obj_type, obj_id)
+                             (obj_type, obj_id))
         for notif_id, email in res:
             self.send_notification(notif_id, email, obj_type, obj_id)
 
@@ -208,4 +208,4 @@ class VaultBackend:
         if n_id is not None:
             cursor.execute('''
                 DELETE FROM vault_notif_email
-                WHERE id = %s''', n_id)
+                WHERE id = %s''', (n_id,))

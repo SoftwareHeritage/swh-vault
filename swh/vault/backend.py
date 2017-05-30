@@ -3,16 +3,20 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import textwrap
+import smtplib
 import celery
 import psycopg2
 import psycopg2.extras
 
+from functools import wraps
+from email.mime.text import MIMEText
+
+from swh.model import hashutil
 from swh.scheduler.utils import get_task
-from swh.storage.vault.cooking_tasks import SWHCookingTask  # noqa
 from swh.storage.vault.cache import VaultCache
 from swh.storage.vault.cookers import COOKER_TYPES
-
-from functools import wraps
+from swh.storage.vault.cooking_tasks import SWHCookingTask  # noqa
 
 cooking_task_name = 'swh.storage.vault.cooking_tasks.SWHCookingTask'
 
@@ -55,6 +59,7 @@ class VaultBackend:
         self.cache = VaultCache(**self.config['cache'])
         self.db = None
         self.reconnect()
+        self.smtp_server = smtplib.SMTP('localhost')
 
     def reconnect(self):
         if not self.db or self.db.closed:
@@ -101,7 +106,7 @@ class VaultBackend:
             INSERT INTO vault_bundle (type, object_id, task_uuid)
             VALUES (%s, %s, %s)''', obj_type, obj_id, task_uuid)
 
-        args = [obj_type, obj_id, self.config['storage'], self.config['cache']]
+        args = [self.config, obj_type, obj_id]
         task = get_task(cooking_task_name)
         task.apply_async(args, task_id=task_uuid)
 
@@ -115,31 +120,45 @@ class VaultBackend:
 
     @autocommit
     def cook_request(self, obj_type, obj_id, email=None, cursor=None):
-        if self.task_info(obj_type, obj_id) is None:
+        info = self.task_info(obj_type, obj_id)
+        if info is None:
             self.create_task(obj_type, obj_id)
         if email is not None:
-            self.add_notif_email(obj_type, obj_id, email)
+            if info is not None and info['status'] == 'done':
+                self.send_notification(None, email, obj_type, obj_id)
+            else:
+                self.add_notif_email(obj_type, obj_id, email)
 
     @autocommit
-    def is_available(self, obj_type, obj_id):
-        info = self.task_info(obj_type, obj_id)
+    def is_available(self, obj_type, obj_id, cursor=None):
+        info = self.task_info(obj_type, obj_id, cursor=cursor)
         return (info is not None
                 and info['task_status'] == 'done'
                 and self.cache.is_cached(obj_type, obj_id))
 
     @autocommit
-    def fetch(self, obj_type, obj_id):
-        if not self.is_available(obj_type, obj_id):
+    def fetch(self, obj_type, obj_id, cursor=None):
+        if not self.is_available(obj_type, obj_id, cursor=cursor):
             return None
+        self.update_access_ts(obj_type, obj_id, cursor=cursor)
         return self.cache.get(obj_type, obj_id)
 
     @autocommit
-    def set_status(self, obj_type, obj_id, status, cursor=None):
+    def update_access_ts(self, obj_type, obj_id, cursor=None):
         cursor.execute('''
             UPDATE vault_bundle
-            SET status = %s
+            SET ts_last_access = NOW()
             WHERE type = %s AND object_id = %s''',
-                       status, obj_type, obj_id)
+                       obj_type, obj_id)
+
+    @autocommit
+    def set_status(self, obj_type, obj_id, status, cursor=None):
+        req = ('''
+               UPDATE vault_bundle
+               SET status = %s'''
+               + ('''AND ts_done = NOW()''' if status == 'done' else '')
+               + '''WHERE type = %s AND object_id = %s''')
+        cursor.execute(req, status, obj_type, obj_id)
 
     @autocommit
     def set_progress(self, obj_type, obj_id, progress, cursor=None):
@@ -148,3 +167,45 @@ class VaultBackend:
             SET progress = %s
             WHERE type = %s AND object_id = %s''',
                        progress, obj_type, obj_id)
+
+    @autocommit
+    def send_all_notifications(self, obj_type, obj_id, cursor=None):
+        res = cursor.execute('''
+            SELECT id, email
+            FROM vault_notif_email
+            RIGHT JOIN vault_bundle ON bundle_id = vault_bundle.id
+            WHERE vault_bundle.type = %s AND vault_bundle.object_id = %s''',
+                             obj_type, obj_id)
+        for notif_id, email in res:
+            self.send_notification(notif_id, email, obj_type, obj_id)
+
+    @autocommit
+    def send_notification(self, n_id, email, obj_type, obj_id, cursor=None):
+        hex_id = hashutil.hash_to_hex(obj_id)
+        text = """
+               You have requested a bundle of type `{obj_type}` for the
+               object `{hex_id}` from the Software Heritage Archive.
+
+               The bundle you requested is now available for download at the
+               following address:
+
+               {url}
+
+               Please keep in mind that this link might expire at some point,
+               in which case you will need to request the bundle again.
+               """
+        text = text.format(obj_type=obj_type, hex_id=hex_id, url='URL_TODO')
+        text = textwrap.dedent(text)
+        text = textwrap.wrap(text, 72)
+        msg = MIMEText(text)
+        msg['Subject'] = ("The `{obj_type}` bundle of `{hex_id}` is ready"
+                          .format(obj_type=obj_type, hex_id=hex_id))
+        msg['From'] = 'vault@softwareheritage.org'
+        msg['To'] = email
+
+        self.smtp_server.send_message(msg)
+
+        if n_id is not None:
+            cursor.execute('''
+                DELETE FROM vault_notif_email
+                WHERE id = %s''', n_id)

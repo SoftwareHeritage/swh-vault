@@ -27,6 +27,7 @@ create table vault_bundle (
 
   ts_created timestamptz not null default now(),  -- timestamp of creation
   ts_done timestamptz,  -- timestamp of the cooking result
+  ts_last_access timestamptz not null default now(),  -- last access
 
   progress_msg text, -- progress message
 

@@ -14,6 +14,8 @@ import tempfile
 from pathlib import Path
 
 from swh.model import hashutil
+from swh.storage import get_storage
+from swh.vault.backend import VaultBackend
 
 
 def get_tar_bytes(path, arcname=None):
@@ -44,7 +46,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     """
     CACHE_TYPE_KEY = None
 
-    def __init__(self, storage, cache, obj_type, obj_id):
+    def __init__(self, config, obj_type, obj_id):
         """Initialize the cooker.
 
         The type of the object represented by the id depends on the
@@ -56,10 +58,10 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
             cache: the cache where to store the bundle
             obj_id: id of the object to be cooked into a bundle.
         """
-        self.storage = storage
-        self.cache = cache
+        self.storage = get_storage(**config['storage'])
+        self.backend = VaultBackend(config)
         self.obj_type = obj_type
-        self.obj_id = obj_id
+        self.obj_id = hashutil.hash_to_bytes(obj_id)
 
     @abc.abstractmethod
     def prepare_bundle(self):
@@ -72,25 +74,23 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     def cook(self):
         """Cook the requested object into a bundle
         """
+        self.backend.set_status(self.obj_type, self.obj_id, 'pending')
         content_iter = self.prepare_bundle()
 
-        # Cache the bundle
         self.update_cache(content_iter)
-        # Make a notification that the bundle have been cooked
-        # NOT YET IMPLEMENTED see TODO in function.
-        self.notify_bundle_ready(
-            notif_data='Bundle %s ready' % hashutil.hash_to_hex(self.obj_id))
+        self.backend.set_status(self.obj_type, self.obj_id, 'done')
+
+        self.notify_bundle_ready()
 
     def update_cache(self, content_iter):
         """Update the cache with id and bundle_content.
 
         """
-        self.cache.add_stream(self.CACHE_TYPE_KEY, self.obj_id, content_iter)
+        self.backend.cache.add_stream(self.CACHE_TYPE_KEY,
+                                      self.obj_id, content_iter)
 
-    def notify_bundle_ready(self, notif_data):
-        # TODO plug this method with the notification method once
-        # done.
-        pass
+    def notify_bundle_ready(self):
+        self.backend.send_all_notifications(self.obj_type, self.obj_id)
 
 
 class DirectoryBuilder:

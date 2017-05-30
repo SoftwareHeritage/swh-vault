@@ -4,10 +4,7 @@
 # See top-level LICENSE file for more information
 
 from swh.scheduler.task import Task
-from swh.model import hashutil
-from ..cache import VaultCache
-from ..cookers import COOKER_TYPES
-from ... import get_storage
+from swh.vault.cookers import COOKER_TYPES
 
 
 class SWHCookingTask(Task):
@@ -16,12 +13,6 @@ class SWHCookingTask(Task):
     """
     task_queue = 'swh_storage_vault_cooking'
 
-    def run(self, obj_type, hex_id, storage_args, cache_args):
-        # Initialize elements
-        storage = get_storage(**storage_args)
-        cache = VaultCache(**cache_args)
-        # Initialize cooker
-        obj_id = hashutil.hash_to_bytes(hex_id)
-        cooker = COOKER_TYPES[obj_type](storage, cache, obj_type, obj_id)
-        # Perform the cooking
+    def run(self, config, obj_type, obj_id):
+        cooker = COOKER_TYPES[obj_type](config, obj_type, obj_id)
         cooker.cook()

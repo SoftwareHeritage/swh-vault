@@ -10,8 +10,8 @@ import click
 from swh.core import config
 from swh.core.api_async import (SWHRemoteAPI,
                                 encode_data_server as encode_data)
-from swh.storage.vault.cookers import COOKER_TYPES
-from swh.storage.vault.backend import VaultBackend
+from swh.vault.cookers import COOKER_TYPES
+from swh.vault.backend import VaultBackend
 
 
 DEFAULT_CONFIG = {

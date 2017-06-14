@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from .base import BaseVaultCooker, DirectoryBuilder
+from swh.vault.cookers.base import BaseVaultCooker, DirectoryBuilder
 
 
 class DirectoryCooker(BaseVaultCooker):

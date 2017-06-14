@@ -15,7 +15,6 @@ from pathlib import Path
 
 from swh.model import hashutil
 from swh.storage import get_storage
-from swh.vault.backend import VaultBackend
 
 
 def get_tar_bytes(path, arcname=None):
@@ -58,6 +57,9 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
             cache: the cache where to store the bundle
             obj_id: id of the object to be cooked into a bundle.
         """
+        # Imported here to avoid circular dependency
+        from swh.vault.backend import VaultBackend
+
         self.storage = get_storage(**config['storage'])
         self.backend = VaultBackend(config)
         self.obj_type = obj_type

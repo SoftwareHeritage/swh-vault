@@ -3,9 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from .directory import DirectoryCooker
-from .revision_flat import RevisionFlatCooker
-from .revision_git import RevisionGitCooker
+from swh.vault.cookers.directory import DirectoryCooker
+from swh.vault.cookers.revision_flat import RevisionFlatCooker
+from swh.vault.cookers.revision_gitfast import RevisionGitfastCooker
 
 COOKER_TYPES = {
     'directory': DirectoryCooker,

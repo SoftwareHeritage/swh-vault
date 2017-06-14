@@ -11,7 +11,7 @@ class SWHCookingTask(Task):
     """Main task which archives a contents batch.
 
     """
-    task_queue = 'swh_storage_vault_cooking'
+    task_queue = 'swh_vault_cooking'
 
     def run(self, config, obj_type, obj_id):
         cooker = COOKER_TYPES[obj_type](config, obj_type, obj_id)

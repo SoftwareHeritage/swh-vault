@@ -12,9 +12,9 @@ import os
 from .base import BaseVaultCooker
 
 
-class RevisionGitCooker(BaseVaultCooker):
+class RevisionGitfastCooker(BaseVaultCooker):
     """Cooker to create a git fast-import bundle """
-    CACHE_TYPE_KEY = 'revision_git'
+    CACHE_TYPE_KEY = 'revision_gitfast'
 
     def prepare_bundle(self):
         log = self.storage.revision_log([self.obj_id])

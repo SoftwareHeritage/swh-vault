@@ -10,5 +10,5 @@ from .revision_git import RevisionGitCooker
 COOKER_TYPES = {
     'directory': DirectoryCooker,
     'revision_flat': RevisionFlatCooker,
-    'revision_git': RevisionGitCooker,
+    'revision_gitfast': RevisionGitfastCooker,
 }

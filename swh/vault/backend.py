@@ -14,9 +14,9 @@ from email.mime.text import MIMEText
 
 from swh.model import hashutil
 from swh.scheduler.utils import get_task
-from swh.storage.vault.cache import VaultCache
-from swh.storage.vault.cookers import COOKER_TYPES
-from swh.storage.vault.cooking_tasks import SWHCookingTask  # noqa
+from swh.vault.cache import VaultCache
+from swh.vault.cookers import COOKER_TYPES
+from swh.vault.cooking_tasks import SWHCookingTask  # noqa
 
 cooking_task_name = 'swh.storage.vault.cooking_tasks.SWHCookingTask'
 
@@ -88,11 +88,19 @@ class VaultBackend:
                     raise
         return cur
 
+    def commit(self):
+        """Commit a transaction"""
+        self.db.commit()
+
+    def rollback(self):
+        """Rollback a transaction"""
+        self.db.rollback()
+
     @autocommit
     def task_info(self, obj_type, obj_id, cursor=None):
         res = cursor.execute('''
             SELECT id, type, object_id, task_uuid, task_status,
-                   ts_request, ts_done
+                   ts_created, ts_done
             FROM vault_bundle
             WHERE type = %s AND object_id = %s''', (obj_type, obj_id))
         return res.fetchone()

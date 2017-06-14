@@ -15,10 +15,11 @@ class RemoteVaultCache(SWHRemoteAPI):
         super().__init__(api_exception=StorageAPIError, url=base_url)
 
     def fetch(self, obj_type, obj_id):
-        return self.get('fetch/{}/{}/'.format(obj_type,
-                                              hashutil.hash_to_hex(obj_id)))
+        return self.get('fetch/{}/{}'.format(obj_type,
+                                             hashutil.hash_to_hex(obj_id)))
 
-    def cook(self, obj_type, obj_id):
-        return self.post('cook/{}/{}/'.format(obj_type,
-                                              hashutil.hash_to_hex(obj_id)),
-                         data={})
+    def cook(self, obj_type, obj_id, email=None):
+        return self.post('cook/{}/{}'.format(obj_type,
+                                             hashutil.hash_to_hex(obj_id)),
+                         data={},
+                         params=({'email': email} if email else None))

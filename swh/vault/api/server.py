@@ -50,7 +50,7 @@ def vault_fetch(request):
 def vault_cook(request):
     obj_type = request.match_info['type']
     obj_id = request.match_info['id']
-    email = request.args.get('email')
+    email = request.query.get('email')
 
     if obj_type not in COOKER_TYPES:
         raise aiohttp.web.HTTPNotFound

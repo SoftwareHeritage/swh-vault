@@ -18,7 +18,7 @@ from swh.vault.cache import VaultCache
 from swh.vault.cookers import COOKER_TYPES
 from swh.vault.cooking_tasks import SWHCookingTask  # noqa
 
-cooking_task_name = 'swh.storage.vault.cooking_tasks.SWHCookingTask'
+cooking_task_name = 'swh.vault.cooking_tasks.SWHCookingTask'
 
 
 # TODO: Imported from swh.scheduler.backend. Factorization needed.

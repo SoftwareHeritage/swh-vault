@@ -198,25 +198,22 @@ class VaultBackend:
     @autocommit
     def send_notification(self, n_id, email, obj_type, obj_id, cursor=None):
         hex_id = hashutil.hash_to_hex(obj_id)
-        text = """
-               You have requested a bundle of type `{obj_type}` for the
-               object `{hex_id}` from the Software Heritage Archive.
+        text = (
+            "You have requested a bundle of type `{obj_type}` for the object "
+            "`{hex_id}` from the Software Heritage Archive.\n\n"
+            "The bundle you requested is now available for download at the "
+            "following address:\n\n"
+            "{url}\n\n"
+            "Please keep in mind that this link might expire at some point, "
+            "in which case you will need to request the bundle again.")
 
-               The bundle you requested is now available for download at the
-               following address:
-
-               {url}
-
-               Please keep in mind that this link might expire at some point,
-               in which case you will need to request the bundle again.
-               """
         text = text.format(obj_type=obj_type, hex_id=hex_id, url='URL_TODO')
         text = textwrap.dedent(text)
-        text = textwrap.wrap(text, 72)
+        text = '\n'.join(textwrap.wrap(text, 72, replace_whitespace=False))
         msg = MIMEText(text)
         msg['Subject'] = ("The `{obj_type}` bundle of `{hex_id}` is ready"
                           .format(obj_type=obj_type, hex_id=hex_id))
-        msg['From'] = 'vault@softwareheritage.org'
+        msg['From'] = '"Software Heritage Vault" <vault@softwareheritage.org>'
         msg['To'] = email
 
         self.smtp_server.send_message(msg)

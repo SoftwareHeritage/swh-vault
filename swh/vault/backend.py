@@ -98,15 +98,17 @@ class VaultBackend:
 
     @autocommit
     def task_info(self, obj_type, obj_id, cursor=None):
-        res = cursor.execute('''
+        obj_id = hashutil.hash_to_bytes(obj_id)
+        cursor.execute('''
             SELECT id, type, object_id, task_uuid, task_status,
                    ts_created, ts_done
             FROM vault_bundle
             WHERE type = %s AND object_id = %s''', (obj_type, obj_id))
-        return res.fetchone()
+        return cursor.fetchone()
 
     @autocommit
     def create_task(self, obj_type, obj_id, cursor=None):
+        obj_id = hashutil.hash_to_bytes(obj_id)
         assert obj_type in COOKER_TYPES
 
         task_uuid = celery.uuid()
@@ -116,10 +118,12 @@ class VaultBackend:
 
         args = [self.config, obj_type, obj_id]
         task = get_task(cooking_task_name)
+        self.commit()
         task.apply_async(args, task_id=task_uuid)
 
     @autocommit
     def add_notif_email(self, obj_type, obj_id, email, cursor=None):
+        obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
             INSERT INTO vault_notif_email (email, bundle_id)
             VALUES (%s, (SELECT id FROM vault_bundle
@@ -132,7 +136,7 @@ class VaultBackend:
         if info is None:
             self.create_task(obj_type, obj_id)
         if email is not None:
-            if info is not None and info['status'] == 'done':
+            if info is not None and info['task_status'] == 'done':
                 self.send_notification(None, email, obj_type, obj_id)
             else:
                 self.add_notif_email(obj_type, obj_id, email)
@@ -153,6 +157,7 @@ class VaultBackend:
 
     @autocommit
     def update_access_ts(self, obj_type, obj_id, cursor=None):
+        obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
             UPDATE vault_bundle
             SET ts_last_access = NOW()
@@ -161,15 +166,17 @@ class VaultBackend:
 
     @autocommit
     def set_status(self, obj_type, obj_id, status, cursor=None):
+        obj_id = hashutil.hash_to_bytes(obj_id)
         req = ('''
                UPDATE vault_bundle
-               SET status = %s'''
-               + ('''AND ts_done = NOW()''' if status == 'done' else '')
+               SET task_status = %s '''
+               + (''', ts_done = NOW() ''' if status == 'done' else '')
                + '''WHERE type = %s AND object_id = %s''')
         cursor.execute(req, (status, obj_type, obj_id))
 
     @autocommit
     def set_progress(self, obj_type, obj_id, progress, cursor=None):
+        obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
             UPDATE vault_bundle
             SET progress = %s
@@ -178,14 +185,15 @@ class VaultBackend:
 
     @autocommit
     def send_all_notifications(self, obj_type, obj_id, cursor=None):
-        res = cursor.execute('''
-            SELECT id, email
+        obj_id = hashutil.hash_to_bytes(obj_id)
+        cursor.execute('''
+            SELECT vault_notif_email.id AS id, email
             FROM vault_notif_email
             RIGHT JOIN vault_bundle ON bundle_id = vault_bundle.id
             WHERE vault_bundle.type = %s AND vault_bundle.object_id = %s''',
-                             (obj_type, obj_id))
-        for notif_id, email in res:
-            self.send_notification(notif_id, email, obj_type, obj_id)
+                       (obj_type, obj_id))
+        for d in cursor:
+            self.send_notification(d['id'], d['email'], obj_type, obj_id)
 
     @autocommit
     def send_notification(self, n_id, email, obj_type, obj_id, cursor=None):

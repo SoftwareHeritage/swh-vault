@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 def parse_requirements():
@@ -16,20 +16,15 @@ def parse_requirements():
 
 
 setup(
-    name='swh.storage',
-    description='Software Heritage storage manager',
+    name='swh.vault',
+    description='Software Heritage vault',
     author='Software Heritage developers',
     author_email='swh-devel@inria.fr',
-    url='https://forge.softwareheritage.org/diffusion/DSTO/',
+    url='https://forge.softwareheritage.org/diffusion/DVAU/',
     packages=[
-        'swh.storage',
-        'swh.storage.archiver',
-        'swh.storage.api',
-        'swh.storage.provenance',
-        'swh.storage.tests',
-    ],
-    scripts=[
-        'bin/swh-storage-add-dir',
+        'swh.vault',
+        'swh.vault.api',
+        'swh.vault.cooker',
     ],
     install_requires=parse_requirements(),
     setup_requires=['vcversioner'],

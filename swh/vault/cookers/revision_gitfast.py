@@ -6,8 +6,8 @@
 import collections
 import fastimport.commands
 import functools
-import logging
 import os
+import time
 
 from .base import BaseVaultCooker
 
@@ -32,12 +32,22 @@ class RevisionGitfastCooker(BaseVaultCooker):
         self.obj_to_mark = {}
         self.next_available_mark = 1
 
+        last_progress_report = None
+
         # We want a single transaction for the whole export, so we store a
         # cursor and use it during the process.
         with self.storage.db.transaction() as self.cursor:
             for i, rev in enumerate(self.rev_sorted, 1):
-                logging.info('Computing revision %d/%d', i,
-                             len(self.rev_sorted))
+                # Update progress if needed
+                ct = time.time()
+                if (last_progress_report is None
+                        or last_progress_report + 2 <= ct):
+                    last_progress_report = ct
+                    pg = ('Computing revision {}/{}'
+                          .format(i, len(self.rev_sorted)))
+                    self.backend.set_progress(self.obj_type, self.obj_id, pg)
+
+                # Compute the current commit
                 yield from self._compute_commit_command(rev)
 
     def _toposort(self, rev_by_id):

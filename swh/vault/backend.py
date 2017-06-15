@@ -179,7 +179,7 @@ class VaultBackend:
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
             UPDATE vault_bundle
-            SET progress = %s
+            SET progress_msg = %s
             WHERE type = %s AND object_id = %s''',
                        (progress, obj_type, obj_id))
 

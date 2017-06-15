@@ -77,10 +77,12 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         """Cook the requested object into a bundle
         """
         self.backend.set_status(self.obj_type, self.obj_id, 'pending')
+        self.backend.set_progress(self.obj_type, self.obj_id, 'Initializing.')
         content_iter = self.prepare_bundle()
 
         self.update_cache(content_iter)
         self.backend.set_status(self.obj_type, self.obj_id, 'done')
+        self.backend.set_progress(self.obj_type, self.obj_id, 'Done.')
 
         self.notify_bundle_ready()
 

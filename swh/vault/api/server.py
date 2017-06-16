@@ -61,11 +61,24 @@ def vault_cook(request):
     return encode_data('/vault/{}/{}/'.format(obj_type, obj_id), status=201)
 
 
+@asyncio.coroutine
+def vault_progress(request):
+    obj_type = request.match_info['type']
+    obj_id = request.match_info['id']
+
+    info = request.app['backend'].task_info(obj_type, obj_id)
+    if not info:
+        raise aiohttp.web.HTTPNotFound
+
+    return encode_data(info['progress_msg'])
+
+
 def make_app(config, **kwargs):
     app = SWHRemoteAPI(**kwargs)
     app.router.add_route('GET', '/', index)
     app.router.add_route('GET', '/fetch/{type}/{id}', vault_fetch)
     app.router.add_route('POST', '/cook/{type}/{id}', vault_cook)
+    app.router.add_route('GET', '/progress/{type}/{id}', vault_progress)
     app['backend'] = VaultBackend(config)
     return app
 

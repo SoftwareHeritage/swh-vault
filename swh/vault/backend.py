@@ -101,7 +101,7 @@ class VaultBackend:
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
             SELECT id, type, object_id, task_uuid, task_status,
-                   ts_created, ts_done
+                   ts_created, ts_done, progress_msg
             FROM vault_bundle
             WHERE type = %s AND object_id = %s''', (obj_type, obj_id))
         return cursor.fetchone()

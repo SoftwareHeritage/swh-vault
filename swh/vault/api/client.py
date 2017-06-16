@@ -23,3 +23,7 @@ class RemoteVaultCache(SWHRemoteAPI):
                                              hashutil.hash_to_hex(obj_id)),
                          data={},
                          params=({'email': email} if email else None))
+
+    def progress(self, obj_type, obj_id):
+        return self.get('progress/{}/{}'.format(obj_type,
+                                                hashutil.hash_to_hex(obj_id)))

@@ -8,6 +8,7 @@ import fastimport.commands
 import functools
 import os
 import time
+import zlib
 
 from .base import BaseVaultCooker
 
@@ -20,8 +21,10 @@ class RevisionGitfastCooker(BaseVaultCooker):
         log = self.storage.revision_log([self.obj_id])
         commands = self.fastexport(log)
 
+        compressobj = zlib.compressobj(9, zlib.DEFLATED, zlib.MAX_WBITS | 16)
         for command in commands:
-            yield bytes(command)
+            yield compressobj.compress(bytes(command) + b'\n')
+        yield compressobj.flush()
 
     def fastexport(self, log):
         """Generate all the git fast-import commands from a given log.

@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import textwrap
 import smtplib
 import celery
 import psycopg2
@@ -19,6 +18,27 @@ from swh.vault.cookers import COOKER_TYPES
 from swh.vault.cooking_tasks import SWHCookingTask  # noqa
 
 cooking_task_name = 'swh.vault.cooking_tasks.SWHCookingTask'
+
+NOTIF_EMAIL_FROM = ('"Software Heritage Vault" '
+                    '<info@softwareheritage.org>')
+NOTIF_EMAIL_SUBJECT = ("Bundle ready: {obj_type} {short_id}")
+NOTIF_EMAIL_BODY = """
+You have requested the following bundle from the Software Heritage
+Vault:
+
+Object Type: {obj_type}
+Object ID: {hex_id}
+
+This bundle is now available for download at the following address:
+
+{url}
+
+Please keep in mind that this link might expire at some point, in which
+case you will need to request the bundle again.
+
+--\x20
+The Software Heritage Developers
+"""
 
 
 # TODO: Imported from swh.scheduler.backend. Factorization needed.
@@ -104,7 +124,10 @@ class VaultBackend:
                    ts_created, ts_done, progress_msg
             FROM vault_bundle
             WHERE type = %s AND object_id = %s''', (obj_type, obj_id))
-        return cursor.fetchone()
+        res = cursor.fetchone()
+        if res:
+            res['object_id'] = bytes(res['object_id'])
+        return res
 
     @autocommit
     def create_task(self, obj_type, obj_id, cursor=None):
@@ -140,6 +163,8 @@ class VaultBackend:
                 self.send_notification(None, email, obj_type, obj_id)
             else:
                 self.add_notif_email(obj_type, obj_id, email)
+        info = self.task_info(obj_type, obj_id)
+        return info
 
     @autocommit
     def is_available(self, obj_type, obj_id, cursor=None):
@@ -189,7 +214,7 @@ class VaultBackend:
         cursor.execute('''
             SELECT vault_notif_email.id AS id, email
             FROM vault_notif_email
-            RIGHT JOIN vault_bundle ON bundle_id = vault_bundle.id
+            INNER JOIN vault_bundle ON bundle_id = vault_bundle.id
             WHERE vault_bundle.type = %s AND vault_bundle.object_id = %s''',
                        (obj_type, obj_id))
         for d in cursor:
@@ -198,22 +223,23 @@ class VaultBackend:
     @autocommit
     def send_notification(self, n_id, email, obj_type, obj_id, cursor=None):
         hex_id = hashutil.hash_to_hex(obj_id)
-        text = (
-            "You have requested a bundle of type `{obj_type}` for the object "
-            "`{hex_id}` from the Software Heritage Archive.\n\n"
-            "The bundle you requested is now available for download at the "
-            "following address:\n\n"
-            "{url}\n\n"
-            "Please keep in mind that this link might expire at some point, "
-            "in which case you will need to request the bundle again.")
+        short_id = hex_id[:7]
 
-        text = text.format(obj_type=obj_type, hex_id=hex_id, url='URL_TODO')
-        text = textwrap.dedent(text)
-        text = '\n'.join(textwrap.wrap(text, 72, replace_whitespace=False))
+        # TODO: instead of hardcoding this, we should probably:
+        # * add a "fetch_url" field in the vault_notif_email table
+        # * generate the url with flask.url_for() on the web-ui side
+        # * send this url as part of the cook request and store it in
+        #   the table
+        # * use this url for the notification e-mail
+        url = ('https://archive.softwareheritage.org/api/1/vault/{}/{}/'
+               'raw'.format(obj_type, hex_id))
+
+        text = NOTIF_EMAIL_BODY.strip()
+        text = text.format(obj_type=obj_type, hex_id=hex_id, url=url)
         msg = MIMEText(text)
-        msg['Subject'] = ("The `{obj_type}` bundle of `{hex_id}` is ready"
-                          .format(obj_type=obj_type, hex_id=hex_id))
-        msg['From'] = '"Software Heritage Vault" <vault@softwareheritage.org>'
+        msg['Subject'] = (NOTIF_EMAIL_SUBJECT
+                          .format(obj_type=obj_type, short_id=short_id))
+        msg['From'] = NOTIF_EMAIL_FROM
         msg['To'] = email
 
         self.smtp_server.send_message(msg)

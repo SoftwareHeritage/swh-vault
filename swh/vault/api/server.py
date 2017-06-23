@@ -10,6 +10,7 @@ import click
 from swh.core import config
 from swh.core.api_async import (SWHRemoteAPI,
                                 encode_data_server as encode_data)
+from swh.model import hashutil
 from swh.vault.cookers import COOKER_TYPES
 from swh.vault.backend import VaultBackend
 
@@ -46,6 +47,14 @@ def vault_fetch(request):
     return encode_data(request.app['backend'].fetch(obj_type, obj_id))
 
 
+def user_info(task_info):
+    return {'task_uuid': str(task_info['task_uuid']),
+            'status': task_info['task_status'],
+            'progress_message': task_info['progress_msg'],
+            'obj_type': task_info['type'],
+            'obj_id': hashutil.hash_to_hex(task_info['object_id'])}
+
+
 @asyncio.coroutine
 def vault_cook(request):
     obj_type = request.match_info['type']
@@ -55,10 +64,9 @@ def vault_cook(request):
     if obj_type not in COOKER_TYPES:
         raise aiohttp.web.HTTPNotFound
 
-    request.app['backend'].cook_request(obj_type, obj_id, email)
+    info = request.app['backend'].cook_request(obj_type, obj_id, email)
 
-    # Return url to get the content and 201 CREATED
-    return encode_data('/vault/{}/{}/'.format(obj_type, obj_id), status=201)
+    return encode_data(user_info(info), status=201)
 
 
 @asyncio.coroutine
@@ -70,7 +78,7 @@ def vault_progress(request):
     if not info:
         raise aiohttp.web.HTTPNotFound
 
-    return encode_data(info['progress_msg'])
+    return encode_data(user_info(info))
 
 
 def make_app(config, **kwargs):

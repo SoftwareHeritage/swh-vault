@@ -12,3 +12,5 @@ COOKER_TYPES = {
     'revision_flat': RevisionFlatCooker,
     'revision_gitfast': RevisionGitfastCooker,
 }
+
+get_cooker = COOKER_TYPES.__getitem__

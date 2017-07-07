@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from swh.model import hashutil
 from swh.vault.cookers.base import BaseVaultCooker, DirectoryBuilder
 
 
@@ -10,15 +11,11 @@ class DirectoryCooker(BaseVaultCooker):
     """Cooker to create a directory bundle """
     CACHE_TYPE_KEY = 'directory'
 
+    def check_exists(self):
+        if list(self.storage.directory_missing([self.obj_id])):
+            raise ValueError("Directory {} not found."
+                             .format(hashutil.hash_to_hex(self.obj_id)))
+
     def prepare_bundle(self):
-        """Cook the requested directory into a Bundle
-
-        Args:
-            obj_id (bytes): the id of the directory to be cooked.
-
-        Returns:
-            bytes that correspond to the bundle
-
-        """
         directory_builder = DirectoryBuilder(self.storage)
         yield directory_builder.get_directory_bytes(self.obj_id)

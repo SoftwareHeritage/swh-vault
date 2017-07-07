@@ -66,6 +66,14 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         self.obj_id = hashutil.hash_to_bytes(obj_id)
 
     @abc.abstractmethod
+    def check_exists(self):
+        """Checks that the requested object exists and can be cooked.
+
+        Override this in the cooker implementation.
+        """
+        raise NotImplemented
+
+    @abc.abstractmethod
     def prepare_bundle(self):
         """Implementation of the cooker. Yields chunks of the bundle bytes.
 

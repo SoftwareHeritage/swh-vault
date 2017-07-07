@@ -14,7 +14,7 @@ from email.mime.text import MIMEText
 from swh.model import hashutil
 from swh.scheduler.utils import get_task
 from swh.vault.cache import VaultCache
-from swh.vault.cookers import COOKER_TYPES
+from swh.vault.cookers import get_cooker
 from swh.vault.cooking_tasks import SWHCookingTask  # noqa
 
 cooking_task_name = 'swh.vault.cooking_tasks.SWHCookingTask'
@@ -89,8 +89,8 @@ class VaultBackend:
             )
 
     def cursor(self):
-        """Return a fresh cursor on the database, with auto-reconnection in case
-        of failure"""
+        """Return a fresh cursor on the database, with auto-reconnection in
+        case of failure"""
         cur = None
 
         # Get a fresh cursor and reconnect at most three times
@@ -132,16 +132,17 @@ class VaultBackend:
     @autocommit
     def create_task(self, obj_type, obj_id, cursor=None):
         obj_id = hashutil.hash_to_bytes(obj_id)
-        assert obj_type in COOKER_TYPES
+        args = [self.config, obj_type, obj_id]
+        cooker = get_cooker(obj_type)(*args)
+        cooker.check_exists()
 
         task_uuid = celery.uuid()
         cursor.execute('''
             INSERT INTO vault_bundle (type, object_id, task_uuid)
             VALUES (%s, %s, %s)''', (obj_type, obj_id, task_uuid))
-
-        args = [self.config, obj_type, obj_id]
-        task = get_task(cooking_task_name)
         self.commit()
+
+        task = get_task(cooking_task_name)
         task.apply_async(args, task_id=task_uuid)
 
     @autocommit

@@ -8,7 +8,7 @@ from swh.core.api import SWHRemoteAPI
 from swh.storage.exc import StorageAPIError
 
 
-class RemoteVaultCache(SWHRemoteAPI):
+class RemoteVaultClient(SWHRemoteAPI):
     """Client to the Software Heritage vault cache."""
 
     def __init__(self, base_url):

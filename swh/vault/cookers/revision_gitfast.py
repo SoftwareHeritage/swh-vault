@@ -11,11 +11,17 @@ import time
 import zlib
 
 from .base import BaseVaultCooker
+from swh.model import hashutil
 
 
 class RevisionGitfastCooker(BaseVaultCooker):
     """Cooker to create a git fast-import bundle """
     CACHE_TYPE_KEY = 'revision_gitfast'
+
+    def check_exists(self):
+        if list(self.storage.revision_missing([self.obj_id])):
+            raise ValueError("Revision {} not found."
+                             .format(hashutil.hash_to_hex(self.obj_id)))
 
     def prepare_bundle(self):
         log = self.storage.revision_log([self.obj_id])

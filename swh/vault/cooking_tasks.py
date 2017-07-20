@@ -13,5 +13,5 @@ class SWHCookingTask(Task):
     task_queue = 'swh_vault_cooking'
 
     def run_task(self, config, obj_type, obj_id):
-        cooker = get_cooker(obj_type)(config, obj_type, obj_id)
-        cooker.cook()
+        with get_cooker(obj_type)(config, obj_type, obj_id) as cooker:
+            cooker.cook()

@@ -57,13 +57,19 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
             cache: the cache where to store the bundle
             obj_id: id of the object to be cooked into a bundle.
         """
-        # Imported here to avoid circular dependency
-        from swh.vault.backend import VaultBackend
-
-        self.storage = get_storage(**config['storage'])
-        self.backend = VaultBackend(config)
+        self.config = config
         self.obj_type = obj_type
         self.obj_id = hashutil.hash_to_bytes(obj_id)
+
+    def __enter__(self):
+        # Imported here to avoid circular dependency
+        from swh.vault.backend import VaultBackend
+        self.backend = VaultBackend(self.config)
+        self.storage = get_storage(**self.config['storage'])
+        return self
+
+    def __exit__(self, *_):
+        self.backend.close()
 
     @abc.abstractmethod
     def check_exists(self):

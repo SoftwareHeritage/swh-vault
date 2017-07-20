@@ -30,4 +30,5 @@ setup(
     setup_requires=['vcversioner'],
     vcversioner={},
     include_package_data=True,
+    zip_safe=False,
 )

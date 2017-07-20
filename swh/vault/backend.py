@@ -88,6 +88,9 @@ class VaultBackend:
                 cursor_factory=psycopg2.extras.RealDictCursor,
             )
 
+    def close(self):
+        self.db.close()
+
     def cursor(self):
         """Return a fresh cursor on the database, with auto-reconnection in
         case of failure"""

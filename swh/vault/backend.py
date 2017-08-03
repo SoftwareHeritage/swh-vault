@@ -124,7 +124,7 @@ class VaultBackend:
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
             SELECT id, type, object_id, task_uuid, task_status,
-                   ts_created, ts_done, progress_msg
+                   ts_created, ts_done, ts_last_access, progress_msg
             FROM vault_bundle
             WHERE type = %s AND object_id = %s''', (obj_type, obj_id))
         res = cursor.fetchone()
@@ -132,11 +132,16 @@ class VaultBackend:
             res['object_id'] = bytes(res['object_id'])
         return res
 
+    def _send_task(task_uuid, args):
+        task = get_task(cooking_task_name)
+        task.apply_async(args, task_id=task_uuid)
+
     @autocommit
     def create_task(self, obj_type, obj_id, cursor=None):
         obj_id = hashutil.hash_to_bytes(obj_id)
         args = [self.config, obj_type, obj_id]
-        cooker = get_cooker(obj_type)(*args)
+        CookerCls = get_cooker(obj_type)
+        cooker = CookerCls(*args)
         cooker.check_exists()
 
         task_uuid = celery.uuid()
@@ -145,8 +150,7 @@ class VaultBackend:
             VALUES (%s, %s, %s)''', (obj_type, obj_id, task_uuid))
         self.commit()
 
-        task = get_task(cooking_task_name)
-        task.apply_async(args, task_id=task_uuid)
+        self._send_task(task_uuid, args)
 
     @autocommit
     def add_notif_email(self, obj_type, obj_id, email, cursor=None):

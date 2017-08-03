@@ -45,7 +45,12 @@ class VaultTestFixture:
         self.vault_backend = VaultBackend(self.vault_config)
 
     def tearDown(self):
-        self.reset_tables()
         self.cache_root.cleanup()
         self.vault_backend.close()
+        self.reset_storage_tables()
+        self.reset_vault_tables()
         super().tearDown()
+
+    def reset_vault_tables(self):
+        excluded = {'dbversion'}
+        self.reset_db_tables(self.TEST_VAULT_DB_NAME, excluded=excluded)

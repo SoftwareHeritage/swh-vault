@@ -72,12 +72,6 @@ class TestRepo:
         self.git_shell(*args, stdout=None)
 
 
-TEST_CONTENT = ("   test content\n"
-                "and unicode \N{BLACK HEART SUIT}\n"
-                " and trailing spaces   ")
-TEST_EXECUTABLE = b'\x42\x40\x00\x00\x05'
-
-
 class BaseTestCookers(VaultTestFixture, StorageTestFixture, DbTestFixture):
     """Base class of cookers unit tests"""
     def setUp(self):
@@ -117,6 +111,12 @@ class BaseTestCookers(VaultTestFixture, StorageTestFixture, DbTestFixture):
             processor = dulwich.fastexport.GitImportProcessor(test_repo.repo)
             processor.import_stream(fastexport_stream)
             yield test_repo, p
+
+
+TEST_CONTENT = ("   test content\n"
+                "and unicode \N{BLACK HEART SUIT}\n"
+                " and trailing spaces   ")
+TEST_EXECUTABLE = b'\x42\x40\x00\x00\x05'
 
 
 class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):

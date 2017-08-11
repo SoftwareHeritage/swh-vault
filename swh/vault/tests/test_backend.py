@@ -203,3 +203,37 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
             m.reset_mock()
             self.vault_backend.send_all_notifications(TEST_TYPE, TEST_OBJ_ID)
             m.assert_not_called()
+
+    def test_available(self):
+        self.assertFalse(self.vault_backend.is_available(TEST_TYPE,
+                                                         TEST_OBJ_ID))
+        with self.mock_cooking():
+            self.vault_backend.create_task(TEST_TYPE, TEST_OBJ_ID)
+        self.assertFalse(self.vault_backend.is_available(TEST_TYPE,
+                                                         TEST_OBJ_ID))
+        self.vault_backend.cache.add(TEST_TYPE, TEST_OBJ_ID, b'content')
+        self.assertFalse(self.vault_backend.is_available(TEST_TYPE,
+                                                         TEST_OBJ_ID))
+        self.vault_backend.set_status(TEST_TYPE, TEST_OBJ_ID, 'done')
+        self.assertTrue(self.vault_backend.is_available(TEST_TYPE,
+                                                        TEST_OBJ_ID))
+
+    def test_fetch(self):
+        self.assertEqual(self.vault_backend.fetch(TEST_TYPE, TEST_OBJ_ID),
+                         None)
+        with self.mock_cooking():
+            self.vault_backend.create_task(TEST_TYPE, TEST_OBJ_ID)
+        self.vault_backend.cache.add(TEST_TYPE, TEST_OBJ_ID, b'content')
+        self.vault_backend.set_status(TEST_TYPE, TEST_OBJ_ID, 'done')
+
+        info = self.vault_backend.task_info(TEST_TYPE, TEST_OBJ_ID)
+        access_ts_before = info['ts_last_access']
+
+        self.assertEqual(self.vault_backend.fetch(TEST_TYPE, TEST_OBJ_ID),
+                         b'content')
+
+        info = self.vault_backend.task_info(TEST_TYPE, TEST_OBJ_ID)
+        access_ts_after = info['ts_last_access']
+
+        self.assertTimestampAlmostNow(access_ts_after)
+        self.assertLess(access_ts_before, access_ts_after)

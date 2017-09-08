@@ -37,6 +37,18 @@ class BaseTestBackend(VaultTestFixture, StorageTestFixture, DbTestFixture):
         creation_delta_secs = (ts - now).total_seconds()
         self.assertLess(creation_delta_secs, tolerance_secs)
 
+    def hash_content(self, content):
+        obj_id = hashutil.hash_data(content)['sha1']
+        return content, obj_id
+
+    def fake_cook(self, obj_type, result_content, permanent=False):
+        content, obj_id = self.hash_content(result_content)
+        with self.mock_cooking():
+            self.vault_backend.create_task(obj_type, obj_id, permanent)
+        self.vault_backend.cache.add(obj_type, obj_id, b'content')
+        self.vault_backend.set_status(obj_type, obj_id, 'done')
+        return obj_id, content
+
 
 TEST_TYPE = 'revision_gitfast'
 TEST_HEX_ID = '4a4b9771542143cf070386f86b4b92d42966bdbc'
@@ -160,7 +172,8 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
             madd.reset_mock()
             msend.reset_mock()
 
-            self.vault_backend.cook_request(TEST_TYPE, TEST_OBJ_ID, TEST_EMAIL)
+            self.vault_backend.cook_request(TEST_TYPE, TEST_OBJ_ID,
+                                            email=TEST_EMAIL)
             madd.assert_called_once_with(TEST_TYPE, TEST_OBJ_ID, TEST_EMAIL)
             msend.assert_not_called()
 
@@ -168,7 +181,8 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
             msend.reset_mock()
 
             self.vault_backend.set_status(TEST_TYPE, TEST_OBJ_ID, 'done')
-            self.vault_backend.cook_request(TEST_TYPE, TEST_OBJ_ID, TEST_EMAIL)
+            self.vault_backend.cook_request(TEST_TYPE, TEST_OBJ_ID,
+                                            email=TEST_EMAIL)
             msend.assert_called_once_with(None, TEST_EMAIL,
                                           TEST_TYPE, TEST_OBJ_ID)
             madd.assert_not_called()
@@ -179,7 +193,8 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
                       'billg@example.com',
                       'test+42@example.org')
             for email in emails:
-                self.vault_backend.cook_request(TEST_TYPE, TEST_OBJ_ID, email)
+                self.vault_backend.cook_request(TEST_TYPE, TEST_OBJ_ID,
+                                                email=email)
 
         self.vault_backend.set_status(TEST_TYPE, TEST_OBJ_ID, 'done')
 
@@ -221,19 +236,55 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
     def test_fetch(self):
         self.assertEqual(self.vault_backend.fetch(TEST_TYPE, TEST_OBJ_ID),
                          None)
-        with self.mock_cooking():
-            self.vault_backend.create_task(TEST_TYPE, TEST_OBJ_ID)
-        self.vault_backend.cache.add(TEST_TYPE, TEST_OBJ_ID, b'content')
-        self.vault_backend.set_status(TEST_TYPE, TEST_OBJ_ID, 'done')
+        obj_id, content = self.fake_cook(TEST_TYPE, b'content')
 
-        info = self.vault_backend.task_info(TEST_TYPE, TEST_OBJ_ID)
+        info = self.vault_backend.task_info(TEST_TYPE, obj_id)
         access_ts_before = info['ts_last_access']
 
-        self.assertEqual(self.vault_backend.fetch(TEST_TYPE, TEST_OBJ_ID),
+        self.assertEqual(self.vault_backend.fetch(TEST_TYPE, obj_id),
                          b'content')
 
-        info = self.vault_backend.task_info(TEST_TYPE, TEST_OBJ_ID)
+        info = self.vault_backend.task_info(TEST_TYPE, obj_id)
         access_ts_after = info['ts_last_access']
 
         self.assertTimestampAlmostNow(access_ts_after)
         self.assertLess(access_ts_before, access_ts_after)
+
+    def test_cache_expire_count(self):
+        r = range(1, 10)
+        inserted = {}
+        for i in r:
+            permanent = (i == 5)
+            content = b'content%s' % str(i).encode()
+            obj_id, content = self.fake_cook(TEST_TYPE, content, permanent)
+            inserted[i] = (obj_id, content)
+
+        self.vault_backend.update_access_ts(TEST_TYPE, inserted[2][0])
+        self.vault_backend.update_access_ts(TEST_TYPE, inserted[3][0])
+        self.vault_backend.cache_expire_count(n=4)
+
+        should_be_still_here = {2, 3, 5, 8, 9}
+        for i in r:
+            self.assertEqual(self.vault_backend.is_available(
+                TEST_TYPE, inserted[i][0]), i in should_be_still_here)
+
+    def test_cache_expire_until(self):
+        r = range(1, 10)
+        inserted = {}
+        for i in r:
+            permanent = (i == 5)
+            content = b'content%s' % str(i).encode()
+            obj_id, content = self.fake_cook(TEST_TYPE, content, permanent)
+            inserted[i] = (obj_id, content)
+
+            if i == 7:
+                cutoff_date = datetime.datetime.now()
+
+        self.vault_backend.update_access_ts(TEST_TYPE, inserted[2][0])
+        self.vault_backend.update_access_ts(TEST_TYPE, inserted[3][0])
+        self.vault_backend.cache_expire_until(date=cutoff_date)
+
+        should_be_still_here = {2, 3, 5, 8, 9}
+        for i in r:
+            self.assertEqual(self.vault_backend.is_available(
+                TEST_TYPE, inserted[i][0]), i in should_be_still_here)

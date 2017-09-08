@@ -31,6 +31,10 @@ class VaultCache():
         storage = self._get_storage(obj_type)
         return storage.get(hashutil.hash_to_bytes(obj_id))
 
+    def delete(self, obj_type, obj_id):
+        storage = self._get_storage(obj_type)
+        return storage.delete(hashutil.hash_to_bytes(obj_id))
+
     def add_stream(self, obj_type, obj_id, content_iter):
         storage = self._get_storage(obj_type)
         return storage.add_stream(content_iter, obj_id)
@@ -55,7 +59,7 @@ class VaultCache():
             if not os.path.isdir(fp):
                 os.makedirs(fp, DIR_MODE, exist_ok=True)
 
-            self.storages[obj_type] = get_objstorage(
-                'pathslicing', {'root': fp, 'slicing': '0:1/0:5'})
+            conf = {'root': fp, 'slicing': '0:1/0:5', 'allow_delete': True}
+            self.storages[obj_type] = get_objstorage('pathslicing', conf)
 
         return self.storages[obj_type]

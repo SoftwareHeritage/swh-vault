@@ -82,6 +82,7 @@ class VaultBackend:
         self.smtp_server = smtplib.SMTP('localhost')
 
     def reconnect(self):
+        """Reconnect to the database."""
         if not self.db or self.db.closed:
             self.db = psycopg2.connect(
                 dsn=self.config['vault_db'],
@@ -89,6 +90,7 @@ class VaultBackend:
             )
 
     def close(self):
+        """Close the underlying database connection."""
         self.db.close()
 
     def cursor(self):
@@ -121,6 +123,7 @@ class VaultBackend:
 
     @autocommit
     def task_info(self, obj_type, obj_id, cursor=None):
+        """Fetch information from a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
             SELECT id, type, object_id, task_uuid, task_status, sticky,
@@ -133,11 +136,13 @@ class VaultBackend:
         return res
 
     def _send_task(task_uuid, args):
+        """Send a cooking task to the celery scheduler"""
         task = get_task(cooking_task_name)
         task.apply_async(args, task_id=task_uuid)
 
     @autocommit
     def create_task(self, obj_type, obj_id, sticky=False, cursor=None):
+        """Create and send a cooking task"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         args = [self.config, obj_type, obj_id]
         CookerCls = get_cooker(obj_type)
@@ -155,6 +160,7 @@ class VaultBackend:
 
     @autocommit
     def add_notif_email(self, obj_type, obj_id, email, cursor=None):
+        """Add an e-mail address to notify when a given bundle is ready"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
             INSERT INTO vault_notif_email (email, bundle_id)
@@ -165,6 +171,8 @@ class VaultBackend:
     @autocommit
     def cook_request(self, obj_type, obj_id, *, sticky=False,
                      email=None, cursor=None):
+        """Main entry point for cooking requests. This starts a cooking task if
+            needed, and add the given e-mail to the notify list"""
         info = self.task_info(obj_type, obj_id)
         if info is None:
             self.create_task(obj_type, obj_id, sticky)
@@ -178,6 +186,7 @@ class VaultBackend:
 
     @autocommit
     def is_available(self, obj_type, obj_id, cursor=None):
+        """Check whether a bundle is available for retrieval"""
         info = self.task_info(obj_type, obj_id, cursor=cursor)
         return (info is not None
                 and info['task_status'] == 'done'
@@ -185,6 +194,7 @@ class VaultBackend:
 
     @autocommit
     def fetch(self, obj_type, obj_id, cursor=None):
+        """Retrieve a bundle from the cache"""
         if not self.is_available(obj_type, obj_id, cursor=cursor):
             return None
         self.update_access_ts(obj_type, obj_id, cursor=cursor)
@@ -192,6 +202,7 @@ class VaultBackend:
 
     @autocommit
     def update_access_ts(self, obj_type, obj_id, cursor=None):
+        """Update the last access timestamp of a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
             UPDATE vault_bundle
@@ -201,6 +212,7 @@ class VaultBackend:
 
     @autocommit
     def set_status(self, obj_type, obj_id, status, cursor=None):
+        """Set the cooking status of a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         req = ('''
                UPDATE vault_bundle
@@ -211,6 +223,7 @@ class VaultBackend:
 
     @autocommit
     def set_progress(self, obj_type, obj_id, progress, cursor=None):
+        """Set the cooking progress of a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
             UPDATE vault_bundle
@@ -220,6 +233,7 @@ class VaultBackend:
 
     @autocommit
     def send_all_notifications(self, obj_type, obj_id, cursor=None):
+        """Send all the e-mails in the notification list of a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
             SELECT vault_notif_email.id AS id, email
@@ -232,6 +246,7 @@ class VaultBackend:
 
     @autocommit
     def send_notification(self, n_id, email, obj_type, obj_id, cursor=None):
+        """Send the notification of a bundle to a specific e-mail"""
         hex_id = hashutil.hash_to_hex(obj_id)
         short_id = hex_id[:7]
 
@@ -279,12 +294,14 @@ class VaultBackend:
 
     @autocommit
     def cache_expire_oldest(self, n=1, by='last_access', cursor=None):
+        """Expire the `n` oldest bundles"""
         assert by in ('created', 'done', 'last_access')
         filter = '''ORDER BY ts_{} LIMIT {}'''.format(by, n)
         return self._cache_expire(filter)
 
     @autocommit
     def cache_expire_until(self, date, by='last_access', cursor=None):
+        """Expire all the bundles until a certain date"""
         assert by in ('created', 'done', 'last_access')
         filter = '''AND ts_{} <= %s'''.format(by)
         return self._cache_expire(filter, date)

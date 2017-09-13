@@ -25,7 +25,7 @@ create table vault_bundle (
   task_uuid uuid not null,  -- celery UUID of the cooking task
   task_status cook_status not null default 'new',  -- status of the task
 
-  permanent boolean not null default false, -- bundles never deleted
+  sticky boolean not null default false, -- bundle cannot expire
 
   ts_created timestamptz not null default now(),  -- timestamp of creation
   ts_done timestamptz,  -- timestamp of the cooking result

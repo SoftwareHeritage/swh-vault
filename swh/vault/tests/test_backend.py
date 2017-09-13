@@ -41,10 +41,10 @@ class BaseTestBackend(VaultTestFixture, StorageTestFixture, DbTestFixture):
         obj_id = hashutil.hash_data(content)['sha1']
         return content, obj_id
 
-    def fake_cook(self, obj_type, result_content, permanent=False):
+    def fake_cook(self, obj_type, result_content, sticky=False):
         content, obj_id = self.hash_content(result_content)
         with self.mock_cooking():
-            self.vault_backend.create_task(obj_type, obj_id, permanent)
+            self.vault_backend.create_task(obj_type, obj_id, sticky)
         self.vault_backend.cache.add(obj_type, obj_id, b'content')
         self.vault_backend.set_status(obj_type, obj_id, 'done')
         return obj_id, content
@@ -250,18 +250,18 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
         self.assertTimestampAlmostNow(access_ts_after)
         self.assertLess(access_ts_before, access_ts_after)
 
-    def test_cache_expire_count(self):
+    def test_cache_expire_oldest(self):
         r = range(1, 10)
         inserted = {}
         for i in r:
-            permanent = (i == 5)
+            sticky = (i == 5)
             content = b'content%s' % str(i).encode()
-            obj_id, content = self.fake_cook(TEST_TYPE, content, permanent)
+            obj_id, content = self.fake_cook(TEST_TYPE, content, sticky)
             inserted[i] = (obj_id, content)
 
         self.vault_backend.update_access_ts(TEST_TYPE, inserted[2][0])
         self.vault_backend.update_access_ts(TEST_TYPE, inserted[3][0])
-        self.vault_backend.cache_expire_count(n=4)
+        self.vault_backend.cache_expire_oldest(n=4)
 
         should_be_still_here = {2, 3, 5, 8, 9}
         for i in r:
@@ -272,9 +272,9 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
         r = range(1, 10)
         inserted = {}
         for i in r:
-            permanent = (i == 5)
+            sticky = (i == 5)
             content = b'content%s' % str(i).encode()
-            obj_id, content = self.fake_cook(TEST_TYPE, content, permanent)
+            obj_id, content = self.fake_cook(TEST_TYPE, content, sticky)
             inserted[i] = (obj_id, content)
 
             if i == 7:

@@ -123,7 +123,7 @@ class VaultBackend:
     def task_info(self, obj_type, obj_id, cursor=None):
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
-            SELECT id, type, object_id, task_uuid, task_status, permanent,
+            SELECT id, type, object_id, task_uuid, task_status, sticky,
                    ts_created, ts_done, ts_last_access, progress_msg
             FROM vault_bundle
             WHERE type = %s AND object_id = %s''', (obj_type, obj_id))
@@ -137,7 +137,7 @@ class VaultBackend:
         task.apply_async(args, task_id=task_uuid)
 
     @autocommit
-    def create_task(self, obj_type, obj_id, permanent=False, cursor=None):
+    def create_task(self, obj_type, obj_id, sticky=False, cursor=None):
         obj_id = hashutil.hash_to_bytes(obj_id)
         args = [self.config, obj_type, obj_id]
         CookerCls = get_cooker(obj_type)
@@ -146,9 +146,9 @@ class VaultBackend:
 
         task_uuid = celery.uuid()
         cursor.execute('''
-            INSERT INTO vault_bundle (type, object_id, task_uuid, permanent)
+            INSERT INTO vault_bundle (type, object_id, task_uuid, sticky)
             VALUES (%s, %s, %s, %s)''',
-                       (obj_type, obj_id, task_uuid, permanent))
+                       (obj_type, obj_id, task_uuid, sticky))
         self.commit()
 
         self._send_task(task_uuid, args)
@@ -163,11 +163,11 @@ class VaultBackend:
                        (email, obj_type, obj_id))
 
     @autocommit
-    def cook_request(self, obj_type, obj_id, *, permanent=False,
+    def cook_request(self, obj_type, obj_id, *, sticky=False,
                      email=None, cursor=None):
         info = self.task_info(obj_type, obj_id)
         if info is None:
-            self.create_task(obj_type, obj_id, permanent)
+            self.create_task(obj_type, obj_id, sticky)
         if email is not None:
             if info is not None and info['task_status'] == 'done':
                 self.send_notification(None, email, obj_type, obj_id)
@@ -261,13 +261,14 @@ class VaultBackend:
 
     @autocommit
     def _cache_expire(self, cond, *args, cursor=None):
+        """Low-level expiration method, used by cache_expire_* methods"""
         # Embedded SELECT query to be able to use ORDER BY and LIMIT
         cursor.execute('''
             DELETE FROM vault_bundle
             WHERE ctid IN (
                 SELECT ctid
                 FROM vault_bundle
-                WHERE permanent = false
+                WHERE sticky = false
                 {}
             )
             RETURNING type, object_id
@@ -277,7 +278,7 @@ class VaultBackend:
             self.cache.delete(d['type'], bytes(d['object_id']))
 
     @autocommit
-    def cache_expire_count(self, n=1, by='last_access', cursor=None):
+    def cache_expire_oldest(self, n=1, by='last_access', cursor=None):
         assert by in ('created', 'done', 'last_access')
         filter = '''ORDER BY ts_{} LIMIT {}'''.format(by, n)
         return self._cache_expire(filter)

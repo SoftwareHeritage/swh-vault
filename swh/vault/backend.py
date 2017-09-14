@@ -76,7 +76,7 @@ class VaultBackend:
     """
     def __init__(self, config):
         self.config = config
-        self.cache = VaultCache(**self.config['cache'])
+        self.cache = VaultCache(self.config['cache'])
         self.db = None
         self.reconnect()
         self.smtp_server = smtplib.SMTP('localhost')

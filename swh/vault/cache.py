@@ -3,63 +3,45 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import os
-
 from swh.model import hashutil
 from swh.objstorage import get_objstorage
-from swh.objstorage.objstorage_pathslicing import DIR_MODE
+from swh.objstorage.objstorage import compute_hash
 
 
-class VaultCache():
-    """The vault cache is an object storage that stores bundles
+class VaultCache:
+    """The Vault cache is an object storage that stores Vault bundles.
 
-    The current implementation uses a PathSlicingObjStorage to store
-    the bundles. The id of a content if prefixed to specify its type
-    and store different types of bundle in different folders.
-
+    This implementation computes sha1('<bundle_type>:<object_id>') as the
+    internal identifiers used in the underlying objstorage.
     """
 
-    def __init__(self, root):
-        self.root = root
-        self.storages = {}
+    def __init__(self, objstorage):
+        self.objstorage = get_objstorage(**objstorage)
 
     def add(self, obj_type, obj_id, content):
-        storage = self._get_storage(obj_type)
-        return storage.add(content, obj_id)
+        sid = self._get_internal_id(obj_type, obj_id)
+        return self.objstorage.add(content, sid)
 
     def get(self, obj_type, obj_id):
-        storage = self._get_storage(obj_type)
-        return storage.get(hashutil.hash_to_bytes(obj_id))
+        sid = self._get_internal_id(obj_type, obj_id)
+        return self.objstorage.get(hashutil.hash_to_bytes(sid))
 
     def delete(self, obj_type, obj_id):
-        storage = self._get_storage(obj_type)
-        return storage.delete(hashutil.hash_to_bytes(obj_id))
+        sid = self._get_internal_id(obj_type, obj_id)
+        return self.objstorage.delete(hashutil.hash_to_bytes(sid))
 
     def add_stream(self, obj_type, obj_id, content_iter):
-        storage = self._get_storage(obj_type)
-        return storage.add_stream(content_iter, obj_id)
+        sid = self._get_internal_id(obj_type, obj_id)
+        return self.objstorage.add_stream(content_iter, sid)
 
     def get_stream(self, obj_type, obj_id):
-        storage = self._get_storage(obj_type)
-        return storage.get_stream(hashutil.hash_to_bytes(obj_id))
+        sid = self._get_internal_id(obj_type, obj_id)
+        return self.objstorage.get_stream(hashutil.hash_to_bytes(sid))
 
     def is_cached(self, obj_type, obj_id):
-        storage = self._get_storage(obj_type)
-        return hashutil.hash_to_bytes(obj_id) in storage
+        sid = self._get_internal_id(obj_type, obj_id)
+        return hashutil.hash_to_bytes(sid) in self.objstorage
 
-    def ls(self, obj_type):
-        storage = self._get_storage(obj_type)
-        yield from storage
-
-    def _get_storage(self, obj_type):
-        """Get the storage that corresponds to the object type"""
-
-        if obj_type not in self.storages:
-            fp = os.path.join(self.root, obj_type)
-            if not os.path.isdir(fp):
-                os.makedirs(fp, DIR_MODE, exist_ok=True)
-
-            conf = {'root': fp, 'slicing': '0:1/0:5', 'allow_delete': True}
-            self.storages[obj_type] = get_objstorage('pathslicing', conf)
-
-        return self.storages[obj_type]
+    def _get_internal_id(self, obj_type, obj_id):
+        obj_id = hashutil.hash_to_hex(obj_id)
+        return compute_hash('{}:{}'.format(obj_type, obj_id).encode())

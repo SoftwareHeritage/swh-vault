@@ -40,7 +40,14 @@ class VaultTestFixture:
         self.vault_config = {
             'storage': self.storage_config,
             'vault_db': 'postgresql:///' + self.TEST_VAULT_DB_NAME,
-            'cache': {'root': self.cache_root.name}
+            'cache': {
+                'cls': 'pathslicing',
+                'args': {
+                    'root': self.cache_root.name,
+                    'slicing': '0:1/1:5',
+                    'allow_delete': True,
+                }
+            }
         }
         self.vault_backend = VaultBackend(self.vault_config)
 

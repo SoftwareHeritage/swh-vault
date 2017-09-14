@@ -26,7 +26,13 @@ DEFAULT_CONFIG = {
             },
         },
     }),
-    'cache': ('dict', {'root': '/tmp/vaultcache'}),
+    'cache': ('dict', {
+        'cls': 'pathslicing',
+        'args': {
+            'root': '/tmp/vaultcache',
+            'slicing': '0:1/1:5',
+        },
+    }),
     'vault_db': ('str', 'dbname=swh-vault')
 }
 

@@ -85,7 +85,7 @@ class VaultBackend:
         """Reconnect to the database."""
         if not self.db or self.db.closed:
             self.db = psycopg2.connect(
-                dsn=self.config['vault_db'],
+                dsn=self.config['db'],
                 cursor_factory=psycopg2.extras.RealDictCursor,
             )
 

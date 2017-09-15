@@ -39,7 +39,7 @@ class VaultTestFixture:
         self.cache_root = tempfile.TemporaryDirectory('vault-cache-')
         self.vault_config = {
             'storage': self.storage_config,
-            'vault_db': 'postgresql:///' + self.TEST_VAULT_DB_NAME,
+            'db': 'postgresql:///' + self.TEST_VAULT_DB_NAME,
             'cache': {
                 'cls': 'pathslicing',
                 'args': {

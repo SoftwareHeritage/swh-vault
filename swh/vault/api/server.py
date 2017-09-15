@@ -21,7 +21,7 @@ DEFAULT_CONFIG = {
         'args': {
             'db': 'dbname=softwareheritage-dev',
             'objstorage': {
-                'root': '/tmp/objects',
+                'root': '/srv/softwareheritage/objects',
                 'slicing': '0:2/2:4/4:6',
             },
         },
@@ -29,11 +29,11 @@ DEFAULT_CONFIG = {
     'cache': ('dict', {
         'cls': 'pathslicing',
         'args': {
-            'root': '/tmp/vaultcache',
+            'root': '/srv/softwareheritage/vault',
             'slicing': '0:1/1:5',
         },
     }),
-    'vault_db': ('str', 'dbname=swh-vault')
+    'db': ('str', 'dbname=swh-vault')
 }
 
 

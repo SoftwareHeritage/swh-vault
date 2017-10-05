@@ -32,7 +32,7 @@ class BaseTestBackend(VaultTestFixture, StorageTestFixture, DbTestFixture):
                        'cooker_cls': mcc,
                        'cooker': mc}
 
-    def assertTimestampAlmostNow(self, ts, tolerance_secs=1.0):
+    def assertTimestampAlmostNow(self, ts, tolerance_secs=1.0):  # noqa
         now = datetime.datetime.now(datetime.timezone.utc)
         creation_delta_secs = (ts - now).total_seconds()
         self.assertLess(creation_delta_secs, tolerance_secs)

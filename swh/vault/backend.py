@@ -135,6 +135,7 @@ class VaultBackend:
             res['object_id'] = bytes(res['object_id'])
         return res
 
+    @staticmethod
     def _send_task(task_uuid, args):
         """Send a cooking task to the celery scheduler"""
         task = get_task(cooking_task_name)
@@ -145,8 +146,8 @@ class VaultBackend:
         """Create and send a cooking task"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         args = [self.config, obj_type, obj_id]
-        CookerCls = get_cooker(obj_type)
-        cooker = CookerCls(*args)
+        cooker_class = get_cooker(obj_type)
+        cooker = cooker_class(*args)
         cooker.check_exists()
 
         task_uuid = celery.uuid()

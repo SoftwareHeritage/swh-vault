@@ -23,7 +23,7 @@ import dulwich.repo
 from swh.core.tests.db_testing import DbTestFixture
 from swh.loader.git.loader import GitLoader
 from swh.model import hashutil
-from swh.model.git import compute_hashes_from_directory
+from swh.model.from_disk import Directory
 from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.vault.cookers import DirectoryCooker, RevisionGitfastCooker
 from swh.vault.tests.vault_testing import VaultTestFixture
@@ -145,10 +145,8 @@ class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):
             self.assertEqual((p / 'dir1/dir2/file').stat().st_mode, 0o100644)
             self.assertEqual((p / 'dir1/dir2/file').read_text(), TEST_CONTENT)
 
-            dir_pb = bytes(p)
-            dir_hashes = compute_hashes_from_directory(dir_pb)[dir_pb]
-            dir_hash = dir_hashes['checksums']['sha1_git']
-            self.assertEqual(obj_id_hex, hashutil.hash_to_hex(dir_hash))
+            directory = Directory.from_disk(path=bytes(p))
+            self.assertEqual(obj_id_hex, hashutil.hash_to_hex(directory.hash))
 
 
 class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):

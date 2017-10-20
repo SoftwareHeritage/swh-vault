@@ -5,6 +5,8 @@
 
 import tempfile
 import pathlib
+
+from swh.model import hashutil
 from swh.vault.backend import VaultBackend
 
 
@@ -61,3 +63,8 @@ class VaultTestFixture:
     def reset_vault_tables(self):
         excluded = {'dbversion'}
         self.reset_db_tables(self.TEST_VAULT_DB_NAME, excluded=excluded)
+
+
+def hash_content(content):
+    obj_id = hashutil.hash_data(content)['sha1']
+    return content, obj_id

@@ -10,7 +10,7 @@ import os
 import time
 import zlib
 
-from .base import BaseVaultCooker
+from .base import BaseVaultCooker, get_filtered_file_content
 from swh.model import hashutil
 
 
@@ -103,7 +103,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
         obj_id = file_data['sha1']
         if obj_id in self.obj_done:
             return
-        content = list(self.storage.content_get([obj_id]))[0]['data']
+        content = get_filtered_file_content(self.storage, file_data)
         yield fastimport.commands.BlobCommand(
             mark=self.mark(obj_id),
             data=content,

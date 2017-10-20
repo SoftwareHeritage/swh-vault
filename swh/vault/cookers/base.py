@@ -17,23 +17,6 @@ from swh.model import hashutil
 from swh.storage import get_storage
 
 
-def get_tar_bytes(path, arcname=None):
-    path = Path(path)
-    if not arcname:
-        arcname = path.name
-    tar_buffer = io.BytesIO()
-    tar = tarfile.open(fileobj=tar_buffer, mode='w')
-    tar.add(str(path), arcname=arcname)
-    return tar_buffer.getbuffer()
-
-
-SKIPPED_MESSAGE = (b'This content have not been retrieved in '
-                   b'Software Heritage archive due to its size')
-
-
-HIDDEN_MESSAGE = (b'This content is hidden')
-
-
 class BaseVaultCooker(metaclass=abc.ABCMeta):
     """Abstract base class for the vault's bundle creators
 
@@ -111,6 +94,47 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         self.backend.send_all_notifications(self.obj_type, self.obj_id)
 
 
+SKIPPED_MESSAGE = (b'This content has not been retrieved in the '
+                   b'Software Heritage archive due to its size.')
+
+HIDDEN_MESSAGE = (b'This content is hidden.')
+
+
+def get_filtered_file_content(storage, file_data):
+    """Retrieve the file specified by file_data and apply filters for skipped
+    and missing contents.
+
+    Args:
+        storage: the storage from which to retrieve the object
+        file_data: file entry descriptor as returned by directory_ls()
+
+    Returns:
+        Bytes containing the specified content. The content will be replaced by
+        a specific message to indicate that the content could not be retrieved
+        (either due to privacy policy or because its size was too big for us to
+        archive it).
+    """
+
+    assert file_data['type'] == 'file'
+
+    if file_data['status'] == 'absent':
+        return SKIPPED_MESSAGE
+    elif file_data['status'] == 'hidden':
+        return HIDDEN_MESSAGE
+    else:
+        return list(storage.content_get([file_data['sha1']]))[0]['data']
+
+
+def get_tar_bytes(path, arcname=None):
+    path = Path(path)
+    if not arcname:
+        arcname = path.name
+    tar_buffer = io.BytesIO()
+    tar = tarfile.open(fileobj=tar_buffer, mode='w')
+    tar.add(str(path), arcname=arcname)
+    return tar_buffer.getbuffer()
+
+
 class DirectoryBuilder:
     """Creates a cooked directory from its sha1_git in the db.
 
@@ -170,15 +194,8 @@ class DirectoryBuilder:
         # Then create the files
         for file_data in file_datas:
             path = os.path.join(root, file_data['name'])
-            status = file_data['status']
-            perms = file_data['perms']
-            if status == 'absent':
-                self._create_file_absent(path)
-            elif status == 'hidden':
-                self._create_file_hidden(path)
-            else:
-                content = self._get_file_content(file_data['sha1'])
-                self._create_file(path, content, perms)
+            content = get_filtered_file_content(self.storage, file_data)
+            self._create_file(path, content, file_data['perms'])
 
     def _create_file(self, path, content, perms=0o100644):
         """Create the given file and fill it with content.
@@ -202,26 +219,6 @@ class DirectoryBuilder:
         """
         content = list(self.storage.content_get([obj_id]))[0]['data']
         return content
-
-    def _create_file_absent(self, path):
-        """Create a file that indicates a skipped content
-
-        Create the given file but fill it with a specific content to
-        indicate that the content have not been retrieved by the
-        software heritage archive due to its size.
-
-        """
-        self._create_file(self, SKIPPED_MESSAGE)
-
-    def _create_file_hidden(self, path):
-        """Create a file that indicates an hidden content
-
-        Create the given file but fill it with a specific content to
-        indicate that the content could not be retrieved due to
-        privacy policy.
-
-        """
-        self._create_file(self, HIDDEN_MESSAGE)
 
     def _create_bundle_content(self, path, hex_dir_id):
         """Create a bundle from the given directory

@@ -13,7 +13,7 @@ from unittest.mock import patch
 from swh.core.tests.db_testing import DbTestFixture
 from swh.model import hashutil
 from swh.storage.tests.storage_testing import StorageTestFixture
-from swh.vault.tests.vault_testing import VaultTestFixture
+from swh.vault.tests.vault_testing import VaultTestFixture, hash_content
 
 
 class BaseTestBackend(VaultTestFixture, StorageTestFixture, DbTestFixture):
@@ -37,12 +37,8 @@ class BaseTestBackend(VaultTestFixture, StorageTestFixture, DbTestFixture):
         creation_delta_secs = (ts - now).total_seconds()
         self.assertLess(creation_delta_secs, tolerance_secs)
 
-    def hash_content(self, content):
-        obj_id = hashutil.hash_data(content)['sha1']
-        return content, obj_id
-
     def fake_cook(self, obj_type, result_content, sticky=False):
-        content, obj_id = self.hash_content(result_content)
+        content, obj_id = hash_content(result_content)
         with self.mock_cooking():
             self.vault_backend.create_task(obj_type, obj_id, sticky)
         self.vault_backend.cache.add(obj_type, obj_id, b'content')

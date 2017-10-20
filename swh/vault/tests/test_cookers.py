@@ -26,7 +26,8 @@ from swh.model import hashutil
 from swh.model.from_disk import Directory
 from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.vault.cookers import DirectoryCooker, RevisionGitfastCooker
-from swh.vault.tests.vault_testing import VaultTestFixture
+from swh.vault.cookers.base import SKIPPED_MESSAGE, HIDDEN_MESSAGE
+from swh.vault.tests.vault_testing import VaultTestFixture, hash_content
 
 
 class TestRepo:
@@ -147,6 +148,39 @@ class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):
 
             directory = Directory.from_disk(path=bytes(p))
             self.assertEqual(obj_id_hex, hashutil.hash_to_hex(directory.hash))
+
+    def test_filtered_objects(self):
+        repo = TestRepo()
+        with repo as rp:
+            file_1, id_1 = hash_content(b'test1')
+            file_2, id_2 = hash_content(b'test2')
+            file_3, id_3 = hash_content(b'test3')
+
+            (rp / 'file').write_bytes(file_1)
+            (rp / 'hidden_file').write_bytes(file_2)
+            (rp / 'absent_file').write_bytes(file_3)
+
+            c = repo.commit()
+            self.load(str(rp))
+
+            obj_id_hex = repo.repo[c].tree.decode()
+            obj_id = hashutil.hash_to_bytes(obj_id_hex)
+
+        # FIXME: storage.content_update() should be changed to allow things
+        # like that
+        cur = self.storage.db._cursor(None)
+        cur.execute("""update content set status = 'visible'
+                       where sha1 = %s""", (id_1,))
+        cur.execute("""update content set status = 'hidden'
+                       where sha1 = %s""", (id_2,))
+        cur.execute("""update content set status = 'absent'
+                       where sha1 = %s""", (id_3,))
+        cur.close()
+
+        with self.cook_extract_directory(obj_id) as p:
+            self.assertEqual((p / 'file').read_bytes(), b'test1')
+            self.assertEqual((p / 'hidden_file').read_bytes(), HIDDEN_MESSAGE)
+            self.assertEqual((p / 'absent_file').read_bytes(), SKIPPED_MESSAGE)
 
 
 class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
@@ -270,3 +304,36 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
 
         with self.cook_extract_revision_gitfast(obj_id) as (ert, p):
             self.assertEqual(ert.repo.refs[b'HEAD'].decode(), obj_id_hex)
+
+    def test_filtered_objects(self):
+        repo = TestRepo()
+        with repo as rp:
+            file_1, id_1 = hash_content(b'test1')
+            file_2, id_2 = hash_content(b'test2')
+            file_3, id_3 = hash_content(b'test3')
+
+            (rp / 'file').write_bytes(file_1)
+            (rp / 'hidden_file').write_bytes(file_2)
+            (rp / 'absent_file').write_bytes(file_3)
+
+            repo.commit()
+            obj_id_hex = repo.repo.refs[b'HEAD'].decode()
+            obj_id = hashutil.hash_to_bytes(obj_id_hex)
+            self.load(str(rp))
+
+        # FIXME: storage.content_update() should be changed to allow things
+        # like that
+        cur = self.storage.db._cursor(None)
+        cur.execute("""update content set status = 'visible'
+                       where sha1 = %s""", (id_1,))
+        cur.execute("""update content set status = 'hidden'
+                       where sha1 = %s""", (id_2,))
+        cur.execute("""update content set status = 'absent'
+                       where sha1 = %s""", (id_3,))
+        cur.close()
+
+        with self.cook_extract_revision_gitfast(obj_id) as (ert, p):
+            ert.checkout(b'HEAD')
+            self.assertEqual((p / 'file').read_bytes(), b'test1')
+            self.assertEqual((p / 'hidden_file').read_bytes(), HIDDEN_MESSAGE)
+            self.assertEqual((p / 'absent_file').read_bytes(), SKIPPED_MESSAGE)

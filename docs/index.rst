@@ -1,3 +1,5 @@
+.. _swh-vault:
+
 Software Heritage - Development Documentation
 =============================================
 

@@ -145,7 +145,7 @@ class VaultBackend:
     def create_task(self, obj_type, obj_id, sticky=False, cursor=None):
         """Create and send a cooking task"""
         obj_id = hashutil.hash_to_bytes(obj_id)
-        args = [self.config, obj_type, obj_id]
+        args = [obj_type, obj_id]
         cooker_class = get_cooker(obj_type)
         cooker = cooker_class(*args)
         cooker.check_exists()

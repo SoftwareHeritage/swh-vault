@@ -9,7 +9,8 @@ import click
 
 from swh.core import config
 from swh.core.api_async import (SWHRemoteAPI,
-                                encode_data_server as encode_data)
+                                encode_data_server as encode_data,
+                                decode_request)
 from swh.model import hashutil
 from swh.vault.cookers import COOKER_TYPES
 from swh.vault.backend import VaultBackend
@@ -21,8 +22,11 @@ DEFAULT_CONFIG = {
         'args': {
             'db': 'dbname=softwareheritage-dev',
             'objstorage': {
-                'root': '/srv/softwareheritage/objects',
-                'slicing': '0:2/2:4/4:6',
+                'cls': 'pathslicing',
+                'args': {
+                    'root': '/srv/softwareheritage/objects',
+                    'slicing': '0:2/2:4/4:6',
+                },
             },
         },
     }),
@@ -41,6 +45,8 @@ DEFAULT_CONFIG = {
 def index(request):
     return aiohttp.web.Response(body="SWH Vault API server")
 
+
+# Web API endpoints
 
 @asyncio.coroutine
 def vault_fetch(request):
@@ -66,13 +72,16 @@ def vault_cook(request):
     obj_type = request.match_info['type']
     obj_id = request.match_info['id']
     email = request.query.get('email')
+    sticky = request.query.get('sticky') in ('true', '1')
 
     if obj_type not in COOKER_TYPES:
         raise aiohttp.web.HTTPNotFound
 
-    info = request.app['backend'].cook_request(obj_type, obj_id, email)
+    info = request.app['backend'].cook_request(obj_type, obj_id,
+                                               email=email, sticky=sticky)
 
-    return encode_data(user_info(info), status=201)
+    # TODO: return 201 status (Created) once the api supports it
+    return encode_data(user_info(info))
 
 
 @asyncio.coroutine
@@ -87,12 +96,62 @@ def vault_progress(request):
     return encode_data(user_info(info))
 
 
+# Cookers endpoints
+
+@asyncio.coroutine
+def set_progress(request):
+    obj_type = request.match_info['type']
+    obj_id = request.match_info['id']
+    progress = yield from decode_request(request)
+    request.app['backend'].set_progress(obj_type, obj_id, progress)
+    return encode_data(True)  # FIXME: success value?
+
+
+@asyncio.coroutine
+def set_status(request):
+    obj_type = request.match_info['type']
+    obj_id = request.match_info['id']
+    status = yield from decode_request(request)
+    request.app['backend'].set_status(obj_type, obj_id, status)
+    return encode_data(True)  # FIXME: success value?
+
+
+@asyncio.coroutine
+def put_bundle(request):
+    obj_type = request.match_info['type']
+    obj_id = request.match_info['id']
+
+    # TODO: handle streaming properly
+    content = yield from decode_request(request)
+    request.app['backend'].cache.add(obj_type, obj_id, content)
+    return encode_data(True)  # FIXME: success value?
+
+
+@asyncio.coroutine
+def send_notif(request):
+    obj_type = request.match_info['type']
+    obj_id = request.match_info['id']
+    request.app['backend'].send_all_notifications(obj_type, obj_id)
+    return encode_data(True)  # FIXME: success value?
+
+
+# Web server
+
 def make_app(config, **kwargs):
     app = SWHRemoteAPI(**kwargs)
     app.router.add_route('GET', '/', index)
+
+    # Endpoints used by the web API
     app.router.add_route('GET', '/fetch/{type}/{id}', vault_fetch)
     app.router.add_route('POST', '/cook/{type}/{id}', vault_cook)
     app.router.add_route('GET', '/progress/{type}/{id}', vault_progress)
+
+    # Endpoints used by the Cookers
+    app.router.add_route('POST', '/set_progress/{type}/{id}', set_progress)
+    app.router.add_route('POST', '/set_status/{type}/{id}', set_status)
+    app.router.add_route('POST', '/put_bundle/{type}/{id}', put_bundle)
+    app.router.add_route('POST', '/send_notif/{type}/{id}', send_notif)
+
     app['backend'] = VaultBackend(config)
     return app
 

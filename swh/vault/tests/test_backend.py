@@ -62,17 +62,15 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
         m['get_cooker'].assert_called_once_with(TEST_TYPE)
 
         args = m['cooker_cls'].call_args[0]
-        self.assertEqual(args[0], self.vault_backend.config)
-        self.assertEqual(args[1], TEST_TYPE)
-        self.assertEqual(args[2], TEST_OBJ_ID)
+        self.assertEqual(args[0], TEST_TYPE)
+        self.assertEqual(args[1], TEST_OBJ_ID)
 
         self.assertEqual(m['cooker'].check_exists.call_count, 1)
 
         self.assertEqual(m['send_task'].call_count, 1)
         args = m['send_task'].call_args[0][1]
-        self.assertEqual(args[0], self.vault_backend.config)
-        self.assertEqual(args[1], TEST_TYPE)
-        self.assertEqual(args[2], TEST_OBJ_ID)
+        self.assertEqual(args[0], TEST_TYPE)
+        self.assertEqual(args[1], TEST_OBJ_ID)
 
         info = self.vault_backend.task_info(TEST_TYPE, TEST_OBJ_ID)
         self.assertEqual(info['object_id'], TEST_OBJ_ID)

@@ -6,15 +6,28 @@
 import abc
 import io
 import itertools
-import logging
 import os
 import tarfile
 import tempfile
 
 from pathlib import Path
 
+from swh.core import config
 from swh.model import hashutil
+from swh.model.from_disk import mode_to_perms, DentryPerms
 from swh.storage import get_storage
+from swh.vault.api.client import RemoteVaultClient
+
+
+DEFAULT_CONFIG = {
+    'storage': ('dict', {
+        'cls': 'remote',
+        'args': {
+            'url': 'http://localhost:5002/',
+        },
+    }),
+    'vault_url': ('str', 'http://localhost:5005/')
+}
 
 
 class BaseVaultCooker(metaclass=abc.ABCMeta):
@@ -28,7 +41,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     """
     CACHE_TYPE_KEY = None
 
-    def __init__(self, config, obj_type, obj_id):
+    def __init__(self, obj_type, obj_id):
         """Initialize the cooker.
 
         The type of the object represented by the id depends on the
@@ -40,19 +53,11 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
             cache: the cache where to store the bundle
             obj_id: id of the object to be cooked into a bundle.
         """
-        self.config = config
+        self.config = config.load_named_config('vault-cooker', DEFAULT_CONFIG)
         self.obj_type = obj_type
         self.obj_id = hashutil.hash_to_bytes(obj_id)
-
-    def __enter__(self):
-        # Imported here to avoid circular dependency
-        from swh.vault.backend import VaultBackend
-        self.backend = VaultBackend(self.config)
+        self.backend = RemoteVaultClient(self.config['vault_url'])
         self.storage = get_storage(**self.config['storage'])
-        return self
-
-    def __exit__(self, *_):
-        self.backend.close()
 
     @abc.abstractmethod
     def check_exists(self):
@@ -77,21 +82,13 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         self.backend.set_progress(self.obj_type, self.obj_id, 'Processing...')
         content_iter = self.prepare_bundle()
 
-        self.update_cache(content_iter)
+        # TODO: use proper content streaming
+        bundle = b''.join(content_iter)
+        self.backend.put_bundle(self.CACHE_TYPE_KEY, self.obj_id, bundle)
+
         self.backend.set_status(self.obj_type, self.obj_id, 'done')
         self.backend.set_progress(self.obj_type, self.obj_id, None)
-
-        self.notify_bundle_ready()
-
-    def update_cache(self, content_iter):
-        """Update the cache with id and bundle_content.
-
-        """
-        self.backend.cache.add_stream(self.CACHE_TYPE_KEY,
-                                      self.obj_id, content_iter)
-
-    def notify_bundle_ready(self):
-        self.backend.send_all_notifications(self.obj_type, self.obj_id)
+        self.backend.send_notif(self.obj_type, self.obj_id)
 
 
 SKIPPED_MESSAGE = (b'This content has not been retrieved in the '

@@ -43,21 +43,18 @@ class RevisionGitfastCooker(BaseVaultCooker):
 
         last_progress_report = None
 
-        # We want a single transaction for the whole export, so we store a
-        # cursor and use it during the process.
-        with self.storage.db.transaction() as self.cursor:
-            for i, rev in enumerate(self.rev_sorted, 1):
-                # Update progress if needed
-                ct = time.time()
-                if (last_progress_report is None
-                        or last_progress_report + 2 <= ct):
-                    last_progress_report = ct
-                    pg = ('Computing revision {}/{}'
-                          .format(i, len(self.rev_sorted)))
-                    self.backend.set_progress(self.obj_type, self.obj_id, pg)
+        for i, rev in enumerate(self.rev_sorted, 1):
+            # Update progress if needed
+            ct = time.time()
+            if (last_progress_report is None
+                    or last_progress_report + 2 <= ct):
+                last_progress_report = ct
+                pg = ('Computing revision {}/{}'
+                      .format(i, len(self.rev_sorted)))
+                self.backend.set_progress(self.obj_type, self.obj_id, pg)
 
-                # Compute the current commit
-                yield from self._compute_commit_command(rev)
+            # Compute the current commit
+            yield from self._compute_commit_command(rev)
 
     def _toposort(self, rev_by_id):
         """Perform a topological sort on the revision graph.
@@ -156,7 +153,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
         This function has a cache to avoid doing multiple requests to retrieve
         the same entities, as doing a directory_ls() is expensive.
         """
-        data = (self.storage.directory_ls(dir_id, cur=self.cursor)
+        data = (self.storage.directory_ls(dir_id)
                 if dir_id is not None else [])
         return {f['name']: f for f in data}
 

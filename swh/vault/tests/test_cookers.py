@@ -13,6 +13,7 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+import unittest.mock
 
 import dulwich.fastexport
 import dulwich.index
@@ -87,10 +88,11 @@ class BaseTestCookers(VaultTestFixture, StorageTestFixture, DbTestFixture):
     @contextlib.contextmanager
     def cook_extract_directory(self, obj_id):
         """Context manager that cooks a directory and extract it."""
-        cooker = DirectoryCooker(self.vault_config, 'directory', obj_id)
-        with cooker:
-            cooker.check_exists()  # Raises if false
-            tarball = b''.join(cooker.prepare_bundle())
+        cooker = DirectoryCooker('directory', obj_id)
+        cooker.storage = self.storage
+        cooker.backend = unittest.mock.MagicMock()
+        cooker.check_exists()  # Raises if false
+        tarball = b''.join(cooker.prepare_bundle())
         with tempfile.TemporaryDirectory('tmp-vault-extract-') as td:
             fobj = io.BytesIO(tarball)
             with tarfile.open(fileobj=fobj, mode='r') as tar:
@@ -101,11 +103,11 @@ class BaseTestCookers(VaultTestFixture, StorageTestFixture, DbTestFixture):
     @contextlib.contextmanager
     def cook_extract_revision_gitfast(self, obj_id):
         """Context manager that cooks a revision and extract it."""
-        cooker = RevisionGitfastCooker(self.vault_config, 'revision_gitfast',
-                                       obj_id)
-        with cooker:
-            cooker.check_exists()  # Raises if false
-            fastexport = b''.join(cooker.prepare_bundle())
+        cooker = RevisionGitfastCooker('revision_gitfast', obj_id)
+        cooker.storage = self.storage
+        cooker.backend = unittest.mock.MagicMock()
+        cooker.check_exists()  # Raises if false
+        fastexport = b''.join(cooker.prepare_bundle())
         fastexport_stream = gzip.GzipFile(fileobj=io.BytesIO(fastexport))
         test_repo = TestRepo()
         with test_repo as p:

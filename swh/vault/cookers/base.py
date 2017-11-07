@@ -194,21 +194,17 @@ class DirectoryBuilder:
             content = get_filtered_file_content(self.storage, file_data)
             self._create_file(path, content, file_data['perms'])
 
-    def _create_file(self, path, content, perms=0o100644):
+    def _create_file(self, path, content, mode=0o100644):
         """Create the given file and fill it with content.
 
         """
-        if perms not in (0o100644, 0o100755, 0o120000):
-            logging.warning('File {} has invalid permission {}, '
-                            'defaulting to 644.'.format(path, perms))
-            perms = 0o100644
-
-        if perms == 0o120000:  # Symbolic link
+        perms = mode_to_perms(mode)
+        if perms == DentryPerms.symlink:
             os.symlink(content, path)
         else:
             with open(path, 'wb') as f:
                 f.write(content)
-            os.chmod(path, perms & 0o777)
+            os.chmod(path, perms.value)
 
     def _get_file_content(self, obj_id):
         """Get the content of the given file.

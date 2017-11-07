@@ -151,7 +151,7 @@ class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):
             directory = Directory.from_disk(path=bytes(p))
             self.assertEqual(obj_id_hex, hashutil.hash_to_hex(directory.hash))
 
-    def test_filtered_objects(self):
+    def test_directory_filtered_objects(self):
         repo = TestRepo()
         with repo as rp:
             file_1, id_1 = hash_content(b'test1')
@@ -183,6 +183,29 @@ class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):
             self.assertEqual((p / 'file').read_bytes(), b'test1')
             self.assertEqual((p / 'hidden_file').read_bytes(), HIDDEN_MESSAGE)
             self.assertEqual((p / 'absent_file').read_bytes(), SKIPPED_MESSAGE)
+
+    def test_directory_bogus_perms(self):
+        # Some early git repositories have 664/775 permissions... let's check
+        # if all the weird modes are properly normalized in the directory
+        # cooker.
+        repo = TestRepo()
+        with repo as rp:
+            (rp / 'file').write_text(TEST_CONTENT)
+            (rp / 'file').chmod(0o664)
+            (rp / 'executable').write_bytes(TEST_EXECUTABLE)
+            (rp / 'executable').chmod(0o775)
+            (rp / 'wat').write_text(TEST_CONTENT)
+            (rp / 'wat').chmod(0o604)
+            c = repo.commit()
+            self.load(str(rp))
+
+            obj_id_hex = repo.repo[c].tree.decode()
+            obj_id = hashutil.hash_to_bytes(obj_id_hex)
+
+        with self.cook_extract_directory(obj_id) as p:
+            self.assertEqual((p / 'file').stat().st_mode, 0o100644)
+            self.assertEqual((p / 'executable').stat().st_mode, 0o100755)
+            self.assertEqual((p / 'wat').stat().st_mode, 0o100644)
 
 
 class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
@@ -307,7 +330,7 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
         with self.cook_extract_revision_gitfast(obj_id) as (ert, p):
             self.assertEqual(ert.repo.refs[b'HEAD'].decode(), obj_id_hex)
 
-    def test_filtered_objects(self):
+    def test_revision_filtered_objects(self):
         repo = TestRepo()
         with repo as rp:
             file_1, id_1 = hash_content(b'test1')
@@ -339,3 +362,26 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
             self.assertEqual((p / 'file').read_bytes(), b'test1')
             self.assertEqual((p / 'hidden_file').read_bytes(), HIDDEN_MESSAGE)
             self.assertEqual((p / 'absent_file').read_bytes(), SKIPPED_MESSAGE)
+
+    def test_revision_bogus_perms(self):
+        # Some early git repositories have 664/775 permissions... let's check
+        # if all the weird modes are properly normalized in the revision
+        # cooker.
+        repo = TestRepo()
+        with repo as rp:
+            (rp / 'file').write_text(TEST_CONTENT)
+            (rp / 'file').chmod(0o664)
+            (rp / 'executable').write_bytes(TEST_EXECUTABLE)
+            (rp / 'executable').chmod(0o775)
+            (rp / 'wat').write_text(TEST_CONTENT)
+            (rp / 'wat').chmod(0o604)
+            repo.commit('initial commit')
+            self.load(str(rp))
+            obj_id_hex = repo.repo.refs[b'HEAD'].decode()
+            obj_id = hashutil.hash_to_bytes(obj_id_hex)
+
+        with self.cook_extract_revision_gitfast(obj_id) as (ert, p):
+            ert.checkout(b'HEAD')
+            self.assertEqual((p / 'file').stat().st_mode, 0o100644)
+            self.assertEqual((p / 'executable').stat().st_mode, 0o100755)
+            self.assertEqual((p / 'wat').stat().st_mode, 0o100644)

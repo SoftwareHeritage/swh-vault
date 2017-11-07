@@ -12,6 +12,7 @@ import zlib
 
 from .base import BaseVaultCooker, get_filtered_file_content
 from swh.model import hashutil
+from swh.model.from_disk import mode_to_perms
 
 
 class RevisionGitfastCooker(BaseVaultCooker):
@@ -206,7 +207,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
                     yield from self._compute_blob_command_content(f)
                     commands.append(fastimport.commands.FileModifyCommand(
                         path=os.path.join(root, fname),
-                        mode=f['perms'],
+                        mode=mode_to_perms(f['perms']).value,
                         dataref=(b':' + self.mark(f['sha1'])),
                         data=None,
                     ))

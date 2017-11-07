@@ -79,7 +79,7 @@ class VaultBackend:
         self.cache = VaultCache(self.config['cache'])
         self.db = None
         self.reconnect()
-        self.smtp_server = smtplib.SMTP('localhost')
+        self.smtp_server = smtplib.SMTP('localhost', 25)
 
     def reconnect(self):
         """Reconnect to the database."""
@@ -268,12 +268,24 @@ class VaultBackend:
         msg['From'] = NOTIF_EMAIL_FROM
         msg['To'] = email
 
-        self.smtp_server.send_message(msg)
+        self._smtp_send(msg)
 
         if n_id is not None:
             cursor.execute('''
                 DELETE FROM vault_notif_email
                 WHERE id = %s''', (n_id,))
+
+    def _smtp_send(self, msg):
+        # Reconnect if needed
+        try:
+            status = self.smtp_server.noop()[0]
+        except:  # smtplib.SMTPServerDisconnected
+            status = -1
+        if status != 250:
+            self.smtp_server.connect()
+
+        # Send the message
+        self.smtp_server.send_message(msg)
 
     @autocommit
     def _cache_expire(self, cond, *args, cursor=None):

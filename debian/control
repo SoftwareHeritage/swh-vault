@@ -31,4 +31,4 @@ Depends: python3-swh.core (>= 0.0.28~),
          python3-swh.storage (>= 0.0.92~),
          ${misc:Depends},
          ${python3:Depends}
-Description: Software Heritage <module-description>
+Description: Software Heritage Vault

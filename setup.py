@@ -21,11 +21,7 @@ setup(
     author='Software Heritage developers',
     author_email='swh-devel@inria.fr',
     url='https://forge.softwareheritage.org/diffusion/DVAU/',
-    packages=[
-        'swh.vault',
-        'swh.vault.api',
-        'swh.vault.cooker',
-    ],
+    packages=find_packages(),
     install_requires=parse_requirements(),
     setup_requires=['vcversioner'],
     vcversioner={},

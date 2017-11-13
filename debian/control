@@ -17,6 +17,7 @@ Build-Depends: debhelper (>= 9),
                python3-swh.model (>= 0.0.18~),
                python3-swh.objstorage (>= 0.0.17~),
                python3-swh.scheduler (>= 0.0.11~),
+               python3-swh.storage (>= 0.0.92~),
                python3-vcversioner
 Standards-Version: 3.9.6
 Homepage: https://forge.softwareheritage.org/diffusion/DVAU/
@@ -27,6 +28,7 @@ Depends: python3-swh.core (>= 0.0.28~),
          python3-swh.model (>= 0.0.18~),
          python3-swh.objstorage (>= 0.0.17~),
          python3-swh.scheduler (>= 0.0.11~),
+         python3-swh.storage (>= 0.0.92~),
          ${misc:Depends},
          ${python3:Depends}
 Description: Software Heritage <module-description>

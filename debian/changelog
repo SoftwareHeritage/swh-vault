@@ -1,3 +1,9 @@
+swh-vault (0.0.1-1~swh1~bpo9+1) stretch-swh; urgency=medium
+
+  * Rebuild for stretch-backports.
+
+ -- Antoine Pietri <antoine.pietri1@gmail.com>  Mon, 13 Nov 2017 16:22:47 +0100
+
 swh-vault (0.0.1-1~swh1) unstable-swh; urgency=medium
 
   * Initial release

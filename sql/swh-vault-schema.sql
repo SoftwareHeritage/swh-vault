@@ -13,7 +13,7 @@ create domain obj_hash as bytea;
 create type cook_type as enum ('directory', 'revision_gitfast');
 comment on type cook_type is 'Type of the requested bundle';
 
-create type cook_status as enum ('new', 'pending', 'done');
+create type cook_status as enum ('new', 'pending', 'done', 'failed');
 comment on type cook_status is 'Status of the cooking';
 
 create table vault_bundle (

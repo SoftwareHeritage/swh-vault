@@ -85,12 +85,17 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         content_iter = self.prepare_bundle()
 
         # TODO: use proper content streaming
-        bundle = b''.join(content_iter)
-        self.backend.put_bundle(self.CACHE_TYPE_KEY, self.obj_id, bundle)
-
-        self.backend.set_status(self.obj_type, self.obj_id, 'done')
-        self.backend.set_progress(self.obj_type, self.obj_id, None)
-        self.backend.send_notif(self.obj_type, self.obj_id)
+        try:
+            bundle = b''.join(content_iter)
+        except Exception as e:
+            self.backend.set_status(self.obj_type, self.obj_id, 'failed')
+            self.backend.set_progress(self.obj_type, self.obj_id, e.message)
+        else:
+            self.backend.put_bundle(self.CACHE_TYPE_KEY, self.obj_id, bundle)
+            self.backend.set_status(self.obj_type, self.obj_id, 'done')
+            self.backend.set_progress(self.obj_type, self.obj_id, None)
+        finally:
+            self.backend.send_notif(self.obj_type, self.obj_id)
 
 
 SKIPPED_MESSAGE = (b'This content has not been retrieved in the '

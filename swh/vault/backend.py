@@ -21,8 +21,10 @@ cooking_task_name = 'swh.vault.cooking_tasks.SWHCookingTask'
 
 NOTIF_EMAIL_FROM = ('"Software Heritage Vault" '
                     '<info@softwareheritage.org>')
-NOTIF_EMAIL_SUBJECT = ("Bundle ready: {obj_type} {short_id}")
-NOTIF_EMAIL_BODY = """
+NOTIF_EMAIL_SUBJECT_SUCCESS = ("Bundle ready: {obj_type} {short_id}")
+NOTIF_EMAIL_SUBJECT_FAILURE = ("Bundle failed: {obj_type} {short_id}")
+
+NOTIF_EMAIL_BODY_SUCCESS = """
 You have requested the following bundle from the Software Heritage
 Vault:
 
@@ -35,6 +37,23 @@ This bundle is now available for download at the following address:
 
 Please keep in mind that this link might expire at some point, in which
 case you will need to request the bundle again.
+
+--\x20
+The Software Heritage Developers
+"""
+
+NOTIF_EMAIL_BODY_FAILURE = """
+You have requested the following bundle from the Software Heritage
+Vault:
+
+Object Type: {obj_type}
+Object ID: {hex_id}
+
+This bundle could not be cooked for the following reason:
+
+{progress_msg}
+
+We apologize for the inconvenience.
 
 --\x20
 The Software Heritage Developers
@@ -85,8 +104,9 @@ class VaultBackend:
         self.db = None
         self.reconnect()
         self.smtp_server = smtplib.SMTP('localhost', 25)
-        self.scheduler = SchedulerBackend(
-            scheduling_db=self.config['scheduling_db'])
+        if self.config['scheduling_db'] is not None:
+            self.scheduler = SchedulerBackend(
+                scheduling_db=self.config['scheduling_db'])
 
     def reconnect(self):
         """Reconnect to the database."""
@@ -188,13 +208,27 @@ class VaultBackend:
         """Main entry point for cooking requests. This starts a cooking task if
             needed, and add the given e-mail to the notify list"""
         info = self.task_info(obj_type, obj_id)
+
+        # If there's a failed bundle entry, delete it first.
+        if info is not None and info['task_status'] == 'failed':
+            cursor.execute('''DELETE FROM vault_bundle
+                              WHERE obj_type = %s AND obj_id = %s''',
+                           (obj_type, obj_id))
+            self.commit()
+            info = None
+
+        # If there's no bundle entry, create the task.
         if info is None:
             self.create_task(obj_type, obj_id, sticky)
+
         if email is not None:
+            # If the task is already done, send the email directly
             if info is not None and info['task_status'] == 'done':
                 self.send_notification(None, email, obj_type, obj_id)
+            # Else, add it to the notification queue
             else:
                 self.add_notif_email(obj_type, obj_id, email)
+
         info = self.task_info(obj_type, obj_id)
         return info
 
@@ -250,16 +284,19 @@ class VaultBackend:
         """Send all the e-mails in the notification list of a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
-            SELECT vault_notif_email.id AS id, email
+            SELECT vault_notif_email.id AS id, email, task_status, progress_msg
             FROM vault_notif_email
             INNER JOIN vault_bundle ON bundle_id = vault_bundle.id
             WHERE vault_bundle.type = %s AND vault_bundle.object_id = %s''',
                        (obj_type, obj_id))
         for d in cursor:
-            self.send_notification(d['id'], d['email'], obj_type, obj_id)
+            self.send_notification(d['id'], d['email'], obj_type, obj_id,
+                                   status=d['task_status'],
+                                   progress_msg=d['progress_msg'])
 
     @autocommit
-    def send_notification(self, n_id, email, obj_type, obj_id, cursor=None):
+    def send_notification(self, n_id, email, obj_type, obj_id, status,
+                          progress_msg=None, cursor=None):
         """Send the notification of a bundle to a specific e-mail"""
         hex_id = hashutil.hash_to_hex(obj_id)
         short_id = hex_id[:7]
@@ -273,11 +310,23 @@ class VaultBackend:
         url = ('https://archive.softwareheritage.org/api/1/vault/{}/{}/'
                'raw'.format(obj_type, hex_id))
 
-        text = NOTIF_EMAIL_BODY.strip()
-        text = text.format(obj_type=obj_type, hex_id=hex_id, url=url)
-        msg = MIMEText(text)
-        msg['Subject'] = (NOTIF_EMAIL_SUBJECT
-                          .format(obj_type=obj_type, short_id=short_id))
+        if status == 'done':
+            text = NOTIF_EMAIL_BODY_SUCCESS.strip()
+            text = text.format(obj_type=obj_type, hex_id=hex_id, url=url)
+            msg = MIMEText(text)
+            msg['Subject'] = (NOTIF_EMAIL_SUBJECT_SUCCESS
+                              .format(obj_type=obj_type, short_id=short_id))
+        elif status == 'failed':
+            text = NOTIF_EMAIL_BODY_FAILURE.strip()
+            text = text.format(obj_type=obj_type, hex_id=hex_id,
+                               progress_msg=progress_msg)
+            msg = MIMEText(text)
+            msg['Subject'] = (NOTIF_EMAIL_SUBJECT_FAILURE
+                              .format(obj_type=obj_type, short_id=short_id))
+        else:
+            raise RuntimeError("send_notification called on a '{}' bundle"
+                               .format(status))
+
         msg['From'] = NOTIF_EMAIL_FROM
         msg['To'] = email
 

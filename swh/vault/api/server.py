@@ -16,6 +16,7 @@ from swh.vault.cookers import COOKER_TYPES
 from swh.vault.backend import VaultBackend
 
 
+DEFAULT_CONFIG_PATH = 'vault/server'
 DEFAULT_CONFIG = {
     'storage': ('dict', {
         'cls': 'local',
@@ -154,6 +155,10 @@ def make_app(config, **kwargs):
 
     app['backend'] = VaultBackend(config)
     return app
+
+
+def make_app_from_configfile(config_path=DEFAULT_CONFIG_PATH, **kwargs):
+    return make_app(config.read(config_path, DEFAULT_CONFIG), **kwargs)
 
 
 @click.command()

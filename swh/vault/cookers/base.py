@@ -19,6 +19,7 @@ from swh.storage import get_storage
 from swh.vault.api.client import RemoteVaultClient
 
 
+DEFAULT_CONFIG_PATH = 'vault/cooker'
 DEFAULT_CONFIG = {
     'storage': ('dict', {
         'cls': 'remote',
@@ -53,7 +54,8 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
             cache: the cache where to store the bundle
             obj_id: id of the object to be cooked into a bundle.
         """
-        self.config = config.load_named_config('vault-cooker', DEFAULT_CONFIG)
+        self.config = config.load_named_config(DEFAULT_CONFIG_PATH,
+                                               DEFAULT_CONFIG)
         self.obj_type = obj_type
         self.obj_id = hashutil.hash_to_bytes(obj_id)
         self.backend = RemoteVaultClient(self.config['vault_url'])

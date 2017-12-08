@@ -108,6 +108,21 @@ class RevisionGitfastCooker(BaseVaultCooker):
         )
         self.obj_done.add(obj_id)
 
+    def _author_tuple_format(self, author, date):
+        # We never want to have None values here so we replace null entries
+        # by ''.
+        if author is not None:
+            author_tuple = (author.get('name') or b'',
+                            author.get('email') or b'')
+        else:
+            author_tuple = (b'', b'')
+        if date is not None:
+            date_tuple = (date.get('timestamp', {}).get('seconds') or 0,
+                          (date.get('offset') or 0) * 60)
+        else:
+            date_tuple = (0, 0)
+        return author_tuple + date_tuple
+
     def _compute_commit_command(self, rev):
         """Compute a commit command from a specific revision.
         """
@@ -128,20 +143,15 @@ class RevisionGitfastCooker(BaseVaultCooker):
         files = yield from self._compute_file_commands(rev, parent)
 
         # Construct and yield the commit command
-        author = (rev['author']['name'],
-                  rev['author']['email'],
-                  rev['date']['timestamp']['seconds'],
-                  rev['date']['offset'] * 60)
-        committer = (rev['committer']['name'],
-                     rev['committer']['email'],
-                     rev['committer_date']['timestamp']['seconds'],
-                     rev['committer_date']['offset'] * 60)
+        author = self._author_tuple_format(rev['author'], rev['date'])
+        committer = self._author_tuple_format(rev['committer'],
+                                              rev['committer_date'])
         yield fastimport.commands.CommitCommand(
             ref=b'refs/heads/master',
             mark=self.mark(rev['id']),
             author=author,
             committer=committer,
-            message=rev['message'],
+            message=rev['message'] or b'',
             from_=from_,
             merges=merges,
             file_iter=files,

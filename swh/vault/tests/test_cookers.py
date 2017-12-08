@@ -385,3 +385,36 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
             self.assertEqual((p / 'file').stat().st_mode, 0o100644)
             self.assertEqual((p / 'executable').stat().st_mode, 0o100755)
             self.assertEqual((p / 'wat').stat().st_mode, 0o100644)
+
+    def test_revision_null_fields(self):
+        # Our schema doesn't enforce a lot of non-null revision fields. We need
+        # to check these cases don't break the cooker.
+        repo = TestRepo()
+        with repo as rp:
+            (rp / 'file').write_text(TEST_CONTENT)
+            c = repo.commit('initial commit')
+            self.load(str(rp))
+            repo.repo.refs[b'HEAD'].decode()
+            dir_id_hex = repo.repo[c].tree.decode()
+            dir_id = hashutil.hash_to_bytes(dir_id_hex)
+
+        test_id = b'56789012345678901234'
+        test_revision = {
+            'id': test_id,
+            'message': None,
+            'author': {'name': None, 'email': None, 'fullname': ''},
+            'date': None,
+            'committer': {'name': None, 'email': None, 'fullname': ''},
+            'committer_date': None,
+            'parents': [],
+            'type': 'git',
+            'directory': dir_id,
+            'metadata': {},
+            'synthetic': True
+        }
+
+        self.storage.revision_add([test_revision])
+
+        with self.cook_extract_revision_gitfast(test_id) as (ert, p):
+            ert.checkout(b'HEAD')
+            self.assertEqual((p / 'file').stat().st_mode, 0o100644)

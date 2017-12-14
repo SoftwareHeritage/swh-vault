@@ -20,6 +20,7 @@ class BaseTestBackend(VaultTestFixture, StorageTestFixture, DbTestFixture):
     @contextlib.contextmanager
     def mock_cooking(self):
         with patch.object(self.vault_backend, '_send_task') as mt:
+            mt.return_value = 42
             with patch('swh.vault.backend.get_cooker') as mg:
                 mcc = unittest.mock.MagicMock()
                 mc = unittest.mock.MagicMock()
@@ -63,21 +64,20 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
 
         args = m['cooker_cls'].call_args[0]
         self.assertEqual(args[0], TEST_TYPE)
-        self.assertEqual(args[1], TEST_OBJ_ID)
+        self.assertEqual(args[1], TEST_HEX_ID)
 
         self.assertEqual(m['cooker'].check_exists.call_count, 1)
 
         self.assertEqual(m['send_task'].call_count, 1)
-        args = m['send_task'].call_args[0][1]
+        args = m['send_task'].call_args[0][0]
         self.assertEqual(args[0], TEST_TYPE)
-        self.assertEqual(args[1], TEST_OBJ_ID)
+        self.assertEqual(args[1], TEST_HEX_ID)
 
         info = self.vault_backend.task_info(TEST_TYPE, TEST_OBJ_ID)
         self.assertEqual(info['object_id'], TEST_OBJ_ID)
         self.assertEqual(info['type'], TEST_TYPE)
-        self.assertEqual(str(info['task_uuid']),
-                         m['send_task'].call_args[0][0])
         self.assertEqual(info['task_status'], 'new')
+        self.assertEqual(info['task_id'], 42)
 
         self.assertTimestampAlmostNow(info['ts_created'])
 

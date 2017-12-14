@@ -61,7 +61,7 @@ def vault_fetch(request):
 
 
 def user_info(task_info):
-    return {'task_uuid': str(task_info['task_uuid']),
+    return {'id': task_info['id'],
             'status': task_info['task_status'],
             'progress_message': task_info['progress_msg'],
             'obj_type': task_info['type'],

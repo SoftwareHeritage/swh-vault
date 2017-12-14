@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import smtplib
-import celery
 import psycopg2
 import psycopg2.extras
 
@@ -126,7 +125,7 @@ class VaultBackend:
         """Fetch information from a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
-            SELECT id, type, object_id, task_uuid, task_status, sticky,
+            SELECT id, type, object_id, task_status, sticky,
                    ts_created, ts_done, ts_last_access, progress_msg
             FROM vault_bundle
             WHERE type = %s AND object_id = %s''', (obj_type, obj_id))
@@ -136,10 +135,10 @@ class VaultBackend:
         return res
 
     @staticmethod
-    def _send_task(task_uuid, args):
+    def _send_task(args):
         """Send a cooking task to the celery scheduler"""
         task = get_task(cooking_task_name)
-        task.apply_async(args, task_id=task_uuid)
+        task.apply_async(args)
 
     @autocommit
     def create_task(self, obj_type, obj_id, sticky=False, cursor=None):
@@ -150,14 +149,12 @@ class VaultBackend:
         cooker = cooker_class(*args)
         cooker.check_exists()
 
-        task_uuid = celery.uuid()
         cursor.execute('''
-            INSERT INTO vault_bundle (type, object_id, task_uuid, sticky)
-            VALUES (%s, %s, %s, %s)''',
-                       (obj_type, obj_id, task_uuid, sticky))
+            INSERT INTO vault_bundle (type, object_id, sticky)
+            VALUES (%s, %s, %s)''', (obj_type, obj_id, sticky))
         self.commit()
 
-        self._send_task(task_uuid, args)
+        self._send_task(args)
 
     @autocommit
     def add_notif_email(self, obj_type, obj_id, email, cursor=None):

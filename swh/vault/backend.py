@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import smtplib
-import celery
 import psycopg2
 import psycopg2.extras
 
@@ -12,7 +11,8 @@ from functools import wraps
 from email.mime.text import MIMEText
 
 from swh.model import hashutil
-from swh.scheduler.utils import get_task
+from swh.scheduler.backend import SchedulerBackend
+from swh.scheduler.utils import create_oneshot_task_dict
 from swh.vault.cache import VaultCache
 from swh.vault.cookers import get_cooker
 from swh.vault.cooking_tasks import SWHCookingTask  # noqa
@@ -80,6 +80,8 @@ class VaultBackend:
         self.db = None
         self.reconnect()
         self.smtp_server = smtplib.SMTP('localhost', 25)
+        self.scheduler = SchedulerBackend(
+            scheduling_db=self.config['scheduling_db'])
 
     def reconnect(self):
         """Reconnect to the database."""
@@ -126,7 +128,7 @@ class VaultBackend:
         """Fetch information from a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
-            SELECT id, type, object_id, task_uuid, task_status, sticky,
+            SELECT id, type, object_id, task_id, task_status, sticky,
                    ts_created, ts_done, ts_last_access, progress_msg
             FROM vault_bundle
             WHERE type = %s AND object_id = %s''', (obj_type, obj_id))
@@ -135,29 +137,34 @@ class VaultBackend:
             res['object_id'] = bytes(res['object_id'])
         return res
 
-    @staticmethod
-    def _send_task(task_uuid, args):
+    def _send_task(self, args):
         """Send a cooking task to the celery scheduler"""
-        task = get_task(cooking_task_name)
-        task.apply_async(args, task_id=task_uuid)
+        task = create_oneshot_task_dict('swh-vault-cooking', *args)
+        added_tasks = self.scheduler.create_tasks([task])
+        return added_tasks[0]['id']
 
     @autocommit
     def create_task(self, obj_type, obj_id, sticky=False, cursor=None):
         """Create and send a cooking task"""
         obj_id = hashutil.hash_to_bytes(obj_id)
-        args = [obj_type, obj_id]
+        hex_id = hashutil.hash_to_hex(obj_id)
+        args = [obj_type, hex_id]
+
         cooker_class = get_cooker(obj_type)
         cooker = cooker_class(*args)
         cooker.check_exists()
 
-        task_uuid = celery.uuid()
         cursor.execute('''
-            INSERT INTO vault_bundle (type, object_id, task_uuid, sticky)
-            VALUES (%s, %s, %s, %s)''',
-                       (obj_type, obj_id, task_uuid, sticky))
+            INSERT INTO vault_bundle (type, object_id, sticky)
+            VALUES (%s, %s, %s)''', (obj_type, obj_id, sticky))
         self.commit()
 
-        self._send_task(task_uuid, args)
+        task_id = self._send_task(args)
+
+        cursor.execute('''
+            UPDATE vault_bundle
+            SET task_id = %s
+            WHERE type = %s AND object_id = %s''', (task_id, obj_type, obj_id))
 
     @autocommit
     def add_notif_email(self, obj_type, obj_id, email, cursor=None):

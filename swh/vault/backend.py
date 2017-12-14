@@ -127,7 +127,7 @@ class VaultBackend:
         """Fetch information from a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         cursor.execute('''
-            SELECT id, type, object_id, task_status, sticky,
+            SELECT id, type, object_id, task_id, task_status, sticky,
                    ts_created, ts_done, ts_last_access, progress_msg
             FROM vault_bundle
             WHERE type = %s AND object_id = %s''', (obj_type, obj_id))
@@ -139,7 +139,8 @@ class VaultBackend:
     def _send_task(self, args):
         """Send a cooking task to the celery scheduler"""
         task = create_oneshot_task_dict('swh-vault-cooking', *args)
-        self.scheduler.create_tasks([task])
+        added_tasks = self.scheduler.create_tasks([task])
+        return added_tasks[0]['id']
 
     @autocommit
     def create_task(self, obj_type, obj_id, sticky=False, cursor=None):
@@ -157,7 +158,12 @@ class VaultBackend:
             VALUES (%s, %s, %s)''', (obj_type, obj_id, sticky))
         self.commit()
 
-        self._send_task(args)
+        task_id = self._send_task(args)
+
+        cursor.execute('''
+            UPDATE vault_bundle
+            SET task_id = %s
+            WHERE type = %s AND object_id = %s''', (task_id, obj_type, obj_id))
 
     @autocommit
     def add_notif_email(self, obj_type, obj_id, email, cursor=None):

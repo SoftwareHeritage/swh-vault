@@ -22,6 +22,7 @@ create table vault_bundle (
   type cook_type not null,  -- requested cooking type
   object_id obj_hash not null,  -- requested object ID
 
+  task_id integer,  -- scheduler task id
   task_status cook_status not null default 'new',  -- status of the task
   sticky boolean not null default false, -- bundle cannot expire
 

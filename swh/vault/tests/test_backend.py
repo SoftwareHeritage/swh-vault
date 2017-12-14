@@ -20,6 +20,7 @@ class BaseTestBackend(VaultTestFixture, StorageTestFixture, DbTestFixture):
     @contextlib.contextmanager
     def mock_cooking(self):
         with patch.object(self.vault_backend, '_send_task') as mt:
+            mt.return_value = 42
             with patch('swh.vault.backend.get_cooker') as mg:
                 mcc = unittest.mock.MagicMock()
                 mc = unittest.mock.MagicMock()
@@ -76,6 +77,7 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
         self.assertEqual(info['object_id'], TEST_OBJ_ID)
         self.assertEqual(info['type'], TEST_TYPE)
         self.assertEqual(info['task_status'], 'new')
+        self.assertEqual(info['task_id'], 42)
 
         self.assertTimestampAlmostNow(info['ts_created'])
 

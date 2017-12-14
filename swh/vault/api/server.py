@@ -38,7 +38,8 @@ DEFAULT_CONFIG = {
             'slicing': '0:1/1:5',
         },
     }),
-    'db': ('str', 'dbname=swh-vault')
+    'db': ('str', 'dbname=softwareheritage-vault-dev'),
+    'scheduling_db': ('str', 'dbname=softwareheritage-scheduler-dev'),
 }
 
 

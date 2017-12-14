@@ -80,7 +80,8 @@ class VaultBackend:
         self.db = None
         self.reconnect()
         self.smtp_server = smtplib.SMTP('localhost', 25)
-        self.scheduler = SchedulerBackend()
+        self.scheduler = SchedulerBackend(
+            scheduling_db=self.config['scheduling_db'])
 
     def reconnect(self):
         """Reconnect to the database."""

@@ -41,6 +41,11 @@ The Software Heritage Developers
 """
 
 
+class NotFoundExc(Exception):
+    """Bundle was not found."""
+    pass
+
+
 # TODO: Imported from swh.scheduler.backend. Factorization needed.
 def autocommit(fn):
     @wraps(fn)
@@ -152,7 +157,8 @@ class VaultBackend:
 
         cooker_class = get_cooker(obj_type)
         cooker = cooker_class(*args)
-        cooker.check_exists()
+        if not cooker.check_exists():
+            raise NotFoundExc("Object {} was not found.".format(hex_id))
 
         cursor.execute('''
             INSERT INTO vault_bundle (type, object_id, sticky)

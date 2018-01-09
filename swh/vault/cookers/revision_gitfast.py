@@ -11,7 +11,6 @@ import time
 import zlib
 
 from .base import BaseVaultCooker, get_filtered_file_content
-from swh.model import hashutil
 from swh.model.from_disk import mode_to_perms
 
 
@@ -20,9 +19,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
     CACHE_TYPE_KEY = 'revision_gitfast'
 
     def check_exists(self):
-        if list(self.storage.revision_missing([self.obj_id])):
-            raise ValueError("Revision {} not found."
-                             .format(hashutil.hash_to_hex(self.obj_id)))
+        return not list(self.storage.revision_missing([self.obj_id]))
 
     def prepare_bundle(self):
         log = self.storage.revision_log([self.obj_id])

@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from swh.model import hashutil
 from swh.vault.cookers.base import BaseVaultCooker, DirectoryBuilder
 
 
@@ -12,9 +11,7 @@ class DirectoryCooker(BaseVaultCooker):
     CACHE_TYPE_KEY = 'directory'
 
     def check_exists(self):
-        if list(self.storage.directory_missing([self.obj_id])):
-            raise ValueError("Directory {} not found."
-                             .format(hashutil.hash_to_hex(self.obj_id)))
+        return not list(self.storage.directory_missing([self.obj_id]))
 
     def prepare_bundle(self):
         directory_builder = DirectoryBuilder(self.storage)

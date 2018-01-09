@@ -16,9 +16,7 @@ class RevisionFlatCooker(BaseVaultCooker):
     CACHE_TYPE_KEY = 'revision_flat'
 
     def check_exists(self):
-        if list(self.storage.revision_missing([self.obj_id])):
-            raise ValueError("Revision {} not found."
-                             .format(hashutil.hash_to_hex(self.obj_id)))
+        return not list(self.storage.revision_missing([self.obj_id]))
 
     def prepare_bundle(self):
         """Cook the requested revision into a Bundle

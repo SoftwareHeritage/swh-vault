@@ -13,7 +13,7 @@ from swh.core.api_async import (SWHRemoteAPI,
                                 decode_request)
 from swh.model import hashutil
 from swh.vault.cookers import COOKER_TYPES
-from swh.vault.backend import VaultBackend
+from swh.vault.backend import VaultBackend, NotFoundExc
 
 
 DEFAULT_CONFIG_PATH = 'vault/server'
@@ -79,8 +79,11 @@ def vault_cook(request):
     if obj_type not in COOKER_TYPES:
         raise aiohttp.web.HTTPNotFound
 
-    info = request.app['backend'].cook_request(obj_type, obj_id,
-                                               email=email, sticky=sticky)
+    try:
+        info = request.app['backend'].cook_request(obj_type, obj_id,
+                                                   email=email, sticky=sticky)
+    except NotFoundExc:
+        raise aiohttp.web.HTTPNotFound
 
     # TODO: return 201 status (Created) once the api supports it
     return encode_data(user_info(info))

@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2017  The Software Heritage developers
+# Copyright (C) 2016-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,6 +6,7 @@
 import abc
 import io
 import itertools
+import logging
 import os
 import tarfile
 import tempfile
@@ -29,6 +30,18 @@ DEFAULT_CONFIG = {
     }),
     'vault_url': ('str', 'http://localhost:5005/')
 }
+
+MAX_BUNDLE_SIZE = 2 ** 29  # 512 MiB
+
+
+class PolicyError(Exception):
+    """Raised when the bundle violates the cooking policy."""
+    pass
+
+
+class BundleTooLargeError(PolicyError):
+    """Raised when the bundle is too large to be cooked."""
+    pass
 
 
 class BaseVaultCooker(metaclass=abc.ABCMeta):
@@ -82,15 +95,25 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         """
         self.backend.set_status(self.obj_type, self.obj_id, 'pending')
         self.backend.set_progress(self.obj_type, self.obj_id, 'Processing...')
-        content_iter = self.prepare_bundle()
 
-        # TODO: use proper content streaming
         try:
-            bundle = b''.join(content_iter)
+            content_iter = self.prepare_bundle()
+            bundle = b''
+            for chunk in content_iter:
+                bundle += chunk
+                if len(bundle) > MAX_BUNDLE_SIZE:
+                    raise BundleTooLargeError("Bundle is too large.")
+        except PolicyError as e:
+            self.backend.set_status(self.obj_type, self.obj_id, 'failed')
+            self.backend.set_progress(self.obj_type, self.obj_id, str(e))
         except Exception as e:
             self.backend.set_status(self.obj_type, self.obj_id, 'failed')
-            self.backend.set_progress(self.obj_type, self.obj_id, e.message)
+            self.backend.set_progress(
+                self.obj_type, self.obj_id,
+                "Internal Server Error. This incident will be reported.")
+            logging.exception("Bundle cooking failed.")
         else:
+            # TODO: use proper content streaming instead of put_bundle()
             self.backend.put_bundle(self.CACHE_TYPE_KEY, self.obj_id, bundle)
             self.backend.set_status(self.obj_type, self.obj_id, 'done')
             self.backend.set_progress(self.obj_type, self.obj_id, None)
@@ -129,11 +152,22 @@ def get_filtered_file_content(storage, file_data):
         return list(storage.content_get([file_data['sha1']]))[0]['data']
 
 
+# TODO: We should use something like that for all the IO done by the cookers.
+# Instead of using generators to yield chunks, we should just write() the
+# chunks in an object like this, which would give us way better control over
+# the buffering, and allow for streaming content to the objstorage.
+class BytesIOBundleSizeLimit(io.BytesIO):
+    def write(self, chunk):
+        if self.getbuffer().nbytes + len(chunk) > MAX_BUNDLE_SIZE:
+            raise BundleTooLargeError("Bundle is too large.")
+        return super().write(chunk)
+
+
 def get_tar_bytes(path, arcname=None):
     path = Path(path)
     if not arcname:
         arcname = path.name
-    tar_buffer = io.BytesIO()
+    tar_buffer = BytesIOBundleSizeLimit()
     tar = tarfile.open(fileobj=tar_buffer, mode='w')
     tar.add(str(path), arcname=arcname)
     return tar_buffer.getbuffer()

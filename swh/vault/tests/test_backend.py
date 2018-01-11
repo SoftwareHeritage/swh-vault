@@ -318,3 +318,12 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
             self.assertIn(TEST_HEX_ID[:5], str(e))
             self.assertIn('test error', str(e))
             self.assertIn('--\x20\n', str(e))  # Well-formated signature
+
+    def test_retry_failed_bundle(self):
+        self.fail_cook(TEST_TYPE, TEST_OBJ_ID, 'error42')
+        info = self.vault_backend.task_info(TEST_TYPE, TEST_OBJ_ID)
+        self.assertEqual(info['task_status'], 'failed')
+        with self.mock_cooking():
+            self.vault_backend.cook_request(TEST_TYPE, TEST_OBJ_ID)
+        info = self.vault_backend.task_info(TEST_TYPE, TEST_OBJ_ID)
+        self.assertEqual(info['task_status'], 'new')

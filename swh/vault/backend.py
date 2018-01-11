@@ -212,7 +212,7 @@ class VaultBackend:
         # If there's a failed bundle entry, delete it first.
         if info is not None and info['task_status'] == 'failed':
             cursor.execute('''DELETE FROM vault_bundle
-                              WHERE obj_type = %s AND obj_id = %s''',
+                              WHERE type = %s AND object_id = %s''',
                            (obj_type, obj_id))
             self.commit()
             info = None

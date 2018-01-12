@@ -3,7 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import tarfile
+import tempfile
+
 from swh.vault.cookers.base import BaseVaultCooker, DirectoryBuilder
+from swh.model import hashutil
 
 
 class DirectoryCooker(BaseVaultCooker):
@@ -15,4 +19,7 @@ class DirectoryCooker(BaseVaultCooker):
 
     def prepare_bundle(self):
         directory_builder = DirectoryBuilder(self.storage)
-        directory_builder.write_directory_bytes(self.obj_id, self.fileobj)
+        with tempfile.TemporaryDirectory(prefix='tmp-vault-directory-') as td:
+            directory_builder.build_directory(self.obj_id, td.encode())
+            tar = tarfile.open(fileobj=self.fileobj, mode='w')
+            tar.add(td, arcname=hashutil.hash_to_hex(self.obj_id))

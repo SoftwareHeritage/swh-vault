@@ -8,8 +8,6 @@ import io
 import itertools
 import logging
 import os
-import tarfile
-import tempfile
 
 from swh.core import config
 from swh.model import hashutil
@@ -172,16 +170,6 @@ class DirectoryBuilder:
     """
     def __init__(self, storage):
         self.storage = storage
-
-    def write_directory_bytes(self, dir_id, fileobj):
-        # Create temporary folder to retrieve the files into.
-        with tempfile.TemporaryDirectory(prefix='tmp-vault-directory-') as td:
-            self.build_directory(dir_id, td.encode())
-
-            # Use the created directory to write a tar bundle containing the
-            # compressed directory.
-            tar = tarfile.open(fileobj=fileobj, mode='w')
-            tar.add(td, arcname=hashutil.hash_to_hex(dir_id))
 
     def build_directory(self, dir_id, root):
         # Retrieve data from the database.

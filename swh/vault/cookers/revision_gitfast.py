@@ -4,11 +4,13 @@
 # See top-level LICENSE file for more information
 
 import collections
-import fastimport.commands
 import functools
 import os
 import time
 import zlib
+
+from fastimport.commands import (CommitCommand, ResetCommand, BlobCommand,
+                                 FileDeleteCommand, FileModifyCommand)
 
 from .base import BaseVaultCooker, get_filtered_file_content
 from swh.model.from_disk import mode_to_perms
@@ -23,12 +25,13 @@ class RevisionGitfastCooker(BaseVaultCooker):
 
     def prepare_bundle(self):
         log = self.storage.revision_log([self.obj_id])
-        commands = self.fastexport(log)
+        self.gzobj = zlib.compressobj(9, zlib.DEFLATED, zlib.MAX_WBITS | 16)
+        self.fastexport(log)
+        self.write(self.gzobj.flush())
 
-        compressobj = zlib.compressobj(9, zlib.DEFLATED, zlib.MAX_WBITS | 16)
-        for command in commands:
-            yield compressobj.compress(bytes(command) + b'\n')
-        yield compressobj.flush()
+    def write_cmd(self, cmd):
+        chunk = bytes(cmd) + b'\n'
+        super().write(self.gzobj.compress(chunk))
 
     def fastexport(self, log):
         """Generate all the git fast-import commands from a given log.
@@ -52,7 +55,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
                 self.backend.set_progress(self.obj_type, self.obj_id, pg)
 
             # Compute the current commit
-            yield from self._compute_commit_command(rev)
+            self._compute_commit_command(rev)
 
     def _toposort(self, rev_by_id):
         """Perform a topological sort on the revision graph.
@@ -99,10 +102,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
         if obj_id in self.obj_done:
             return
         content = get_filtered_file_content(self.storage, file_data)
-        yield fastimport.commands.BlobCommand(
-            mark=self.mark(obj_id),
-            data=content,
-        )
+        self.write_cmd(BlobCommand(mark=self.mark(obj_id), data=content))
         self.obj_done.add(obj_id)
 
     def _author_tuple_format(self, author, date):
@@ -130,20 +130,20 @@ class RevisionGitfastCooker(BaseVaultCooker):
         else:
             # We issue a reset command before all the new roots so that they
             # are not automatically added as children of the current branch.
-            yield fastimport.commands.ResetCommand(b'refs/heads/master', None)
+            self.write_cmd(ResetCommand(b'refs/heads/master', None))
             from_ = None
             merges = None
             parent = None
 
         # Retrieve the file commands while yielding new blob commands if
         # needed.
-        files = yield from self._compute_file_commands(rev, parent)
+        files = self._compute_file_commands(rev, parent)
 
-        # Construct and yield the commit command
+        # Construct and write the commit command
         author = self._author_tuple_format(rev['author'], rev['date'])
         committer = self._author_tuple_format(rev['committer'],
                                               rev['committer_date'])
-        yield fastimport.commands.CommitCommand(
+        self.write_cmd(CommitCommand(
             ref=b'refs/heads/master',
             mark=self.mark(rev['id']),
             author=author,
@@ -151,8 +151,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
             message=rev['message'] or b'',
             from_=from_,
             merges=merges,
-            file_iter=files,
-        )
+            file_iter=files))
 
     @functools.lru_cache(maxsize=4096)
     def _get_dir_ents(self, dir_id=None):
@@ -195,7 +194,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
             for fname, f in prev_dir.items():
                 if ((fname not in cur_dir
                      or f['type'] != cur_dir[fname]['type'])):
-                    commands.append(fastimport.commands.FileDeleteCommand(
+                    commands.append(FileDeleteCommand(
                         path=os.path.join(root, fname)
                     ))
 
@@ -211,8 +210,8 @@ class RevisionGitfastCooker(BaseVaultCooker):
                          or f['sha1'] != prev_dir[fname]['sha1']
                          or f['perms'] != prev_dir[fname]['perms'])):
                     # Issue a blob command for the new blobs if needed.
-                    yield from self._compute_blob_command_content(f)
-                    commands.append(fastimport.commands.FileModifyCommand(
+                    self._compute_blob_command_content(f)
+                    commands.append(FileModifyCommand(
                         path=os.path.join(root, fname),
                         mode=mode_to_perms(f['perms']).value,
                         dataref=(b':' + self.mark(f['sha1'])),

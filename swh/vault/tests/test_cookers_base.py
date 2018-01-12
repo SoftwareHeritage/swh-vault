@@ -3,14 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import pathlib
-import tempfile
 import unittest
 from unittest.mock import MagicMock
 
 from swh.model import hashutil
-from swh.vault.cookers.base import (BaseVaultCooker, get_tar_bytes,
-                                    BundleTooLargeError)
+from swh.vault.cookers.base import BaseVaultCooker
 
 
 TEST_BUNDLE_CHUNKS = [b"test content 1\n",
@@ -35,7 +32,7 @@ class BaseVaultCookerMock(BaseVaultCooker):
 
     def prepare_bundle(self):
         for chunk in TEST_BUNDLE_CHUNKS:
-            yield chunk
+            self.write(chunk)
 
 
 class TestBaseVaultCooker(unittest.TestCase):
@@ -79,14 +76,3 @@ class TestBaseVaultCooker(unittest.TestCase):
         self.assertIn("exceeds", cooker.backend.set_progress.call_args[0][2])
         cooker.backend.send_notif.assert_called_with(
             TEST_OBJ_TYPE, TEST_OBJ_ID)
-
-
-class TestGetTarBytes(unittest.TestCase):
-    def test_tar_too_large(self):
-        with tempfile.TemporaryDirectory(prefix='tmp-vault-repo-') as td:
-            p = pathlib.Path(td)
-            (p / 'dir1/dir2').mkdir(parents=True)
-            (p / 'dir1/dir2/file').write_text('testtesttesttest')
-
-            with self.assertRaises(BundleTooLargeError):
-                    get_tar_bytes(p, size_limit=8)

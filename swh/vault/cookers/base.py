@@ -11,8 +11,6 @@ import os
 import tarfile
 import tempfile
 
-from pathlib import Path
-
 from swh.core import config
 from swh.model import hashutil
 from swh.model.from_disk import mode_to_perms, DentryPerms
@@ -41,6 +39,19 @@ class PolicyError(Exception):
 class BundleTooLargeError(PolicyError):
     """Raised when the bundle is too large to be cooked."""
     pass
+
+
+class BytesIOBundleSizeLimit(io.BytesIO):
+    def __init__(self, *args, size_limit=None, **kwargs):
+        self.size_limit = size_limit
+
+    def write(self, chunk):
+        if ((self.size_limit is not None
+             and self.getbuffer().nbytes + len(chunk) > self.size_limit)):
+            raise BundleTooLargeError(
+                "The requested bundle exceeds the maximum allowed "
+                "size of {} bytes.".format(self.size_limit))
+        return super().write(chunk)
 
 
 class BaseVaultCooker(metaclass=abc.ABCMeta):
@@ -90,21 +101,19 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         """
         raise NotImplemented
 
+    def write(self, chunk):
+        self.fileobj.write(chunk)
+
     def cook(self):
         """Cook the requested object into a bundle
         """
         self.backend.set_status(self.obj_type, self.obj_id, 'pending')
         self.backend.set_progress(self.obj_type, self.obj_id, 'Processing...')
 
+        self.fileobj = BytesIOBundleSizeLimit(size_limit=self.max_bundle_size)
         try:
-            content_iter = self.prepare_bundle()
-            bundle = b''
-            for chunk in content_iter:
-                bundle += chunk
-                if len(bundle) > self.max_bundle_size:
-                    raise BundleTooLargeError(
-                        "The requested bundle exceeds the maximum allowed "
-                        "size of {} bytes.".format(self.max_bundle_size))
+            self.prepare_bundle()
+            bundle = self.fileobj.getvalue()
         except PolicyError as e:
             self.backend.set_status(self.obj_type, self.obj_id, 'failed')
             self.backend.set_progress(self.obj_type, self.obj_id, str(e))
@@ -154,35 +163,6 @@ def get_filtered_file_content(storage, file_data):
         return list(storage.content_get([file_data['sha1']]))[0]['data']
 
 
-# TODO: We should use something like that for all the IO done by the cookers.
-# Instead of using generators to yield chunks, we should just write() the
-# chunks in an object like this, which would give us way better control over
-# the buffering, and allow for streaming content to the objstorage.
-class BytesIOBundleSizeLimit(io.BytesIO):
-    def __init__(self, *args, size_limit=None, **kwargs):
-        self.size_limit = size_limit
-
-    def write(self, chunk):
-        if ((self.size_limit is not None
-             and self.getbuffer().nbytes + len(chunk) > self.size_limit)):
-            raise BundleTooLargeError(
-                "The requested bundle exceeds the maximum allowed "
-                "size of {} bytes.".format(self.size_limit))
-        return super().write(chunk)
-
-
-# TODO: Once the BytesIO buffer is put in BaseCooker, we can just pass it here
-# as a fileobj parameter instead of passing size_limit
-def get_tar_bytes(path, arcname=None, size_limit=None):
-    path = Path(path)
-    if not arcname:
-        arcname = path.name
-    tar_buffer = BytesIOBundleSizeLimit(size_limit=size_limit)
-    tar = tarfile.open(fileobj=tar_buffer, mode='w')
-    tar.add(str(path), arcname=arcname)
-    return tar_buffer.getbuffer()
-
-
 class DirectoryBuilder:
     """Creates a cooked directory from its sha1_git in the db.
 
@@ -193,18 +173,15 @@ class DirectoryBuilder:
     def __init__(self, storage):
         self.storage = storage
 
-    def get_directory_bytes(self, dir_id, size_limit=None):
+    def write_directory_bytes(self, dir_id, fileobj):
         # Create temporary folder to retrieve the files into.
-        root = bytes(tempfile.mkdtemp(prefix='directory.',
-                                      suffix='.cook'), 'utf8')
-        self.build_directory(dir_id, root)
-        # Use the created directory to make a bundle with the data as
-        # a compressed directory.
-        bundle_content = self._create_bundle_content(
-            root,
-            hashutil.hash_to_hex(dir_id),
-            size_limit=size_limit)
-        return bundle_content
+        with tempfile.TemporaryDirectory(prefix='tmp-vault-directory-') as td:
+            self.build_directory(dir_id, td.encode())
+
+            # Use the created directory to write a tar bundle containing the
+            # compressed directory.
+            tar = tarfile.open(fileobj=fileobj, mode='w')
+            tar.add(td, arcname=hashutil.hash_to_hex(dir_id))
 
     def build_directory(self, dir_id, root):
         # Retrieve data from the database.
@@ -264,16 +241,3 @@ class DirectoryBuilder:
         """
         content = list(self.storage.content_get([obj_id]))[0]['data']
         return content
-
-    def _create_bundle_content(self, path, hex_dir_id, size_limit=None):
-        """Create a bundle from the given directory
-
-        Args:
-            path: location of the directory to package.
-            hex_dir_id: hex representation of the directory id
-
-        Returns:
-            bytes that represent the compressed directory as a bundle.
-
-        """
-        return get_tar_bytes(path.decode(), hex_dir_id, size_limit=size_limit)

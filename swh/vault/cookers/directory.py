@@ -15,5 +15,4 @@ class DirectoryCooker(BaseVaultCooker):
 
     def prepare_bundle(self):
         directory_builder = DirectoryBuilder(self.storage)
-        yield directory_builder.get_directory_bytes(self.obj_id,
-                                                    self.max_bundle_size)
+        directory_builder.write_directory_bytes(self.obj_id, self.fileobj)

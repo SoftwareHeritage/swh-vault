@@ -3,12 +3,13 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import tarfile
 import tempfile
 from pathlib import Path
 
 from swh.model import hashutil
 
-from .base import BaseVaultCooker, DirectoryBuilder, get_tar_bytes
+from .base import BaseVaultCooker, DirectoryBuilder
 
 
 class RevisionFlatCooker(BaseVaultCooker):
@@ -33,6 +34,5 @@ class RevisionFlatCooker(BaseVaultCooker):
                 revdir.mkdir()
                 directory_builder.build_directory(revision['directory'],
                                                   str(revdir).encode())
-            # FIXME: stream the bytes! this tarball can be HUUUUUGE
-            yield get_tar_bytes(root_tmp, hashutil.hash_to_hex(self.obj_id),
-                                self.max_bundle_size)
+            tar = tarfile.open(fileobj=self.fileobj, mode='w')
+            tar.add(root_tmp, arcname=hashutil.hash_to_hex(self.obj_id))

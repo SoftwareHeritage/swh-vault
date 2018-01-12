@@ -6,7 +6,7 @@
 import pathlib
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from swh.model import hashutil
 from swh.vault.cookers.base import (BaseVaultCooker, get_tar_bytes,
@@ -68,16 +68,15 @@ class TestBaseVaultCooker(unittest.TestCase):
 
     def test_policy_exception_cook(self):
         cooker = BaseVaultCookerMock()
-
-        with patch('swh.vault.cookers.base.MAX_BUNDLE_SIZE', 8):
-            cooker.cook()
+        cooker.max_bundle_size = 8
+        cooker.cook()
 
         # Potentially remove this when we have objstorage streaming
         cooker.backend.put_bundle.assert_not_called()
 
         cooker.backend.set_status.assert_called_with(
             TEST_OBJ_TYPE, TEST_OBJ_ID, 'failed')
-        self.assertIn("too large", cooker.backend.set_progress.call_args[0][2])
+        self.assertIn("exceeds", cooker.backend.set_progress.call_args[0][2])
         cooker.backend.send_notif.assert_called_with(
             TEST_OBJ_TYPE, TEST_OBJ_ID)
 
@@ -89,6 +88,5 @@ class TestGetTarBytes(unittest.TestCase):
             (p / 'dir1/dir2').mkdir(parents=True)
             (p / 'dir1/dir2/file').write_text('testtesttesttest')
 
-            with patch('swh.vault.cookers.base.MAX_BUNDLE_SIZE', 8):
-                with self.assertRaises(BundleTooLargeError):
-                        get_tar_bytes(p)
+            with self.assertRaises(BundleTooLargeError):
+                    get_tar_bytes(p, size_limit=8)

@@ -34,4 +34,5 @@ class RevisionFlatCooker(BaseVaultCooker):
                 directory_builder.build_directory(revision['directory'],
                                                   str(revdir).encode())
             # FIXME: stream the bytes! this tarball can be HUUUUUGE
-            yield get_tar_bytes(root_tmp, hashutil.hash_to_hex(self.obj_id))
+            yield get_tar_bytes(root_tmp, hashutil.hash_to_hex(self.obj_id),
+                                self.max_bundle_size)

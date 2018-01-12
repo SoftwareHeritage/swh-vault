@@ -28,10 +28,9 @@ DEFAULT_CONFIG = {
             'url': 'http://localhost:5002/',
         },
     }),
-    'vault_url': ('str', 'http://localhost:5005/')
+    'vault_url': ('str', 'http://localhost:5005/'),
+    'max_bundle_size': ('int', 2 ** 29),  # 512 MiB
 }
-
-MAX_BUNDLE_SIZE = 2 ** 29  # 512 MiB
 
 
 class PolicyError(Exception):
@@ -73,6 +72,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         self.obj_id = hashutil.hash_to_bytes(obj_id)
         self.backend = RemoteVaultClient(self.config['vault_url'])
         self.storage = get_storage(**self.config['storage'])
+        self.max_bundle_size = self.config['max_bundle_size']
 
     @abc.abstractmethod
     def check_exists(self):
@@ -101,8 +101,10 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
             bundle = b''
             for chunk in content_iter:
                 bundle += chunk
-                if len(bundle) > MAX_BUNDLE_SIZE:
-                    raise BundleTooLargeError("Bundle is too large.")
+                if len(bundle) > self.max_bundle_size:
+                    raise BundleTooLargeError(
+                        "The requested bundle exceeds the maximum allowed "
+                        "size of {} bytes.".format(self.max_bundle_size))
         except PolicyError as e:
             self.backend.set_status(self.obj_type, self.obj_id, 'failed')
             self.backend.set_progress(self.obj_type, self.obj_id, str(e))
@@ -157,17 +159,25 @@ def get_filtered_file_content(storage, file_data):
 # chunks in an object like this, which would give us way better control over
 # the buffering, and allow for streaming content to the objstorage.
 class BytesIOBundleSizeLimit(io.BytesIO):
+    def __init__(self, *args, size_limit=None, **kwargs):
+        self.size_limit = size_limit
+
     def write(self, chunk):
-        if self.getbuffer().nbytes + len(chunk) > MAX_BUNDLE_SIZE:
-            raise BundleTooLargeError("Bundle is too large.")
+        if ((self.size_limit is not None
+             and self.getbuffer().nbytes + len(chunk) > self.size_limit)):
+            raise BundleTooLargeError(
+                "The requested bundle exceeds the maximum allowed "
+                "size of {} bytes.".format(self.size_limit))
         return super().write(chunk)
 
 
-def get_tar_bytes(path, arcname=None):
+# TODO: Once the BytesIO buffer is put in BaseCooker, we can just pass it here
+# as a fileobj parameter instead of passing size_limit
+def get_tar_bytes(path, arcname=None, size_limit=None):
     path = Path(path)
     if not arcname:
         arcname = path.name
-    tar_buffer = BytesIOBundleSizeLimit()
+    tar_buffer = BytesIOBundleSizeLimit(size_limit=size_limit)
     tar = tarfile.open(fileobj=tar_buffer, mode='w')
     tar.add(str(path), arcname=arcname)
     return tar_buffer.getbuffer()
@@ -183,7 +193,7 @@ class DirectoryBuilder:
     def __init__(self, storage):
         self.storage = storage
 
-    def get_directory_bytes(self, dir_id):
+    def get_directory_bytes(self, dir_id, size_limit=None):
         # Create temporary folder to retrieve the files into.
         root = bytes(tempfile.mkdtemp(prefix='directory.',
                                       suffix='.cook'), 'utf8')
@@ -192,7 +202,8 @@ class DirectoryBuilder:
         # a compressed directory.
         bundle_content = self._create_bundle_content(
             root,
-            hashutil.hash_to_hex(dir_id))
+            hashutil.hash_to_hex(dir_id),
+            size_limit=size_limit)
         return bundle_content
 
     def build_directory(self, dir_id, root):
@@ -254,7 +265,7 @@ class DirectoryBuilder:
         content = list(self.storage.content_get([obj_id]))[0]['data']
         return content
 
-    def _create_bundle_content(self, path, hex_dir_id):
+    def _create_bundle_content(self, path, hex_dir_id, size_limit=None):
         """Create a bundle from the given directory
 
         Args:
@@ -265,4 +276,4 @@ class DirectoryBuilder:
             bytes that represent the compressed directory as a bundle.
 
         """
-        return get_tar_bytes(path.decode(), hex_dir_id)
+        return get_tar_bytes(path.decode(), hex_dir_id, size_limit=size_limit)

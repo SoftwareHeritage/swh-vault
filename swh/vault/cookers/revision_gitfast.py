@@ -137,7 +137,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
 
         # Retrieve the file commands while yielding new blob commands if
         # needed.
-        files = self._compute_file_commands(rev, parent)
+        files = list(self._compute_file_commands(rev, parent))
 
         # Construct and write the commit command
         author = self._author_tuple_format(rev['author'], rev['date'])
@@ -170,8 +170,6 @@ class RevisionGitfastCooker(BaseVaultCooker):
         Generate a diff of the files between the revision and its main parent
         to find the necessary file commands to apply.
         """
-        commands = []
-
         # Initialize the stack with the root of the tree.
         cur_dir = rev['directory']
         parent_dir = parent['directory'] if parent else None
@@ -194,9 +192,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
             for fname, f in prev_dir.items():
                 if ((fname not in cur_dir
                      or f['type'] != cur_dir[fname]['type'])):
-                    commands.append(FileDeleteCommand(
-                        path=os.path.join(root, fname)
-                    ))
+                    yield FileDeleteCommand(path=os.path.join(root, fname))
 
             # Find subtrees to modify:
             #  - Leaves (files) will be added or modified using `filemodify`
@@ -211,12 +207,11 @@ class RevisionGitfastCooker(BaseVaultCooker):
                          or f['perms'] != prev_dir[fname]['perms'])):
                     # Issue a blob command for the new blobs if needed.
                     self._compute_blob_command_content(f)
-                    commands.append(FileModifyCommand(
+                    yield FileModifyCommand(
                         path=os.path.join(root, fname),
                         mode=mode_to_perms(f['perms']).value,
                         dataref=(b':' + self.mark(f['sha1'])),
-                        data=None,
-                    ))
+                        data=None)
                 # A directory is added or modified if it was not in the tree or
                 # if its target changed.
                 elif f['type'] == 'dir':
@@ -226,4 +221,3 @@ class RevisionGitfastCooker(BaseVaultCooker):
                     if f_prev_target is None or f['target'] != f_prev_target:
                         stack.append((os.path.join(root, fname),
                                       f['target'], f_prev_target))
-        return commands

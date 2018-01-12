@@ -6,8 +6,9 @@
 import tarfile
 import tempfile
 
-from swh.vault.cookers.base import BaseVaultCooker, DirectoryBuilder
 from swh.model import hashutil
+from swh.vault.cookers.base import BaseVaultCooker
+from swh.vault.to_disk import DirectoryBuilder
 
 
 class DirectoryCooker(BaseVaultCooker):
@@ -18,8 +19,9 @@ class DirectoryCooker(BaseVaultCooker):
         return not list(self.storage.directory_missing([self.obj_id]))
 
     def prepare_bundle(self):
-        directory_builder = DirectoryBuilder(self.storage)
         with tempfile.TemporaryDirectory(prefix='tmp-vault-directory-') as td:
-            directory_builder.build_directory(self.obj_id, td.encode())
+            directory_builder = DirectoryBuilder(
+                self.storage, td.encode(), self.obj_id)
+            directory_builder.build()
             tar = tarfile.open(fileobj=self.fileobj, mode='w')
             tar.add(td, arcname=hashutil.hash_to_hex(self.obj_id))

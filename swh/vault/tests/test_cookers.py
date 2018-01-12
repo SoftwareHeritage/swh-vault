@@ -27,8 +27,8 @@ from swh.model import hashutil
 from swh.model.from_disk import Directory
 from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.vault.cookers import DirectoryCooker, RevisionGitfastCooker
-from swh.vault.cookers.base import SKIPPED_MESSAGE, HIDDEN_MESSAGE
 from swh.vault.tests.vault_testing import VaultTestFixture, hash_content
+from swh.vault.to_disk import SKIPPED_MESSAGE, HIDDEN_MESSAGE
 
 
 class TestRepo:

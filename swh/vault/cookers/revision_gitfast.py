@@ -12,8 +12,9 @@ import zlib
 from fastimport.commands import (CommitCommand, ResetCommand, BlobCommand,
                                  FileDeleteCommand, FileModifyCommand)
 
-from .base import BaseVaultCooker, get_filtered_file_content
 from swh.model.from_disk import mode_to_perms
+from swh.vault.cookers.base import BaseVaultCooker
+from swh.vault.to_disk import get_filtered_file_content
 
 
 class RevisionGitfastCooker(BaseVaultCooker):

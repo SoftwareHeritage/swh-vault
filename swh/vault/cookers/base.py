@@ -41,6 +41,7 @@ class BundleTooLargeError(PolicyError):
 
 class BytesIOBundleSizeLimit(io.BytesIO):
     def __init__(self, *args, size_limit=None, **kwargs):
+        super().__init__(self, *args, **kwargs)
         self.size_limit = size_limit
 
     def write(self, chunk):

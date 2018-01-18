@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import collections
 import functools
 import os
 import time
@@ -12,6 +11,7 @@ import zlib
 from fastimport.commands import (CommitCommand, ResetCommand, BlobCommand,
                                  FileDeleteCommand, FileModifyCommand)
 
+from swh.model.toposort import toposort
 from swh.model.from_disk import mode_to_perms
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.to_disk import get_filtered_file_content
@@ -25,64 +25,36 @@ class RevisionGitfastCooker(BaseVaultCooker):
         return not list(self.storage.revision_missing([self.obj_id]))
 
     def prepare_bundle(self):
-        log = self.storage.revision_log([self.obj_id])
+        self.log = list(toposort(self.storage.revision_log([self.obj_id])))
         self.gzobj = zlib.compressobj(9, zlib.DEFLATED, zlib.MAX_WBITS | 16)
-        self.fastexport(log)
+        self.fastexport()
         self.write(self.gzobj.flush())
 
     def write_cmd(self, cmd):
         chunk = bytes(cmd) + b'\n'
         super().write(self.gzobj.compress(chunk))
 
-    def fastexport(self, log):
+    def fastexport(self):
         """Generate all the git fast-import commands from a given log.
         """
-        self.rev_by_id = {r['id']: r for r in log}
-        self.rev_sorted = list(self._toposort(self.rev_by_id))
+        self.rev_by_id = {r['id']: r for r in self.log}
         self.obj_done = set()
         self.obj_to_mark = {}
         self.next_available_mark = 1
 
         last_progress_report = None
 
-        for i, rev in enumerate(self.rev_sorted, 1):
+        for i, rev in enumerate(self.log, 1):
             # Update progress if needed
             ct = time.time()
             if (last_progress_report is None
                     or last_progress_report + 2 <= ct):
                 last_progress_report = ct
-                pg = ('Computing revision {}/{}'
-                      .format(i, len(self.rev_sorted)))
+                pg = ('Computing revision {}/{}'.format(i, len(self.log)))
                 self.backend.set_progress(self.obj_type, self.obj_id, pg)
 
             # Compute the current commit
             self._compute_commit_command(rev)
-
-    def _toposort(self, rev_by_id):
-        """Perform a topological sort on the revision graph.
-        """
-        children = collections.defaultdict(list)  # rev -> children
-        in_degree = {}  # rev -> numbers of parents left to compute
-
-        # Compute the in_degrees and the parents of all the revisions.
-        # Add the roots to the processing queue.
-        queue = collections.deque()
-        for rev_id, rev in rev_by_id.items():
-            in_degree[rev_id] = len(rev['parents'])
-            if not rev['parents']:
-                queue.append(rev_id)
-            for parent in rev['parents']:
-                children[parent].append(rev_id)
-
-        # Topological sort: yield the 'ready' nodes, decrease the in degree of
-        # their children and add the 'ready' ones to the queue.
-        while queue:
-            rev_id = queue.popleft()
-            yield rev_by_id[rev_id]
-            for child in children[rev_id]:
-                in_degree[child] -= 1
-                if in_degree[child] == 0:
-                    queue.append(child)
 
     def mark(self, obj_id):
         """Get the mark ID as bytes of a git object.

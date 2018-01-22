@@ -149,15 +149,16 @@ previous cooking operation and expiration.
 
     - ``obj_id``: the identifier of the requested bundle
 
+    - ``progress_message``: a string describing the current progress of the
+      cooking. If the cooking failed, ``progress_message`` will contain the
+      reason of the failure.
+
     - ``status``: one of the following values:
 
       - ``new``: the bundle request was created
       - ``pending``: the bundle is being cooked
       - ``done``: the bundle has been cooked and is ready for retrieval
       - ``failed``: the bundle cooking failed and can be retried
-      - ``progress_message``: a string describing the current progress of the
-        cooking. If the cooking failed, ``progress_message`` will contain the
-        reason of the failure.
 
 Retrieval
 ---------

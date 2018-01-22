@@ -1,3 +1,5 @@
+.. _vault-primer:
+
 Getting started
 ===============
 
@@ -10,25 +12,26 @@ The Vault is asynchronous : you first need to do a request to prepare
 the bundle you need, and then a second request to fetch the bundle once
 the Vault has finished to reconstitute the bundle.
 
-Example: getting a directory
-----------------------------
+Example: retrieving a directory
+-------------------------------
 
 First, ask the Vault to prepare your bundle:
 
 .. code:: shell
 
-    curl -X POST https://archive.softwareheritage.org/1/vault/directory/<sha1_git:dir_id>/
+    curl -X POST https://archive.softwareheritage.org/1/vault/directory/:dir_id/
 
-This request and all subsequent requests to this endpoint will return
-some JSON data containing information about the progress of the bundle
-creation:
+where ``:dir_id`` is a :py:func:`directory identifier
+<swh.model.identifiers.directory_identifier>`. This initial request and all
+subsequent requests to this endpoint will return some JSON data containing
+information about the progress of bundle creation:
 
 .. code:: json
 
     {
         "id": 42,
-        "fetch_url": "/api/1/vault/directory/<sha1_git:dir_id>/raw/",
-        "obj_id": "<sha1_git:dir_id>",
+        "fetch_url": "/api/1/vault/directory/:dir_id/raw/",
+        "obj_id": ":dir_id",
         "obj_type": "directory",
         "progress_message": "Creating tarball...",
         "status": "pending"
@@ -39,21 +42,21 @@ given in the ``fetch_url`` field.
 
 .. code:: shell
 
-    curl https://archive.softwareheritage.org/1/vault/directory/<sha1_git:dir_id>/raw
+    curl -o bundle.tar.gz https://archive.softwareheritage.org/1/vault/directory/:dir_id/raw
+    tar xaf bundle.tar.gz
 
 E-mail notifications
 --------------------
 
-You can also ask to be notified by e-mail once the bundle you requested
-is ready, by simply giving an ``email`` POST parameter:
+You can also ask to be notified by e-mail once the bundle you requested is
+ready, by giving an ``email`` POST parameter:
 
 .. code:: shell
 
     curl -X POST -d 'email=example@example.com' \
-        https://archive.softwareheritage.org/1/vault/directory/<sha1_git:dir_id>/
+        https://archive.softwareheritage.org/1/vault/directory/:dir_id/
 
 API reference
 ~~~~~~~~~~~~~
 
-For a more exhaustive overview of the Vault API, you can take a look at
-the `Vault API Reference <./api.html>`__
+For a more exhaustive overview of the Vault API, see the :ref:`vault-api-ref`.

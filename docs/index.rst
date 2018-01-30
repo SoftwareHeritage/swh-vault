@@ -7,6 +7,8 @@ Software Heritage - Development Documentation
    :maxdepth: 2
    :caption: Contents:
 
+   getting-started.rst
+   api.rst
 
 
 Indices and tables

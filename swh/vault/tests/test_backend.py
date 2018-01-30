@@ -46,6 +46,12 @@ class BaseTestBackend(VaultTestFixture, StorageTestFixture, DbTestFixture):
         self.vault_backend.set_status(obj_type, obj_id, 'done')
         return obj_id, content
 
+    def fail_cook(self, obj_type, obj_id, failure_reason):
+        with self.mock_cooking():
+            self.vault_backend.create_task(obj_type, obj_id)
+        self.vault_backend.set_status(obj_type, obj_id, 'failed')
+        self.vault_backend.set_progress(obj_type, obj_id, failure_reason)
+
 
 TEST_TYPE = 'revision_gitfast'
 TEST_HEX_ID = '4a4b9771542143cf070386f86b4b92d42966bdbc'
@@ -282,3 +288,42 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
         for i in r:
             self.assertEqual(self.vault_backend.is_available(
                 TEST_TYPE, inserted[i][0]), i in should_be_still_here)
+
+    def test_fail_cook_simple(self):
+        self.fail_cook(TEST_TYPE, TEST_OBJ_ID, 'error42')
+        self.assertFalse(self.vault_backend.is_available(TEST_TYPE,
+                                                         TEST_OBJ_ID))
+        info = self.vault_backend.task_info(TEST_TYPE, TEST_OBJ_ID)
+        self.assertEqual(info['progress_msg'], 'error42')
+
+    def test_send_failure_email(self):
+        with self.mock_cooking():
+            self.vault_backend.cook_request(TEST_TYPE, TEST_OBJ_ID,
+                                            email='a@example.com')
+
+        self.vault_backend.set_status(TEST_TYPE, TEST_OBJ_ID, 'failed')
+        self.vault_backend.set_progress(TEST_TYPE, TEST_OBJ_ID, 'test error')
+
+        with patch.object(self.vault_backend, 'smtp_server') as m:
+            self.vault_backend.send_all_notifications(TEST_TYPE, TEST_OBJ_ID)
+
+            e = [k[0][0] for k in m.send_message.call_args_list][0]
+            self.assertEqual(e['To'], 'a@example.com')
+
+            self.assertIn('info@softwareheritage.org', e['From'])
+            self.assertIn(TEST_TYPE, e['Subject'])
+            self.assertIn(TEST_HEX_ID[:5], e['Subject'])
+            self.assertIn('fail', e['Subject'])
+            self.assertIn(TEST_TYPE, str(e))
+            self.assertIn(TEST_HEX_ID[:5], str(e))
+            self.assertIn('test error', str(e))
+            self.assertIn('--\x20\n', str(e))  # Well-formated signature
+
+    def test_retry_failed_bundle(self):
+        self.fail_cook(TEST_TYPE, TEST_OBJ_ID, 'error42')
+        info = self.vault_backend.task_info(TEST_TYPE, TEST_OBJ_ID)
+        self.assertEqual(info['task_status'], 'failed')
+        with self.mock_cooking():
+            self.vault_backend.cook_request(TEST_TYPE, TEST_OBJ_ID)
+        info = self.vault_backend.task_info(TEST_TYPE, TEST_OBJ_ID)
+        self.assertEqual(info['task_status'], 'new')

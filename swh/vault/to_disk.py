@@ -6,6 +6,7 @@
 import itertools
 import os
 
+from swh.model import hashutil
 from swh.model.from_disk import mode_to_perms, DentryPerms
 
 SKIPPED_MESSAGE = (b'This content has not been retrieved in the '
@@ -28,7 +29,6 @@ def get_filtered_file_content(storage, file_data):
         (either due to privacy policy or because its size was too big for us to
         archive it).
     """
-
     assert file_data['type'] == 'file'
 
     if file_data['status'] == 'absent':
@@ -61,10 +61,9 @@ class DirectoryBuilder:
         data = self.storage.directory_ls(self.dir_id, recursive=True)
 
         # Split into files and directory data.
-        # TODO(seirl): also handle revision data.
         data1, data2 = itertools.tee(data, 2)
         dir_data = (entry['name'] for entry in data1 if entry['type'] == 'dir')
-        file_data = (entry for entry in data2 if entry['type'] == 'file')
+        file_data = (entry for entry in data2 if entry['type'] != 'dir')
 
         # Recreate the directory's subtree and then the files into it.
         self._create_tree(dir_data)
@@ -88,11 +87,15 @@ class DirectoryBuilder:
 
     def _create_files(self, file_datas):
         """Create the files according to their status."""
-        # Then create the files
         for file_data in file_datas:
             path = os.path.join(self.root, file_data['name'])
-            content = get_filtered_file_content(self.storage, file_data)
-            self._create_file(path, content, file_data['perms'])
+            if file_data['type'] == 'file':
+                content = get_filtered_file_content(self.storage, file_data)
+                self._create_file(path, content, file_data['perms'])
+            elif file_data['type'] == 'rev':
+                self._create_file(path,
+                                  hashutil.hash_to_hex(file_data['target']),
+                                  0o120000)
 
     def _create_file(self, path, content, mode=0o100644):
         """Create the given file and fill it with content."""

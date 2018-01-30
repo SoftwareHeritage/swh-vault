@@ -11,6 +11,7 @@ import zlib
 from fastimport.commands import (CommitCommand, ResetCommand, BlobCommand,
                                  FileDeleteCommand, FileModifyCommand)
 
+from swh.model import hashutil
 from swh.model.toposort import toposort
 from swh.model.from_disk import mode_to_perms
 from swh.vault.cookers.base import BaseVaultCooker
@@ -184,6 +185,16 @@ class RevisionGitfastCooker(BaseVaultCooker):
                         path=os.path.join(root, fname),
                         mode=mode_to_perms(f['perms']).value,
                         dataref=(b':' + self.mark(f['sha1'])),
+                        data=None)
+                # A revision is added or modified if it was not in the tree or
+                # if its target changed
+                elif (f['type'] == 'rev'
+                      and (fname not in prev_dir
+                           or f['target'] != prev_dir[fname]['target'])):
+                    yield FileModifyCommand(
+                        path=os.path.join(root, fname),
+                        mode=0o160000,
+                        dataref=hashutil.hash_to_hex(f['target']).encode(),
                         data=None)
                 # A directory is added or modified if it was not in the tree or
                 # if its target changed.

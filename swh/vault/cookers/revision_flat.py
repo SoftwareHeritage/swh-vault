@@ -3,35 +3,30 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import tarfile
 import tempfile
 from pathlib import Path
 
 from swh.model import hashutil
-
-from .base import BaseVaultCooker, DirectoryBuilder, get_tar_bytes
+from swh.vault.cookers.base import BaseVaultCooker
+from swh.vault.to_disk import DirectoryBuilder
 
 
 class RevisionFlatCooker(BaseVaultCooker):
-    """Cooker to create a directory bundle """
+    """Cooker to create a revision_flat bundle """
     CACHE_TYPE_KEY = 'revision_flat'
 
     def check_exists(self):
         return not list(self.storage.revision_missing([self.obj_id]))
 
     def prepare_bundle(self):
-        """Cook the requested revision into a Bundle
-
-        Returns:
-            bytes that correspond to the bundle
-
-        """
-        directory_builder = DirectoryBuilder(self.storage)
-        with tempfile.TemporaryDirectory(suffix='.cook') as root_tmp:
-            root = Path(root_tmp)
+        with tempfile.TemporaryDirectory(prefix='tmp-vault-revision-') as td:
+            root = Path(td)
             for revision in self.storage.revision_log([self.obj_id]):
                 revdir = root / hashutil.hash_to_hex(revision['id'])
                 revdir.mkdir()
-                directory_builder.build_directory(revision['directory'],
-                                                  str(revdir).encode())
-            # FIXME: stream the bytes! this tarball can be HUUUUUGE
-            yield get_tar_bytes(root_tmp, hashutil.hash_to_hex(self.obj_id))
+                directory_builder = DirectoryBuilder(
+                    self.storage, str(revdir).encode(), revision['directory'])
+                directory_builder.build()
+            tar = tarfile.open(fileobj=self.fileobj, mode='w')
+            tar.add(td, arcname=hashutil.hash_to_hex(self.obj_id))

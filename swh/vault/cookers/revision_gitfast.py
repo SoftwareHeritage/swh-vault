@@ -3,15 +3,19 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import collections
-import fastimport.commands
 import functools
 import os
 import time
 import zlib
 
-from .base import BaseVaultCooker, get_filtered_file_content
+from fastimport.commands import (CommitCommand, ResetCommand, BlobCommand,
+                                 FileDeleteCommand, FileModifyCommand)
+
+from swh.model import hashutil
+from swh.model.toposort import toposort
 from swh.model.from_disk import mode_to_perms
+from swh.vault.cookers.base import BaseVaultCooker
+from swh.vault.to_disk import get_filtered_file_content
 
 
 class RevisionGitfastCooker(BaseVaultCooker):
@@ -22,63 +26,36 @@ class RevisionGitfastCooker(BaseVaultCooker):
         return not list(self.storage.revision_missing([self.obj_id]))
 
     def prepare_bundle(self):
-        log = self.storage.revision_log([self.obj_id])
-        commands = self.fastexport(log)
+        self.log = list(toposort(self.storage.revision_log([self.obj_id])))
+        self.gzobj = zlib.compressobj(9, zlib.DEFLATED, zlib.MAX_WBITS | 16)
+        self.fastexport()
+        self.write(self.gzobj.flush())
 
-        compressobj = zlib.compressobj(9, zlib.DEFLATED, zlib.MAX_WBITS | 16)
-        for command in commands:
-            yield compressobj.compress(bytes(command) + b'\n')
-        yield compressobj.flush()
+    def write_cmd(self, cmd):
+        chunk = bytes(cmd) + b'\n'
+        super().write(self.gzobj.compress(chunk))
 
-    def fastexport(self, log):
+    def fastexport(self):
         """Generate all the git fast-import commands from a given log.
         """
-        self.rev_by_id = {r['id']: r for r in log}
-        self.rev_sorted = list(self._toposort(self.rev_by_id))
+        self.rev_by_id = {r['id']: r for r in self.log}
         self.obj_done = set()
         self.obj_to_mark = {}
         self.next_available_mark = 1
 
         last_progress_report = None
 
-        for i, rev in enumerate(self.rev_sorted, 1):
+        for i, rev in enumerate(self.log, 1):
             # Update progress if needed
             ct = time.time()
             if (last_progress_report is None
                     or last_progress_report + 2 <= ct):
                 last_progress_report = ct
-                pg = ('Computing revision {}/{}'
-                      .format(i, len(self.rev_sorted)))
+                pg = ('Computing revision {}/{}'.format(i, len(self.log)))
                 self.backend.set_progress(self.obj_type, self.obj_id, pg)
 
             # Compute the current commit
-            yield from self._compute_commit_command(rev)
-
-    def _toposort(self, rev_by_id):
-        """Perform a topological sort on the revision graph.
-        """
-        children = collections.defaultdict(list)  # rev -> children
-        in_degree = {}  # rev -> numbers of parents left to compute
-
-        # Compute the in_degrees and the parents of all the revisions.
-        # Add the roots to the processing queue.
-        queue = collections.deque()
-        for rev_id, rev in rev_by_id.items():
-            in_degree[rev_id] = len(rev['parents'])
-            if not rev['parents']:
-                queue.append(rev_id)
-            for parent in rev['parents']:
-                children[parent].append(rev_id)
-
-        # Topological sort: yield the 'ready' nodes, decrease the in degree of
-        # their children and add the 'ready' ones to the queue.
-        while queue:
-            rev_id = queue.popleft()
-            yield rev_by_id[rev_id]
-            for child in children[rev_id]:
-                in_degree[child] -= 1
-                if in_degree[child] == 0:
-                    queue.append(child)
+            self._compute_commit_command(rev)
 
     def mark(self, obj_id):
         """Get the mark ID as bytes of a git object.
@@ -99,10 +76,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
         if obj_id in self.obj_done:
             return
         content = get_filtered_file_content(self.storage, file_data)
-        yield fastimport.commands.BlobCommand(
-            mark=self.mark(obj_id),
-            data=content,
-        )
+        self.write_cmd(BlobCommand(mark=self.mark(obj_id), data=content))
         self.obj_done.add(obj_id)
 
     def _author_tuple_format(self, author, date):
@@ -130,20 +104,20 @@ class RevisionGitfastCooker(BaseVaultCooker):
         else:
             # We issue a reset command before all the new roots so that they
             # are not automatically added as children of the current branch.
-            yield fastimport.commands.ResetCommand(b'refs/heads/master', None)
+            self.write_cmd(ResetCommand(b'refs/heads/master', None))
             from_ = None
             merges = None
             parent = None
 
         # Retrieve the file commands while yielding new blob commands if
         # needed.
-        files = yield from self._compute_file_commands(rev, parent)
+        files = list(self._compute_file_commands(rev, parent))
 
-        # Construct and yield the commit command
+        # Construct and write the commit command
         author = self._author_tuple_format(rev['author'], rev['date'])
         committer = self._author_tuple_format(rev['committer'],
                                               rev['committer_date'])
-        yield fastimport.commands.CommitCommand(
+        self.write_cmd(CommitCommand(
             ref=b'refs/heads/master',
             mark=self.mark(rev['id']),
             author=author,
@@ -151,8 +125,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
             message=rev['message'] or b'',
             from_=from_,
             merges=merges,
-            file_iter=files,
-        )
+            file_iter=files))
 
     @functools.lru_cache(maxsize=4096)
     def _get_dir_ents(self, dir_id=None):
@@ -171,8 +144,6 @@ class RevisionGitfastCooker(BaseVaultCooker):
         Generate a diff of the files between the revision and its main parent
         to find the necessary file commands to apply.
         """
-        commands = []
-
         # Initialize the stack with the root of the tree.
         cur_dir = rev['directory']
         parent_dir = parent['directory'] if parent else None
@@ -195,9 +166,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
             for fname, f in prev_dir.items():
                 if ((fname not in cur_dir
                      or f['type'] != cur_dir[fname]['type'])):
-                    commands.append(fastimport.commands.FileDeleteCommand(
-                        path=os.path.join(root, fname)
-                    ))
+                    yield FileDeleteCommand(path=os.path.join(root, fname))
 
             # Find subtrees to modify:
             #  - Leaves (files) will be added or modified using `filemodify`
@@ -211,13 +180,22 @@ class RevisionGitfastCooker(BaseVaultCooker):
                          or f['sha1'] != prev_dir[fname]['sha1']
                          or f['perms'] != prev_dir[fname]['perms'])):
                     # Issue a blob command for the new blobs if needed.
-                    yield from self._compute_blob_command_content(f)
-                    commands.append(fastimport.commands.FileModifyCommand(
+                    self._compute_blob_command_content(f)
+                    yield FileModifyCommand(
                         path=os.path.join(root, fname),
                         mode=mode_to_perms(f['perms']).value,
                         dataref=(b':' + self.mark(f['sha1'])),
-                        data=None,
-                    ))
+                        data=None)
+                # A revision is added or modified if it was not in the tree or
+                # if its target changed
+                elif (f['type'] == 'rev'
+                      and (fname not in prev_dir
+                           or f['target'] != prev_dir[fname]['target'])):
+                    yield FileModifyCommand(
+                        path=os.path.join(root, fname),
+                        mode=0o160000,
+                        dataref=hashutil.hash_to_hex(f['target']).encode(),
+                        data=None)
                 # A directory is added or modified if it was not in the tree or
                 # if its target changed.
                 elif f['type'] == 'dir':
@@ -227,4 +205,3 @@ class RevisionGitfastCooker(BaseVaultCooker):
                     if f_prev_target is None or f['target'] != f_prev_target:
                         stack.append((os.path.join(root, fname),
                                       f['target'], f_prev_target))
-        return commands

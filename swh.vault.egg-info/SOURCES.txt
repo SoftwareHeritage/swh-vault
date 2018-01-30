@@ -15,9 +15,10 @@ debian/rules
 debian/source/format
 docs/.gitignore
 docs/Makefile
+docs/api.rst
 docs/conf.py
+docs/getting-started.rst
 docs/index.rst
-docs/vault-blueprint.md
 docs/_static/.placeholder
 docs/_templates/.placeholder
 sql/swh-vault-schema.sql
@@ -32,6 +33,7 @@ swh/vault/__init__.py
 swh/vault/backend.py
 swh/vault/cache.py
 swh/vault/cooking_tasks.py
+swh/vault/to_disk.py
 swh/vault/api/__init__.py
 swh/vault/api/client.py
 swh/vault/api/server.py
@@ -43,4 +45,5 @@ swh/vault/cookers/revision_gitfast.py
 swh/vault/tests/test_backend.py
 swh/vault/tests/test_cache.py
 swh/vault/tests/test_cookers.py
+swh/vault/tests/test_cookers_base.py
 swh/vault/tests/vault_testing.py

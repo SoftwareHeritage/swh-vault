@@ -27,8 +27,8 @@ from swh.model import hashutil
 from swh.model.from_disk import Directory
 from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.vault.cookers import DirectoryCooker, RevisionGitfastCooker
-from swh.vault.cookers.base import SKIPPED_MESSAGE, HIDDEN_MESSAGE
 from swh.vault.tests.vault_testing import VaultTestFixture, hash_content
+from swh.vault.to_disk import SKIPPED_MESSAGE, HIDDEN_MESSAGE
 
 
 class TestRepo:
@@ -91,28 +91,36 @@ class BaseTestCookers(VaultTestFixture, StorageTestFixture, DbTestFixture):
         cooker = DirectoryCooker('directory', obj_id)
         cooker.storage = self.storage
         cooker.backend = unittest.mock.MagicMock()
-        cooker.check_exists()  # Raises if false
-        tarball = b''.join(cooker.prepare_bundle())
-        with tempfile.TemporaryDirectory('tmp-vault-extract-') as td:
-            fobj = io.BytesIO(tarball)
-            with tarfile.open(fileobj=fobj, mode='r') as tar:
+        cooker.fileobj = io.BytesIO()
+        assert cooker.check_exists()
+        cooker.prepare_bundle()
+        cooker.fileobj.seek(0)
+        with tempfile.TemporaryDirectory(prefix='tmp-vault-extract-') as td:
+            with tarfile.open(fileobj=cooker.fileobj, mode='r') as tar:
                 tar.extractall(td)
-            p = pathlib.Path(td) / hashutil.hash_to_hex(obj_id)
-            yield p
+            yield pathlib.Path(td) / hashutil.hash_to_hex(obj_id)
+
+    @contextlib.contextmanager
+    def cook_stream_revision_gitfast(self, obj_id):
+        """Context manager that cooks a revision and stream its fastexport."""
+        cooker = RevisionGitfastCooker('revision_gitfast', obj_id)
+        cooker.storage = self.storage
+        cooker.backend = unittest.mock.MagicMock()
+        cooker.fileobj = io.BytesIO()
+        assert cooker.check_exists()
+        cooker.prepare_bundle()
+        cooker.fileobj.seek(0)
+        fastexport_stream = gzip.GzipFile(fileobj=cooker.fileobj)
+        yield fastexport_stream
 
     @contextlib.contextmanager
     def cook_extract_revision_gitfast(self, obj_id):
         """Context manager that cooks a revision and extract it."""
-        cooker = RevisionGitfastCooker('revision_gitfast', obj_id)
-        cooker.storage = self.storage
-        cooker.backend = unittest.mock.MagicMock()
-        cooker.check_exists()  # Raises if false
-        fastexport = b''.join(cooker.prepare_bundle())
-        fastexport_stream = gzip.GzipFile(fileobj=io.BytesIO(fastexport))
         test_repo = TestRepo()
-        with test_repo as p:
+        with self.cook_stream_revision_gitfast(obj_id) as stream, \
+                test_repo as p:
             processor = dulwich.fastexport.GitImportProcessor(test_repo.repo)
-            processor.import_stream(fastexport_stream)
+            processor.import_stream(stream)
             yield test_repo, p
 
 
@@ -206,6 +214,27 @@ class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):
             self.assertEqual((p / 'file').stat().st_mode, 0o100644)
             self.assertEqual((p / 'executable').stat().st_mode, 0o100755)
             self.assertEqual((p / 'wat').stat().st_mode, 0o100644)
+
+    def test_directory_revision_data(self):
+        target_rev = '0e8a3ad980ec179856012b7eecf4327e99cd44cd'
+        d = hashutil.hash_to_bytes('17a3e48bce37be5226490e750202ad3a9a1a3fe9')
+
+        dir = {
+            'id': d,
+            'entries': [
+                {
+                    'name': b'submodule',
+                    'type': 'rev',
+                    'target': hashutil.hash_to_bytes(target_rev),
+                    'perms': 0o100644,
+                }
+            ],
+        }
+        self.storage.directory_add([dir])
+
+        with self.cook_extract_directory(d) as p:
+            self.assertTrue((p / 'submodule').is_symlink())
+            self.assertEqual(os.readlink(str(p / 'submodule')), target_rev)
 
 
 class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
@@ -418,3 +447,40 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
         with self.cook_extract_revision_gitfast(test_id) as (ert, p):
             ert.checkout(b'HEAD')
             self.assertEqual((p / 'file').stat().st_mode, 0o100644)
+
+    def test_revision_revision_data(self):
+        target_rev = '0e8a3ad980ec179856012b7eecf4327e99cd44cd'
+        d = hashutil.hash_to_bytes('17a3e48bce37be5226490e750202ad3a9a1a3fe9')
+        r = hashutil.hash_to_bytes('1ecc9270c4fc61cfddbc65a774e91ef5c425a6f0')
+
+        dir = {
+            'id': d,
+            'entries': [
+                {
+                    'name': b'submodule',
+                    'type': 'rev',
+                    'target': hashutil.hash_to_bytes(target_rev),
+                    'perms': 0o100644,
+                }
+            ],
+        }
+        self.storage.directory_add([dir])
+
+        rev = {
+            'id': r,
+            'message': None,
+            'author': {'name': None, 'email': None, 'fullname': ''},
+            'date': None,
+            'committer': {'name': None, 'email': None, 'fullname': ''},
+            'committer_date': None,
+            'parents': [],
+            'type': 'git',
+            'directory': d,
+            'metadata': {},
+            'synthetic': True
+        }
+        self.storage.revision_add([rev])
+
+        with self.cook_stream_revision_gitfast(r) as stream:
+            pattern = 'M 160000 {} submodule'.format(target_rev).encode()
+            self.assertIn(pattern, stream.read())

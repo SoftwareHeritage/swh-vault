@@ -61,7 +61,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     """
     CACHE_TYPE_KEY = None
 
-    def __init__(self, obj_type, obj_id):
+    def __init__(self, obj_type, obj_id, *, override_cfg=None):
         """Initialize the cooker.
 
         The type of the object represented by the id depends on the
@@ -75,6 +75,9 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         """
         self.config = config.load_named_config(DEFAULT_CONFIG_PATH,
                                                DEFAULT_CONFIG)
+        if override_cfg is not None:
+            self.config.update(override_cfg)
+
         self.obj_type = obj_type
         self.obj_id = hashutil.hash_to_bytes(obj_id)
         self.backend = RemoteVaultClient(self.config['vault_url'])

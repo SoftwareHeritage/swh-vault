@@ -175,8 +175,9 @@ class VaultBackend:
         hex_id = hashutil.hash_to_hex(obj_id)
         args = [obj_type, hex_id]
 
+        backend_storage_config = {'storage': self.config['storage']}
         cooker_class = get_cooker(obj_type)
-        cooker = cooker_class(*args)
+        cooker = cooker_class(*args, override_cfg=backend_storage_config)
         if not cooker.check_exists():
             raise NotFoundExc("Object {} was not found.".format(hex_id))
 

@@ -3,7 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import itertools
+import functools
+import collections
 import os
 
 from swh.model import hashutil
@@ -15,28 +16,42 @@ SKIPPED_MESSAGE = (b'This content has not been retrieved in the '
 HIDDEN_MESSAGE = (b'This content is hidden.')
 
 
-def get_filtered_file_content(storage, file_data):
-    """Retrieve the file specified by file_data and apply filters for skipped
+def get_filtered_files_content(storage, files_data):
+    """Retrieve the files specified by files_data and apply filters for skipped
     and missing contents.
 
     Args:
-        storage: the storage from which to retrieve the object
-        file_data: file entry descriptor as returned by directory_ls()
+        storage: the storage from which to retrieve the objects
+        files_data: list of file entries as returned by directory_ls()
 
-    Returns:
-        Bytes containing the specified content. The content will be replaced by
-        a specific message to indicate that the content could not be retrieved
-        (either due to privacy policy or because its size was too big for us to
-        archive it).
+    Yields:
+        The entries given in files_data with a new 'content' key that points to
+        the file content in bytes.
+
+        The contents can be replaced by a specific message to indicate that
+        they could not be retrieved (either due to privacy policy or because
+        their sizes were too big for us to archive it).
     """
-    assert file_data['type'] == 'file'
+    contents_to_fetch = [f['sha1'] for f in files_data
+                         if f['status'] == 'visible']
+    contents_fetched = storage.content_get(contents_to_fetch)
+    contents = {c['sha1']: c['data'] for c in contents_fetched}
 
-    if file_data['status'] == 'absent':
-        return SKIPPED_MESSAGE
-    elif file_data['status'] == 'hidden':
-        return HIDDEN_MESSAGE
-    else:
-        return list(storage.content_get([file_data['sha1']]))[0]['data']
+    for file_data in files_data:
+        if file_data['status'] == 'visible':
+            content = contents[file_data['sha1']]
+        elif file_data['status'] == 'absent':
+            content = SKIPPED_MESSAGE
+        elif file_data['status'] == 'hidden':
+            content = HIDDEN_MESSAGE
+
+        yield {'content': content, **file_data}
+
+
+def apply_chunked(func, input_list, chunk_size):
+    """Apply func on input_list divided in chunks of size chunk_size"""
+    for i in range(0, len(input_list), chunk_size):
+        yield from func(input_list[i:i + chunk_size])
 
 
 class DirectoryBuilder:
@@ -60,42 +75,46 @@ class DirectoryBuilder:
         # Retrieve data from the database.
         data = self.storage.directory_ls(self.dir_id, recursive=True)
 
-        # Split into files and directory data.
-        data1, data2 = itertools.tee(data, 2)
-        dir_data = (entry['name'] for entry in data1 if entry['type'] == 'dir')
-        file_data = (entry for entry in data2 if entry['type'] != 'dir')
+        # Split into files, revisions and directory data.
+        entries = collections.defaultdict(list)
+        for entry in data:
+            entries[entry['type']].append(entry)
 
         # Recreate the directory's subtree and then the files into it.
-        self._create_tree(dir_data)
-        self._create_files(file_data)
+        self._create_tree(entries['dir'])
+        self._create_files(entries['file'])
+        self._create_revisions(entries['rev'])
 
-    def _create_tree(self, directory_paths):
+    def _create_tree(self, directories):
         """Create a directory tree from the given paths
 
-        The tree is created from `root` and each given path in
-        `directory_paths` will be created.
-
+        The tree is created from `root` and each given directory in
+        `directories` will be created.
         """
         # Directories are sorted by depth so they are created in the
         # right order
-        bsep = bytes(os.path.sep, 'utf8')
-        dir_names = sorted(
-            directory_paths,
-            key=lambda x: len(x.split(bsep)))
-        for dir_name in dir_names:
-            os.makedirs(os.path.join(self.root, dir_name))
+        bsep = os.path.sep.encode()
+        directories = sorted(directories,
+                             key=lambda x: len(x['name'].split(bsep)))
+        for dir in directories:
+            os.makedirs(os.path.join(self.root, dir['name']))
 
-    def _create_files(self, file_datas):
-        """Create the files according to their status."""
-        for file_data in file_datas:
+    def _create_files(self, files_data):
+        """Create the files in the tree and fetch their contents."""
+        f = functools.partial(get_filtered_files_content, self.storage)
+        files_data = apply_chunked(f, files_data, 1000)
+
+        for file_data in files_data:
             path = os.path.join(self.root, file_data['name'])
-            if file_data['type'] == 'file':
-                content = get_filtered_file_content(self.storage, file_data)
-                self._create_file(path, content, file_data['perms'])
-            elif file_data['type'] == 'rev':
-                self._create_file(path,
-                                  hashutil.hash_to_hex(file_data['target']),
-                                  0o120000)
+            self._create_file(path, file_data['content'], file_data['perms'])
+
+    def _create_revisions(self, revs_data):
+        """Create the revisions in the tree as broken symlinks to the target
+        identifier."""
+        for file_data in revs_data:
+            path = os.path.join(self.root, file_data['name'])
+            self._create_file(path, hashutil.hash_to_hex(file_data['target']),
+                              mode=0o120000)
 
     def _create_file(self, path, content, mode=0o100644):
         """Create the given file and fill it with content."""
@@ -106,8 +125,3 @@ class DirectoryBuilder:
             with open(path, 'wb') as f:
                 f.write(content)
             os.chmod(path, perms.value)
-
-    def _get_file_content(self, obj_id):
-        """Get the content of the given file."""
-        content = list(self.storage.content_get([obj_id]))[0]['data']
-        return content

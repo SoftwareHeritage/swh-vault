@@ -15,7 +15,7 @@ from swh.model import hashutil
 from swh.model.toposort import toposort
 from swh.model.from_disk import mode_to_perms
 from swh.vault.cookers.base import BaseVaultCooker
-from swh.vault.to_disk import get_filtered_file_content
+from swh.vault.to_disk import get_filtered_files_content
 
 
 class RevisionGitfastCooker(BaseVaultCooker):
@@ -75,7 +75,8 @@ class RevisionGitfastCooker(BaseVaultCooker):
         obj_id = file_data['sha1']
         if obj_id in self.obj_done:
             return
-        content = get_filtered_file_content(self.storage, file_data)
+        contents = list(get_filtered_files_content(self.storage, [file_data]))
+        content = contents[0]['content']
         self.write_cmd(BlobCommand(mark=self.mark(obj_id), data=content))
         self.obj_done.add(obj_id)
 

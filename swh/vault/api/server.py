@@ -143,7 +143,7 @@ def send_notif(request):
 # Web server
 
 def make_app(config, **kwargs):
-    app = SWHRemoteAPI(**kwargs)
+    app = SWHRemoteAPI(client_max_size=2 ** 29, **kwargs)
     app.router.add_route('GET', '/', index)
 
     # Endpoints used by the web API

@@ -113,6 +113,8 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         try:
             self.prepare_bundle()
             bundle = self.fileobj.getvalue()
+            # TODO: use proper content streaming instead of put_bundle()
+            self.backend.put_bundle(self.CACHE_TYPE_KEY, self.obj_id, bundle)
         except PolicyError as e:
             self.backend.set_status(self.obj_type, self.obj_id, 'failed')
             self.backend.set_progress(self.obj_type, self.obj_id, str(e))
@@ -123,8 +125,6 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
                 "Internal Server Error. This incident will be reported.")
             logging.exception("Bundle cooking failed.")
         else:
-            # TODO: use proper content streaming instead of put_bundle()
-            self.backend.put_bundle(self.CACHE_TYPE_KEY, self.obj_id, bundle)
             self.backend.set_status(self.obj_type, self.obj_id, 'done')
             self.backend.set_progress(self.obj_type, self.obj_id, None)
         finally:

@@ -38,6 +38,7 @@ DEFAULT_CONFIG = {
             'slicing': '0:1/1:5',
         },
     }),
+    'client_max_size': ('int', 1024 ** 3),
     'db': ('str', 'dbname=softwareheritage-vault-dev'),
     'scheduling_db': ('str', 'dbname=softwareheritage-scheduler-dev'),
 }
@@ -143,7 +144,10 @@ def send_notif(request):
 # Web server
 
 def make_app(config, **kwargs):
-    app = SWHRemoteAPI(client_max_size=2 ** 29, **kwargs)
+    if 'client_max_size' in config:
+        kwargs['client_max_size'] = config['client_max_size']
+
+    app = SWHRemoteAPI(**kwargs)
     app.router.add_route('GET', '/', index)
 
     # Endpoints used by the web API

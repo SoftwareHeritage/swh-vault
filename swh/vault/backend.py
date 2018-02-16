@@ -208,6 +208,7 @@ class VaultBackend:
                      email=None, cursor=None):
         """Main entry point for cooking requests. This starts a cooking task if
             needed, and add the given e-mail to the notify list"""
+        obj_id = hashutil.hash_to_bytes(obj_id)
         info = self.task_info(obj_type, obj_id)
 
         # If there's a failed bundle entry, delete it first.

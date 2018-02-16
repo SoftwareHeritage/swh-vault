@@ -28,5 +28,5 @@ class RevisionFlatCooker(BaseVaultCooker):
                 directory_builder = DirectoryBuilder(
                     self.storage, str(revdir).encode(), revision['directory'])
                 directory_builder.build()
-            tar = tarfile.open(fileobj=self.fileobj, mode='w')
-            tar.add(td, arcname=hashutil.hash_to_hex(self.obj_id))
+            with tarfile.open(fileobj=self.fileobj, mode='w:gz') as tar:
+                tar.add(td, arcname=hashutil.hash_to_hex(self.obj_id))

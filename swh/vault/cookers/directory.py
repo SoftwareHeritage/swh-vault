@@ -23,5 +23,5 @@ class DirectoryCooker(BaseVaultCooker):
             directory_builder = DirectoryBuilder(
                 self.storage, td.encode(), self.obj_id)
             directory_builder.build()
-            tar = tarfile.open(fileobj=self.fileobj, mode='w')
-            tar.add(td, arcname=hashutil.hash_to_hex(self.obj_id))
+            with tarfile.open(fileobj=self.fileobj, mode='w:gz') as tar:
+                tar.add(td, arcname=hashutil.hash_to_hex(self.obj_id))

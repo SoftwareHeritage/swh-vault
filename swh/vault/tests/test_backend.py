@@ -184,7 +184,7 @@ class TestBackend(BaseTestBackend, unittest.TestCase):
             self.vault_backend.cook_request(TEST_TYPE, TEST_OBJ_ID,
                                             email=TEST_EMAIL)
             msend.assert_called_once_with(None, TEST_EMAIL,
-                                          TEST_TYPE, TEST_OBJ_ID)
+                                          TEST_TYPE, TEST_OBJ_ID, 'done')
             madd.assert_not_called()
 
     def test_send_all_emails(self):

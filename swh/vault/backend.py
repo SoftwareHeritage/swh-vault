@@ -226,7 +226,8 @@ class VaultBackend:
         if email is not None:
             # If the task is already done, send the email directly
             if info is not None and info['task_status'] == 'done':
-                self.send_notification(None, email, obj_type, obj_id)
+                self.send_notification(None, email, obj_type, obj_id,
+                                       info['task_status'])
             # Else, add it to the notification queue
             else:
                 self.add_notif_email(obj_type, obj_id, email)

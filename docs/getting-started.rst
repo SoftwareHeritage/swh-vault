@@ -19,7 +19,7 @@ First, ask the Vault to prepare your bundle:
 
 .. code:: shell
 
-    curl -X POST https://archive.softwareheritage.org/1/vault/directory/:dir_id/
+    curl -X POST https://archive.softwareheritage.org/api/1/vault/directory/:dir_id/
 
 where ``:dir_id`` is a :py:func:`directory identifier
 <swh.model.identifiers.directory_identifier>`. This initial request and all
@@ -42,7 +42,7 @@ given in the ``fetch_url`` field.
 
 .. code:: shell
 
-    curl -o bundle.tar.gz https://archive.softwareheritage.org/1/vault/directory/:dir_id/raw
+    curl -o bundle.tar.gz https://archive.softwareheritage.org/api/1/vault/directory/:dir_id/raw
     tar xaf bundle.tar.gz
 
 E-mail notifications
@@ -54,7 +54,7 @@ ready, by giving an ``email`` POST parameter:
 .. code:: shell
 
     curl -X POST -d 'email=example@example.com' \
-        https://archive.softwareheritage.org/1/vault/directory/:dir_id/
+        https://archive.softwareheritage.org/api/1/vault/directory/:dir_id/
 
 API reference
 ~~~~~~~~~~~~~

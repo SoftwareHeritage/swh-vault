@@ -31,12 +31,29 @@ create table vault_bundle (
   ts_last_access timestamptz not null default now(),  -- last access
 
   progress_msg text, -- progress message
-
-  unique(type, object_id)
 );
+create unique index concurrently vault_bundle_type_object
+  on vault_bundle (type, object_id);
+create index concurrently vault_bundle_task_id
+  on vault_bundle (task_id);
 
 create table vault_notif_email (
   id bigserial primary key,
   email text not null,              -- e-mail to notify
   bundle_id bigint not null references vault_bundle(id)
 );
+create index concurrently vault_notif_email_bundle
+  on vault_notif_email (bundle_id);
+create index concurrently vault_notif_email_email
+  on vault_notif_email (email);
+
+create table vault_batch (
+  id bigserial primary key
+);
+
+create table vault_batch_bundle (
+  batch_id bigint not null references vault_batch(id),
+  bundle_id bigint not null references vault_bundle(id)
+);
+create unique index concurrently vault_batch_bundle_pkey
+  on vault_batch_bundle (batch_id, bundle_id);

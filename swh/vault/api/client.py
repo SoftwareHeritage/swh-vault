@@ -58,3 +58,11 @@ class RemoteVaultClient(SWHRemoteAPI):
         hex_id = hashutil.hash_to_hex(obj_id)
         return self.post('send_notif/{}/{}' .format(obj_type, hex_id),
                          data=None)
+
+    # Batch endpoints
+
+    def batch_cook(self, batch):
+        return self.post('batch_cook', data=batch)
+
+    def batch_progress(self, batch_id):
+        return self.get('batch_progress/{}'.format(batch_id))

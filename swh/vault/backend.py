@@ -3,9 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import smtplib
 import psycopg2
 import psycopg2.extras
+import smtplib
 
 from functools import wraps
 from email.mime.text import MIMEText
@@ -63,6 +63,11 @@ The Software Heritage Developers
 class NotFoundExc(Exception):
     """Bundle was not found."""
     pass
+
+
+def batch_to_bytes(batch):
+    return [(obj_type, hashutil.hash_to_bytes(obj_id))
+            for obj_type, obj_id in batch]
 
 
 # TODO: Imported from swh.scheduler.backend. Factorization needed.
@@ -234,6 +239,42 @@ class VaultBackend:
 
         info = self.task_info(obj_type, obj_id)
         return info
+
+    @autocommit
+    def batch_cook(self, batch, cursor=None):
+        """Cook a batch of bundles and returns the cooking id."""
+        cursor.execute('''INSERT INTO vault_batch (id) VALUES (DEFAULT)
+                       RETURNING id''')
+        batch_id = cursor.fetchone()['id']
+        batch = batch_to_bytes(batch)
+
+        # Ideally, if we start to do a lot of batch inserts and performance
+        # becomes an issue, we should be able to rewrite all the following
+        # function calls to work on batches. It requires a significant amount
+        # of work (using UPDATE FROM to update task_id, using DELETE with tuple
+        # unpacking, etc), so we're doing a simple loop in the meantime.
+        for obj_type, obj_id in batch:
+            info = self.cook_request(obj_type, obj_id)
+            cursor.execute('''INSERT INTO vault_batch_bundle
+                                (batch_id, bundle_id)
+                           VALUES (%s, %s)''', (batch_id, info['id']))
+        return batch_id
+
+    @autocommit
+    def batch_info(self, batch_id, cursor=None):
+        """Fetch information from a batch of bundles"""
+        cursor.execute('''
+            SELECT vault_bundle.id as id,
+                   type, object_id, task_id, task_status, sticky,
+                   ts_created, ts_done, ts_last_access, progress_msg
+            FROM vault_batch_bundle
+            LEFT JOIN vault_bundle ON vault_bundle.id = bundle_id
+            WHERE batch_id = %s''', (batch_id,))
+        res = cursor.fetchall()
+        if res:
+            for d in res:
+                d['object_id'] = bytes(d['object_id'])
+        return res
 
     @autocommit
     def is_available(self, obj_type, obj_id, cursor=None):

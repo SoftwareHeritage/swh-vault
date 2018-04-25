@@ -3,9 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import asyncio
 import aiohttp.web
+import asyncio
 import click
+import collections
 
 from swh.core import config
 from swh.core.api_async import (SWHRemoteAPI,
@@ -141,6 +142,32 @@ def send_notif(request):
     return encode_data(True)  # FIXME: success value?
 
 
+# Batch endpoints
+
+@asyncio.coroutine
+def batch_cook(request):
+    batch = yield from decode_request(request)
+    for obj_type, obj_id in batch:
+        if obj_type not in COOKER_TYPES:
+            raise aiohttp.web.HTTPNotFound
+    batch_id = request.app['backend'].batch_cook(batch)
+    return encode_data({'id': batch_id})
+
+
+@asyncio.coroutine
+def batch_progress(request):
+    batch_id = request.match_info['batch_id']
+    bundles = request.app['backend'].batch_info(batch_id)
+    if not bundles:
+        raise aiohttp.web.HTTPNotFound
+    bundles = [user_info(bundle) for bundle in bundles]
+    counter = collections.Counter(b['status'] for b in bundles)
+    res = {'bundles': bundles, 'total': len(bundles),
+           **{k: 0 for k in ('new', 'pending', 'done', 'failed')},
+           **dict(counter)}
+    return encode_data(res)
+
+
 # Web server
 
 def make_app(config, **kwargs):
@@ -160,6 +187,10 @@ def make_app(config, **kwargs):
     app.router.add_route('POST', '/set_status/{type}/{id}', set_status)
     app.router.add_route('POST', '/put_bundle/{type}/{id}', put_bundle)
     app.router.add_route('POST', '/send_notif/{type}/{id}', send_notif)
+
+    # Endpoints for batch requests
+    app.router.add_route('POST', '/batch_cook', batch_cook)
+    app.router.add_route('GET', '/batch_progress/{batch_id}', batch_progress)
 
     app['backend'] = VaultBackend(config)
     return app

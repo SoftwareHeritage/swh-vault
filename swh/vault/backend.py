@@ -83,7 +83,7 @@ def autocommit(fn):
 
         try:
             ret = fn(self, *args, **kwargs)
-        except:
+        except BaseException:
             if autocommit:
                 self.rollback()
             raise
@@ -108,7 +108,7 @@ class VaultBackend:
         self.cache = VaultCache(self.config['cache'])
         self.db = None
         self.reconnect()
-        self.smtp_server = smtplib.SMTP('localhost', 25)
+        self.smtp_server = smtplib.SMTP()
         if self.config['scheduling_db'] is not None:
             self.scheduler = SchedulerBackend(
                 scheduling_db=self.config['scheduling_db'])
@@ -385,10 +385,10 @@ class VaultBackend:
         # Reconnect if needed
         try:
             status = self.smtp_server.noop()[0]
-        except:  # smtplib.SMTPServerDisconnected
+        except smtplib.SMTPException:
             status = -1
         if status != 250:
-            self.smtp_server.connect()
+            self.smtp_server.connect('localhost', 25)
 
         # Send the message
         self.smtp_server.send_message(msg)

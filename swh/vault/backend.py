@@ -83,7 +83,7 @@ def autocommit(fn):
 
         try:
             ret = fn(self, *args, **kwargs)
-        except:
+        except BaseException:
             if autocommit:
                 self.rollback()
             raise
@@ -108,7 +108,7 @@ class VaultBackend:
         self.cache = VaultCache(self.config['cache'])
         self.db = None
         self.reconnect()
-        self.smtp_server = smtplib.SMTP('localhost', 25)
+        self.smtp_server = smtplib.SMTP()
         if self.config['scheduling_db'] is not None:
             self.scheduler = SchedulerBackend(
                 scheduling_db=self.config['scheduling_db'])
@@ -173,25 +173,39 @@ class VaultBackend:
         added_tasks = self.scheduler.create_tasks([task])
         return added_tasks[0]['id']
 
+    # TODO: remove once the scheduler handles priority tasks
+    def _send_batch_task(self, args):
+        """Send a cooking task to the celery scheduler"""
+        task = create_oneshot_task_dict('swh-vault-batch-cooking', *args)
+        added_tasks = self.scheduler.create_tasks([task])
+        return added_tasks[0]['id']
+
     @autocommit
-    def create_task(self, obj_type, obj_id, sticky=False, cursor=None):
+    def create_task(self, obj_type, obj_id, sticky=False, batch=False,
+                    cursor=None):
         """Create and send a cooking task"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         hex_id = hashutil.hash_to_hex(obj_id)
         args = [obj_type, hex_id]
 
-        backend_storage_config = {'storage': self.config['storage']}
-        cooker_class = get_cooker(obj_type)
-        cooker = cooker_class(*args, override_cfg=backend_storage_config)
-        if not cooker.check_exists():
-            raise NotFoundExc("Object {} was not found.".format(hex_id))
+        # Don't check all the elements of the batch locally to avoid rtt
+        if not batch:
+            backend_storage_config = {'storage': self.config['storage']}
+            cooker_class = get_cooker(obj_type)
+            cooker = cooker_class(*args, override_cfg=backend_storage_config)
+            if not cooker.check_exists():
+                raise NotFoundExc("Object {} was not found.".format(hex_id))
 
         cursor.execute('''
             INSERT INTO vault_bundle (type, object_id, sticky)
             VALUES (%s, %s, %s)''', (obj_type, obj_id, sticky))
         self.commit()
 
-        task_id = self._send_task(args)
+        # TODO: change once the scheduler handles priority tasks
+        if batch:
+            task_id = self._send_batch_task(args)
+        else:
+            task_id = self._send_task(args)
 
         cursor.execute('''
             UPDATE vault_bundle
@@ -254,7 +268,7 @@ class VaultBackend:
         # of work (using UPDATE FROM to update task_id, using DELETE with tuple
         # unpacking, etc), so we're doing a simple loop in the meantime.
         for obj_type, obj_id in batch:
-            info = self.cook_request(obj_type, obj_id)
+            info = self.cook_request(obj_type, obj_id, batch=True)
             cursor.execute('''INSERT INTO vault_batch_bundle
                                 (batch_id, bundle_id)
                            VALUES (%s, %s)''', (batch_id, info['id']))
@@ -385,10 +399,10 @@ class VaultBackend:
         # Reconnect if needed
         try:
             status = self.smtp_server.noop()[0]
-        except:  # smtplib.SMTPServerDisconnected
+        except smtplib.SMTPException:
             status = -1
         if status != 250:
-            self.smtp_server.connect()
+            self.smtp_server.connect('localhost', 25)
 
         # Send the message
         self.smtp_server.send_message(msg)

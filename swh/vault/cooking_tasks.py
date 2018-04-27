@@ -15,3 +15,14 @@ class SWHCookingTask(Task):
     def run_task(self, obj_type, obj_id):
         cooker = get_cooker(obj_type)(obj_type, obj_id)
         cooker.cook()
+
+
+# TODO: remove once the scheduler handles priority tasks
+class SWHBatchCookingTask(Task):
+    """Temporary task for the batch queue."""
+
+    task_queue = 'swh_vault_batch_cooking'
+
+    def run_task(self, obj_type, obj_id):
+        cooker = get_cooker(obj_type)(obj_type, obj_id)
+        cooker.cook()

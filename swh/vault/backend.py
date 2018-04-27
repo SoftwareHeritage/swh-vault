@@ -271,7 +271,8 @@ class VaultBackend:
             info = self.cook_request(obj_type, obj_id, batch=True)
             cursor.execute('''INSERT INTO vault_batch_bundle
                                 (batch_id, bundle_id)
-                           VALUES (%s, %s)''', (batch_id, info['id']))
+                           VALUES (%s, %s) ON CONFLICT DO NOTHING''',
+                           (batch_id, info['id']))
         return batch_id
 
     @autocommit

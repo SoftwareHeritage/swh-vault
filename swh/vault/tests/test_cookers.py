@@ -39,7 +39,11 @@ class TestRepo:
         self.tmp_dir = tempfile.TemporaryDirectory(prefix='tmp-vault-repo-')
         self.repo_dir = self.tmp_dir.__enter__()
         self.repo = dulwich.repo.Repo.init(self.repo_dir)
-        self.author = '"Test Author" <test@softwareheritage.org>'.encode()
+        self.author_name = b'Test Author'
+        self.author_email = b'test@softwareheritage.org'
+        self.author = b'%s <%s>' % (self.author_name, self.author_email)
+        self.base_date = 258244200
+        self.counter = 0
         return pathlib.Path(self.repo_dir)
 
     def __exit__(self, exc, value, tb):
@@ -53,18 +57,42 @@ class TestRepo:
                                             rev.tree)
 
     def git_shell(self, *cmd, stdout=subprocess.DEVNULL, **kwargs):
+        name = self.author_name
+        email = self.author_email
+        date = '%d +0000' % (self.base_date + self.counter)
+        env = {
+            # Set git commit format
+            'GIT_AUTHOR_NAME': name,
+            'GIT_AUTHOR_EMAIL': email,
+            'GIT_AUTHOR_DATE': date,
+            'GIT_COMMITTER_NAME': name,
+            'GIT_COMMITTER_EMAIL': email,
+            'GIT_COMMITTER_DATE': date,
+            # Ignore all the system-wide and user configurations
+            'GIT_CONFIG_NOSYSTEM': '1',
+            'HOME': str(self.tmp_dir),
+            'XDG_CONFIG_HOME': str(self.tmp_dir),
+        }
+        kwargs.setdefault('env', {}).update(env)
+
         subprocess.check_call(('git', '-C', self.repo_dir) + cmd,
                               stdout=stdout, **kwargs)
 
     def commit(self, message='Commit test\n', ref=b'HEAD'):
         self.git_shell('add', '.')
         message = message.encode() + b'\n'
-        return self.repo.do_commit(message=message, committer=self.author,
-                                   ref=ref)
+        ret = self.repo.do_commit(
+            message=message, committer=self.author,
+            commit_timestamp=self.base_date + self.counter,
+            commit_timezone=0,
+            ref=ref)
+        self.counter += 1
+        return ret
 
     def merge(self, parent_sha_list, message='Merge branches.'):
         self.git_shell('merge', '--allow-unrelated-histories',
                        '-m', message, *[p.decode() for p in parent_sha_list])
+        self.counter += 1
         return self.repo.refs[b'HEAD']
 
     def print_debug_graph(self, reflog=False):

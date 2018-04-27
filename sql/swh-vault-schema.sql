@@ -30,7 +30,7 @@ create table vault_bundle (
   ts_done timestamptz,  -- timestamp of the cooking result
   ts_last_access timestamptz not null default now(),  -- last access
 
-  progress_msg text, -- progress message
+  progress_msg text -- progress message
 );
 create unique index concurrently vault_bundle_type_object
   on vault_bundle (type, object_id);

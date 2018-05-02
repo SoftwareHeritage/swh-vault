@@ -40,7 +40,7 @@ create index concurrently vault_bundle_task_id
 create table vault_notif_email (
   id bigserial primary key,
   email text not null,              -- e-mail to notify
-  bundle_id bigint not null references vault_bundle(id)
+  bundle_id bigint not null references vault_bundle(id) on delete cascade
 );
 create index concurrently vault_notif_email_bundle
   on vault_notif_email (bundle_id);
@@ -52,8 +52,8 @@ create table vault_batch (
 );
 
 create table vault_batch_bundle (
-  batch_id bigint not null references vault_batch(id),
-  bundle_id bigint not null references vault_bundle(id)
+  batch_id bigint not null references vault_batch(id) on delete cascade,
+  bundle_id bigint not null references vault_bundle(id) on delete cascade
 );
 create unique index concurrently vault_batch_bundle_pkey
   on vault_batch_bundle (batch_id, bundle_id);

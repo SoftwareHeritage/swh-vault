@@ -223,7 +223,7 @@ class VaultBackend:
                        (email, obj_type, obj_id))
 
     @autocommit
-    def cook_request(self, obj_type, obj_id, *, sticky=False,
+    def cook_request(self, obj_type, obj_id, *, sticky=False, batch=False,
                      email=None, cursor=None):
         """Main entry point for cooking requests. This starts a cooking task if
             needed, and add the given e-mail to the notify list"""
@@ -240,7 +240,7 @@ class VaultBackend:
 
         # If there's no bundle entry, create the task.
         if info is None:
-            self.create_task(obj_type, obj_id, sticky)
+            self.create_task(obj_type, obj_id, sticky, batch=batch)
 
         if email is not None:
             # If the task is already done, send the email directly

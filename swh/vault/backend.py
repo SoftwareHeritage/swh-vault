@@ -1,4 +1,4 @@
-# Copyright (C) 2017  The Software Heritage developers
+# Copyright (C) 2017-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,7 +11,7 @@ from functools import wraps
 from email.mime.text import MIMEText
 
 from swh.model import hashutil
-from swh.scheduler.backend import SchedulerBackend
+from swh.scheduler import get_scheduler
 from swh.scheduler.utils import create_oneshot_task_dict
 from swh.vault.cache import VaultCache
 from swh.vault.cookers import get_cooker
@@ -109,9 +109,8 @@ class VaultBackend:
         self.db = None
         self.reconnect()
         self.smtp_server = smtplib.SMTP()
-        if self.config['scheduling_db'] is not None:
-            self.scheduler = SchedulerBackend(
-                scheduling_db=self.config['scheduling_db'])
+        if self.config['scheduler'] is not None:
+            self.scheduler = get_scheduler(**self.config['scheduler'])
 
     def reconnect(self):
         """Reconnect to the database."""

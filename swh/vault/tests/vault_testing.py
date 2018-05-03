@@ -50,7 +50,7 @@ class VaultTestFixture:
                 }
             },
             'db': 'postgresql:///' + self.TEST_VAULT_DB_NAME,
-            'scheduling_db': None,
+            'scheduler': None,
         }
         self.vault_backend = VaultBackend(self.vault_config)
 

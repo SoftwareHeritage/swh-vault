@@ -23,6 +23,7 @@ docs/_static/.placeholder
 docs/_templates/.placeholder
 sql/swh-vault-schema.sql
 sql/upgrades/002.sql
+sql/upgrades/003.sql
 swh/__init__.py
 swh.vault.egg-info/PKG-INFO
 swh.vault.egg-info/SOURCES.txt

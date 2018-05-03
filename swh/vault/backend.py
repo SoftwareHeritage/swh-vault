@@ -5,7 +5,7 @@
 
 import smtplib
 import psycopg2
-from psycopg2.extras import RealDictCursor, execute_values
+from psycopg2.extras import RealDictCursor
 
 from functools import wraps
 from email.mime.text import MIMEText
@@ -243,6 +243,10 @@ class VaultBackend:
     @autocommit
     def batch_cook(self, batch, cursor=None):
         """Cook a batch of bundles and returns the cooking id."""
+        # Import execute_values at runtime only, because it requires
+        # psycopg2 >= 2.7 (only available on postgresql servers)
+        from psycopg2.extras import execute_values
+
         cursor.execute('''
             INSERT INTO vault_batch (id)
             VALUES (DEFAULT)
@@ -286,9 +290,7 @@ class VaultBackend:
         execute_values(cursor, '''
             UPDATE vault_bundle
             SET task_id = s_task_id
-            FROM (SELECT * FROM (VALUES %s)
-                  AS sub (s_task_id, s_type, s_object_id)
-            ) AS sub
+            FROM (VALUES %s) AS sub (s_task_id, s_type, s_object_id)
             WHERE type = s_type::cook_type AND object_id = s_object_id ''',
                        tasks_ids_bundle_ids)
         return batch_id

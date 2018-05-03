@@ -257,15 +257,24 @@ class VaultBackend:
         # Delete all failed bundles from the batch
         cursor.execute('''
             DELETE FROM vault_bundle
-            WHERE (type, object_id) IN %s''', (tuple(batch),))
+            WHERE task_status = 'failed'
+              AND (type, object_id) IN %s''', (tuple(batch),))
 
-        # Insert all the bundles
+        # Insert all the bundles, return the new ones
         execute_values(cursor, '''
             INSERT INTO vault_bundle (type, object_id)
-            VALUES %s ON CONFLICT DO NOTHING RETURNING id''', batch)
+            VALUES %s ON CONFLICT DO NOTHING
+            RETURNING type, object_id''', batch)
+        batch_new = [(bundle['type'], bytes(bundle['object_id']))
+                     for bundle in cursor.fetchall()]
+
+        # Get the bundle ids
+        cursor.execute('''
+            SELECT id FROM vault_bundle
+            WHERE (type, object_id) IN %s''', (tuple(batch),))
+        bundle_ids = cursor.fetchall()
 
         # Insert the batch-bundle entries
-        bundle_ids = cursor.fetchall()
         batch_id_bundle_ids = [(batch_id, row['id']) for row in bundle_ids]
         execute_values(cursor, '''
             INSERT INTO vault_batch_bundle (batch_id, bundle_id)
@@ -275,13 +284,14 @@ class VaultBackend:
 
         # Send the tasks
         args_batch = [(obj_type, hashutil.hash_to_hex(obj_id))
-                      for obj_type, obj_id in batch]
+                      for obj_type, obj_id in batch_new]
         # TODO: change once the scheduler handles priority tasks
         tasks = [create_oneshot_task_dict('swh-vault-batch-cooking', *args)
                  for args in args_batch]
 
         added_tasks = self.scheduler.create_tasks(tasks)
-        tasks_ids_bundle_ids = zip([task['id'] for task in added_tasks], batch)
+        tasks_ids_bundle_ids = zip([task['id'] for task in added_tasks],
+                                   batch_new)
         tasks_ids_bundle_ids = [(task_id, obj_type, obj_id)
                                 for task_id, (obj_type, obj_id)
                                 in tasks_ids_bundle_ids]

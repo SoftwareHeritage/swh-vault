@@ -262,24 +262,25 @@ class VaultBackend:
         # Insert all the bundles, return the new ones
         execute_values(cursor, '''
             INSERT INTO vault_bundle (type, object_id)
-            VALUES %s ON CONFLICT DO NOTHING
-            RETURNING type, object_id''', batch)
-        batch_new = [(bundle['type'], bytes(bundle['object_id']))
-                     for bundle in cursor.fetchall()]
+            VALUES %s ON CONFLICT DO NOTHING''', batch)
 
-        # Get the bundle ids
+        # Get the bundle ids and task status
         cursor.execute('''
-            SELECT id FROM vault_bundle
+            SELECT id, type, object_id, task_id FROM vault_bundle
             WHERE (type, object_id) IN %s''', (tuple(batch),))
-        bundle_ids = cursor.fetchall()
+        bundles = cursor.fetchall()
 
         # Insert the batch-bundle entries
-        batch_id_bundle_ids = [(batch_id, row['id']) for row in bundle_ids]
+        batch_id_bundle_ids = [(batch_id, row['id']) for row in bundles]
         execute_values(cursor, '''
             INSERT INTO vault_batch_bundle (batch_id, bundle_id)
             VALUES %s ON CONFLICT DO NOTHING''',
                        batch_id_bundle_ids)
         self.commit()
+
+        # Get the tasks to fetch
+        batch_new = [(row['type'], bytes(row['object_id']))
+                     for row in bundles if row['task_id'] is None]
 
         # Send the tasks
         args_batch = [(obj_type, hashutil.hash_to_hex(obj_id))

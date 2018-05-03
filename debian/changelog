@@ -1,3 +1,9 @@
+swh-vault (0.0.18-1~swh1) unstable-swh; urgency=medium
+
+  * version 0.0.18
+
+ -- Antoine Pietri <antoine.pietri1@gmail.com>  Thu, 03 May 2018 17:10:24 +0200
+
 swh-vault (0.0.17-1~swh1) unstable-swh; urgency=medium
 
   * version 0.0.17

@@ -109,6 +109,10 @@ class BaseTestCookers(VaultTestFixture, StorageTestFixture, DbTestFixture):
         self.loader = GitLoader()
         self.loader.storage = self.storage
 
+    def tearDown(self):
+        self.loader = None
+        super().tearDown()
+
     def load(self, repo_path):
         """Load a repository in the test storage"""
         self.loader.load('fake_origin', repo_path, datetime.datetime.now())
@@ -127,6 +131,7 @@ class BaseTestCookers(VaultTestFixture, StorageTestFixture, DbTestFixture):
             with tarfile.open(fileobj=cooker.fileobj, mode='r') as tar:
                 tar.extractall(td)
             yield pathlib.Path(td) / hashutil.hash_to_hex(obj_id)
+        cooker.storage = None
 
     @contextlib.contextmanager
     def cook_stream_revision_gitfast(self, obj_id):
@@ -140,6 +145,7 @@ class BaseTestCookers(VaultTestFixture, StorageTestFixture, DbTestFixture):
         cooker.fileobj.seek(0)
         fastexport_stream = gzip.GzipFile(fileobj=cooker.fileobj)
         yield fastexport_stream
+        cooker.storage = None
 
     @contextlib.contextmanager
     def cook_extract_revision_gitfast(self, obj_id):
@@ -206,14 +212,13 @@ class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):
 
         # FIXME: storage.content_update() should be changed to allow things
         # like that
-        cur = self.storage.db._cursor(None)
-        cur.execute("""update content set status = 'visible'
-                       where sha1 = %s""", (id_1,))
-        cur.execute("""update content set status = 'hidden'
-                       where sha1 = %s""", (id_2,))
-        cur.execute("""update content set status = 'absent'
-                       where sha1 = %s""", (id_3,))
-        cur.close()
+        with self.storage.get_db().transaction() as cur:
+            cur.execute("""update content set status = 'visible'
+                           where sha1 = %s""", (id_1,))
+            cur.execute("""update content set status = 'hidden'
+                           where sha1 = %s""", (id_2,))
+            cur.execute("""update content set status = 'absent'
+                           where sha1 = %s""", (id_3,))
 
         with self.cook_extract_directory(obj_id) as p:
             self.assertEqual((p / 'file').read_bytes(), b'test1')
@@ -405,14 +410,13 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
 
         # FIXME: storage.content_update() should be changed to allow things
         # like that
-        cur = self.storage.db._cursor(None)
-        cur.execute("""update content set status = 'visible'
-                       where sha1 = %s""", (id_1,))
-        cur.execute("""update content set status = 'hidden'
-                       where sha1 = %s""", (id_2,))
-        cur.execute("""update content set status = 'absent'
-                       where sha1 = %s""", (id_3,))
-        cur.close()
+        with self.storage.get_db().transaction() as cur:
+            cur.execute("""update content set status = 'visible'
+                           where sha1 = %s""", (id_1,))
+            cur.execute("""update content set status = 'hidden'
+                           where sha1 = %s""", (id_2,))
+            cur.execute("""update content set status = 'absent'
+                           where sha1 = %s""", (id_3,))
 
         with self.cook_extract_revision_gitfast(obj_id) as (ert, p):
             ert.checkout(b'HEAD')

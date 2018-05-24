@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2017  The Software Heritage developers
+# Copyright (C) 2016-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -17,8 +17,9 @@ class VaultAPIError(Exception):
 class RemoteVaultClient(SWHRemoteAPI):
     """Client to the Software Heritage vault cache."""
 
-    def __init__(self, base_url):
-        super().__init__(api_exception=VaultAPIError, url=base_url)
+    def __init__(self, base_url, timeout=None):
+        super().__init__(
+            api_exception=VaultAPIError, url=base_url, timeout=timeout)
 
     # Web API endpoints
 

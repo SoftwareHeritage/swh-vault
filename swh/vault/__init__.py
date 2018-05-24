@@ -1,0 +1,30 @@
+# Copyright (C) 2018  The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU Affero General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
+
+def get_vault(cls, args):
+    """
+    Get a vault object of class `vault_class` with arguments
+    `vault_args`.
+
+    Args:
+        vault (dict): dictionary with keys:
+        - cls (str): vault's class, either 'remote'
+        - args (dict): dictionary with keys
+
+    Returns:
+        an instance of swh.storage.Storage (either local or remote)
+
+    Raises:
+        ValueError if passed an unknown storage class.
+
+    """
+
+    if cls == 'remote':
+        from .api.client import RemoteVaultClient as Vault
+    else:
+        raise ValueError('Unknown storage class `%s`' % cls)
+
+    return Vault(**args)

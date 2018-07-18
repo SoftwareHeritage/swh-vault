@@ -20,16 +20,9 @@ from swh.vault.backend import VaultBackend, NotFoundExc
 DEFAULT_CONFIG_PATH = 'vault/server'
 DEFAULT_CONFIG = {
     'storage': ('dict', {
-        'cls': 'local',
+        'cls': 'remote',
         'args': {
-            'db': 'dbname=softwareheritage-dev',
-            'objstorage': {
-                'cls': 'pathslicing',
-                'args': {
-                    'root': '/srv/softwareheritage/objects',
-                    'slicing': '0:2/2:4/4:6',
-                },
-            },
+            'url': 'http://localhost:5002/',
         },
     }),
     'cache': ('dict', {

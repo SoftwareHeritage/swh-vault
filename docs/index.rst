@@ -1,7 +1,12 @@
 .. _swh-vault:
 
-Software Heritage - Development Documentation
-=============================================
+Software Heritage - Vault
+=========================
+
+User-facing service that allows to retrieve parts of the archive as
+self-contained bundles (e.g., individual releases, entire repository snapshots,
+etc.)
+
 
 .. toctree::
    :maxdepth: 2

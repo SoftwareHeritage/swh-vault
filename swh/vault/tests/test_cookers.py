@@ -21,7 +21,6 @@ import dulwich.objects
 import dulwich.porcelain
 import dulwich.repo
 
-from swh.core.tests.db_testing import DbTestFixture
 from swh.loader.git.loader import GitLoader
 from swh.model import hashutil
 from swh.model.from_disk import Directory
@@ -102,7 +101,7 @@ class TestRepo:
         self.git_shell(*args, stdout=None)
 
 
-class BaseTestCookers(VaultTestFixture, StorageTestFixture, DbTestFixture):
+class BaseTestCookers(VaultTestFixture, StorageTestFixture):
     """Base class of cookers unit tests"""
     def setUp(self):
         super().setUp()

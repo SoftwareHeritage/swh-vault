@@ -3,14 +3,17 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import os
 import tempfile
-import pathlib
 
 from swh.model import hashutil
 from swh.vault.backend import VaultBackend
 
+from swh.storage.tests.storage_testing import StorageTestFixture
+from swh.vault.tests import SQL_DIR
 
-class VaultTestFixture:
+
+class VaultTestFixture(StorageTestFixture):
     """Mix this in a test subject class to get Vault Database testing support.
 
     This fixture requires to come before DbTestFixture and StorageTestFixture
@@ -19,22 +22,12 @@ class VaultTestFixture:
 
     Usage example:
 
-        class TestVault(VaultTestFixture, StorageTestFixture, DbTestFixture):
+        class TestVault(VaultTestFixture, unittest.TestCase):
             ...
     """
-    TEST_VAULT_DB_NAME = 'softwareheritage-test-vault'
-
-    @classmethod
-    def setUpClass(cls):
-        if not hasattr(cls, 'DB_TEST_FIXTURE_IMPORTED'):
-            raise RuntimeError("VaultTestFixture needs to be followed by "
-                               "DbTestFixture in the inheritance list.")
-
-        test_dir = pathlib.Path(__file__).absolute().parent
-        test_db_dump = test_dir / '../../../sql/swh-vault-schema.sql'
-        test_db_dump = test_db_dump.absolute()
-        cls.add_db(cls.TEST_VAULT_DB_NAME, str(test_db_dump), 'psql')
-        super().setUpClass()
+    TEST_DB_NAME = 'softwareheritage-test-vault'
+    TEST_DB_DUMP = [StorageTestFixture.TEST_DB_DUMP,
+                    os.path.join(SQL_DIR, '*.sql')]
 
     def setUp(self):
         super().setUp()
@@ -49,7 +42,7 @@ class VaultTestFixture:
                     'allow_delete': True,
                 }
             },
-            'db': 'postgresql:///' + self.TEST_VAULT_DB_NAME,
+            'db': 'postgresql:///' + self.TEST_DB_NAME,
             'scheduler': None,
         }
         self.vault_backend = VaultBackend(self.vault_config)
@@ -63,7 +56,7 @@ class VaultTestFixture:
 
     def reset_vault_tables(self):
         excluded = {'dbversion'}
-        self.reset_db_tables(self.TEST_VAULT_DB_NAME, excluded=excluded)
+        self.reset_db_tables(self.TEST_DB_NAME, excluded=excluded)
 
 
 def hash_content(content):

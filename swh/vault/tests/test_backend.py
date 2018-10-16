@@ -11,11 +11,10 @@ import unittest
 from unittest.mock import patch
 
 from swh.model import hashutil
-from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.vault.tests.vault_testing import VaultTestFixture, hash_content
 
 
-class BaseTestBackend(VaultTestFixture, StorageTestFixture):
+class BaseTestBackend(VaultTestFixture):
     @contextlib.contextmanager
     def mock_cooking(self):
         with patch.object(self.vault_backend, '_send_task') as mt:

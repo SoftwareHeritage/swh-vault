@@ -1,4 +1,4 @@
-create table dbversion
+create table if not exists dbversion
 (
   version     int primary key,
   release     timestamptz not null,

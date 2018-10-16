@@ -24,7 +24,6 @@ import dulwich.repo
 from swh.loader.git.loader import GitLoader
 from swh.model import hashutil
 from swh.model.from_disk import Directory
-from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.vault.cookers import DirectoryCooker, RevisionGitfastCooker
 from swh.vault.tests.vault_testing import VaultTestFixture, hash_content
 from swh.vault.to_disk import SKIPPED_MESSAGE, HIDDEN_MESSAGE
@@ -101,7 +100,7 @@ class TestRepo:
         self.git_shell(*args, stdout=None)
 
 
-class BaseTestCookers(VaultTestFixture, StorageTestFixture):
+class BaseTestCookers(VaultTestFixture):
     """Base class of cookers unit tests"""
     def setUp(self):
         super().setUp()

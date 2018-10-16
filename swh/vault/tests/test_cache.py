@@ -6,7 +6,6 @@
 import unittest
 
 from swh.model import hashutil
-from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.vault.tests.vault_testing import VaultTestFixture
 
 TEST_TYPE_1 = 'revision_gitfast'
@@ -22,7 +21,7 @@ TEST_CONTENT_1 = b'test content 1'
 TEST_CONTENT_2 = b'test content 2'
 
 
-class BaseTestVaultCache(VaultTestFixture, StorageTestFixture):
+class BaseTestVaultCache(VaultTestFixture):
     def setUp(self):
         super().setUp()
         self.cache = self.vault_backend.cache  # little shortcut

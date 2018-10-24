@@ -60,5 +60,15 @@ class VaultTestFixture(StorageTestFixture):
 
 
 def hash_content(content):
-    obj_id = hashutil.hash_data(content)['sha1']
-    return content, obj_id
+    """Hash the content's id (sha1).
+
+    Args:
+        content (bytes): Content to hash
+
+    Returns:
+        The tuple (content, content's id as bytes)
+
+    """
+    hashes = hashutil.MultiHash.from_data(
+        content, hash_names=['sha1']).digest()
+    return content, hashes['sha1']

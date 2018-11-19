@@ -36,9 +36,9 @@ The URL fragment ``:objectkind/:objectid`` is used throughout the vault API to
 identify vault objects. The syntax and meaning of ``:objectid`` for the
 different object kinds is detailed below.
 
-Optionally, a third parameter, ``:format``, can be used (when multiple formats
-are supported) to specify the format of the resulting bundle when needed. The
-URL fragment becomes then ``:objectkind/:objectid/:format``.
+In the case of revisions, a third parameter, ``:format``, must be used to
+specify the format of the resulting bundle. The URL fragment then becomes
+``:objectkind/:objectid/:format``.
 
 
 Directories
@@ -103,8 +103,8 @@ around until it expires; after expiration, it will need to be cooked again
 before it can be retrieved. Cooking is idempotent, and a no-op in between a
 previous cooking operation and expiration.
 
-.. http:post:: /vault/:objectkind/:objectid/:format
-.. http:get:: /vault/:objectkind/:objectid/:format
+.. http:post:: /vault/:objectkind/:objectid[/:format]
+.. http:get:: /vault/:objectkind/:objectid[/:format]
 
     **Request body**: optionally, an ``email`` POST parameter containing an
     e-mail to notify when the bundle cooking has ended.
@@ -166,7 +166,7 @@ Retrieval
 
 Retrieve a specific bundle from the vault with:
 
-.. http:get:: /vault/:objectkind/:objectid/:format/raw
+.. http:get:: /vault/:objectkind/:objectid[/:format]/raw
 
    Where ``:format`` is optional, depending on the object kind.
 

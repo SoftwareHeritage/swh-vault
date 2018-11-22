@@ -16,9 +16,10 @@ etc.)
    api.rst
 
 
-Indices and tables
-==================
+Reference Documentation
+-----------------------
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+.. toctree::
+   :maxdepth: 2
+
+   /apidoc/swh.vault

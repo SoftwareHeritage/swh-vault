@@ -15,7 +15,6 @@ from swh.scheduler import get_scheduler
 from swh.scheduler.utils import create_oneshot_task_dict
 from swh.vault.cache import VaultCache
 from swh.vault.cookers import get_cooker
-from swh.vault.cooking_tasks import SWHCookingTask  # noqa
 
 cooking_task_name = 'swh.vault.cooking_tasks.SWHCookingTask'
 

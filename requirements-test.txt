@@ -1,3 +1,4 @@
 pytest
 dulwich >= 0.18.7
 swh.loader.git >= 0.0.44
+swh.storage[testing]

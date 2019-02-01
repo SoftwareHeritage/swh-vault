@@ -22,7 +22,7 @@ import dulwich.objects
 import dulwich.porcelain
 import dulwich.repo
 
-from swh.loader.git.loader import GitLoader
+from swh.loader.git.from_disk import GitLoaderFromDisk
 from swh.model import hashutil
 from swh.model.from_disk import Directory
 from swh.vault.cookers import DirectoryCooker, RevisionGitfastCooker
@@ -106,7 +106,7 @@ class BaseTestCookers(VaultTestFixture):
     """Base class of cookers unit tests"""
     def setUp(self):
         super().setUp()
-        self.loader = GitLoader()
+        self.loader = GitLoaderFromDisk()
         self.loader.storage = self.storage
 
     def tearDown(self):

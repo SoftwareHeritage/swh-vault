@@ -1,4 +1,4 @@
-# Copyright (C) 2017  The Software Heritage developers
+# Copyright (C) 2017-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,6 +9,7 @@ import gzip
 import io
 import os
 import pathlib
+import pytest
 import subprocess
 import tarfile
 import tempfile
@@ -21,11 +22,9 @@ import dulwich.objects
 import dulwich.porcelain
 import dulwich.repo
 
-from swh.core.tests.db_testing import DbTestFixture
-from swh.loader.git.loader import GitLoader
+from swh.loader.git.from_disk import GitLoaderFromDisk
 from swh.model import hashutil
 from swh.model.from_disk import Directory
-from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.vault.cookers import DirectoryCooker, RevisionGitfastCooker
 from swh.vault.tests.vault_testing import VaultTestFixture, hash_content
 from swh.vault.to_disk import SKIPPED_MESSAGE, HIDDEN_MESSAGE
@@ -102,11 +101,12 @@ class TestRepo:
         self.git_shell(*args, stdout=None)
 
 
-class BaseTestCookers(VaultTestFixture, StorageTestFixture, DbTestFixture):
+@pytest.mark.config_issue
+class BaseTestCookers(VaultTestFixture):
     """Base class of cookers unit tests"""
     def setUp(self):
         super().setUp()
-        self.loader = GitLoader()
+        self.loader = GitLoaderFromDisk()
         self.loader.storage = self.storage
 
     def tearDown(self):

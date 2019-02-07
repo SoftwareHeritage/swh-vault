@@ -9,6 +9,7 @@ import os
 
 from swh.model import hashutil
 from swh.model.from_disk import mode_to_perms, DentryPerms
+from swh.storage.algos.dir_iterators import dir_iterator
 
 SKIPPED_MESSAGE = (b'This content has not been retrieved in the '
                    b'Software Heritage archive due to its size.')
@@ -73,11 +74,9 @@ class DirectoryBuilder:
     def build(self):
         """Perform the reconstruction of the directory in the given root."""
         # Retrieve data from the database.
-        data = self.storage.directory_ls(self.dir_id, recursive=True)
-
         # Split into files, revisions and directory data.
         entries = collections.defaultdict(list)
-        for entry in data:
+        for entry in dir_iterator(self.storage, self.dir_id):
             entries[entry['type']].append(entry)
 
         # Recreate the directory's subtree and then the files into it.
@@ -95,9 +94,9 @@ class DirectoryBuilder:
         # right order
         bsep = os.path.sep.encode()
         directories = sorted(directories,
-                             key=lambda x: len(x['name'].split(bsep)))
+                             key=lambda x: len(x['path'].split(bsep)))
         for dir in directories:
-            os.makedirs(os.path.join(self.root, dir['name']))
+            os.makedirs(os.path.join(self.root, dir['path']))
 
     def _create_files(self, files_data):
         """Create the files in the tree and fetch their contents."""
@@ -105,14 +104,14 @@ class DirectoryBuilder:
         files_data = apply_chunked(f, files_data, 1000)
 
         for file_data in files_data:
-            path = os.path.join(self.root, file_data['name'])
+            path = os.path.join(self.root, file_data['path'])
             self._create_file(path, file_data['content'], file_data['perms'])
 
     def _create_revisions(self, revs_data):
         """Create the revisions in the tree as broken symlinks to the target
         identifier."""
         for file_data in revs_data:
-            path = os.path.join(self.root, file_data['name'])
+            path = os.path.join(self.root, file_data['path'])
             self._create_file(path, hashutil.hash_to_hex(file_data['target']),
                               mode=0o120000)
 

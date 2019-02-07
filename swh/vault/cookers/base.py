@@ -90,7 +90,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
 
         Override this in the cooker implementation.
         """
-        raise NotImplemented
+        raise NotImplementedError
 
     @abc.abstractmethod
     def prepare_bundle(self):
@@ -98,7 +98,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
 
         Override this with the cooker implementation.
         """
-        raise NotImplemented
+        raise NotImplementedError
 
     def write(self, chunk):
         self.fileobj.write(chunk)
@@ -118,7 +118,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         except PolicyError as e:
             self.backend.set_status(self.obj_type, self.obj_id, 'failed')
             self.backend.set_progress(self.obj_type, self.obj_id, str(e))
-        except Exception as e:
+        except Exception:
             self.backend.set_status(self.obj_type, self.obj_id, 'failed')
             self.backend.set_progress(
                 self.obj_type, self.obj_id,

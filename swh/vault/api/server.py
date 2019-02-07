@@ -1,4 +1,4 @@
-# Copyright (C) 2016  The Software Heritage developers
+# Copyright (C) 2016-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -20,16 +20,9 @@ from swh.vault.backend import VaultBackend, NotFoundExc
 DEFAULT_CONFIG_PATH = 'vault/server'
 DEFAULT_CONFIG = {
     'storage': ('dict', {
-        'cls': 'local',
+        'cls': 'remote',
         'args': {
-            'db': 'dbname=softwareheritage-dev',
-            'objstorage': {
-                'cls': 'pathslicing',
-                'args': {
-                    'root': '/srv/softwareheritage/objects',
-                    'slicing': '0:2/2:4/4:6',
-                },
-            },
+            'url': 'http://localhost:5002/',
         },
     }),
     'cache': ('dict', {
@@ -41,7 +34,12 @@ DEFAULT_CONFIG = {
     }),
     'client_max_size': ('int', 1024 ** 3),
     'db': ('str', 'dbname=softwareheritage-vault-dev'),
-    'scheduling_db': ('str', 'dbname=softwareheritage-scheduler-dev'),
+    'scheduler': ('dict', {
+        'cls': 'remote',
+        'args': {
+            'url': 'http://localhost:5008/',
+        }
+    }),
 }
 
 

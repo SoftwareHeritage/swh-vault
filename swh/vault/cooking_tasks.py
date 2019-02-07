@@ -3,26 +3,19 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from swh.scheduler.task import Task
+from celery import current_app as app
+
 from swh.vault.cookers import get_cooker
 
 
-class SWHCookingTask(Task):
+@app.task(name=__name__ + '.SWHCookingTask')
+def cook_bundle(obj_type, obj_id):
     """Main task to cook a bundle."""
-
-    task_queue = 'swh_vault_cooking'
-
-    def run_task(self, obj_type, obj_id):
-        cooker = get_cooker(obj_type)(obj_type, obj_id)
-        cooker.cook()
+    get_cooker(obj_type)(obj_type, obj_id).cook()
 
 
 # TODO: remove once the scheduler handles priority tasks
-class SWHBatchCookingTask(Task):
+@app.task(name=__name__ + '.SWHBatchCookingTask')
+def batch_cook_bundle(obj_type, obj_id):
     """Temporary task for the batch queue."""
-
-    task_queue = 'swh_vault_batch_cooking'
-
-    def run_task(self, obj_type, obj_id):
-        cooker = get_cooker(obj_type)(obj_type, obj_id)
-        cooker.cook()
+    get_cooker(obj_type)(obj_type, obj_id).cook()

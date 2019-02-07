@@ -1,4 +1,4 @@
-# Copyright (C) 2017  The Software Heritage developers
+# Copyright (C) 2017-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,11 +11,10 @@ from functools import wraps
 from email.mime.text import MIMEText
 
 from swh.model import hashutil
-from swh.scheduler.backend import SchedulerBackend
+from swh.scheduler import get_scheduler
 from swh.scheduler.utils import create_oneshot_task_dict
 from swh.vault.cache import VaultCache
 from swh.vault.cookers import get_cooker
-from swh.vault.cooking_tasks import SWHCookingTask  # noqa
 
 cooking_task_name = 'swh.vault.cooking_tasks.SWHCookingTask'
 
@@ -109,9 +108,8 @@ class VaultBackend:
         self.db = None
         self.reconnect()
         self.smtp_server = smtplib.SMTP()
-        if self.config['scheduling_db'] is not None:
-            self.scheduler = SchedulerBackend(
-                scheduling_db=self.config['scheduling_db'])
+        if self.config['scheduler'] is not None:
+            self.scheduler = get_scheduler(**self.config['scheduler'])
 
     def reconnect(self):
         """Reconnect to the database."""
@@ -263,24 +261,25 @@ class VaultBackend:
         # Insert all the bundles, return the new ones
         execute_values(cursor, '''
             INSERT INTO vault_bundle (type, object_id)
-            VALUES %s ON CONFLICT DO NOTHING
-            RETURNING type, object_id''', batch)
-        batch_new = [(bundle['type'], bytes(bundle['object_id']))
-                     for bundle in cursor.fetchall()]
+            VALUES %s ON CONFLICT DO NOTHING''', batch)
 
-        # Get the bundle ids
+        # Get the bundle ids and task status
         cursor.execute('''
-            SELECT id FROM vault_bundle
+            SELECT id, type, object_id, task_id FROM vault_bundle
             WHERE (type, object_id) IN %s''', (tuple(batch),))
-        bundle_ids = cursor.fetchall()
+        bundles = cursor.fetchall()
 
         # Insert the batch-bundle entries
-        batch_id_bundle_ids = [(batch_id, row['id']) for row in bundle_ids]
+        batch_id_bundle_ids = [(batch_id, row['id']) for row in bundles]
         execute_values(cursor, '''
             INSERT INTO vault_batch_bundle (batch_id, bundle_id)
             VALUES %s ON CONFLICT DO NOTHING''',
                        batch_id_bundle_ids)
         self.commit()
+
+        # Get the tasks to fetch
+        batch_new = [(row['type'], bytes(row['object_id']))
+                     for row in bundles if row['task_id'] is None]
 
         # Send the tasks
         args_batch = [(obj_type, hashutil.hash_to_hex(obj_id))

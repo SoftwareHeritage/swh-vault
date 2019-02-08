@@ -5,7 +5,6 @@
 
 import aiohttp.web
 import asyncio
-import click
 import collections
 
 from swh.core import config
@@ -204,17 +203,5 @@ def make_app_from_configfile(config_path=DEFAULT_CONFIG_PATH, **kwargs):
     return make_app(api_cfg, **kwargs)
 
 
-@click.command()
-@click.argument('config-path', required=1)
-@click.option('--host', default='0.0.0.0', help="Host to run the server")
-@click.option('--port', default=5005, type=click.INT,
-              help="Binding port of the server")
-@click.option('--debug/--nodebug', default=True,
-              help="Indicates if the server should run in debug mode")
-def launch(config_path, host, port, debug):
-    app = make_app(config.read(config_path, DEFAULT_CONFIG), debug=bool(debug))
-    aiohttp.web.run_app(app, host=host, port=int(port))
-
-
 if __name__ == '__main__':
-    launch()
+    print('Deprecated. Use swh-vault ')

@@ -50,6 +50,10 @@ setup(
     vcversioner={},
     include_package_data=True,
     zip_safe=False,
+    entry_points='''
+        [console_scripts]
+        swh-vault=swh.vault.cli:main
+    ''',
     classifiers=[
         "Programming Language :: Python :: 3",
         "Intended Audience :: Developers",

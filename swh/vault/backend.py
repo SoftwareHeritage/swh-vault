@@ -11,10 +11,8 @@ from email.mime.text import MIMEText
 from swh.core.db import BaseDb
 from swh.core.db.common import db_transaction
 from swh.model import hashutil
-from swh.scheduler import get_scheduler
 from swh.scheduler.utils import create_oneshot_task_dict
-from swh.vault.cache import VaultCache
-from swh.vault.cookers import get_cooker
+from swh.vault.cookers import get_cooker_cls
 
 cooking_task_name = 'swh.vault.cooking_tasks.SWHCookingTask'
 
@@ -69,26 +67,21 @@ def batch_to_bytes(batch):
             for obj_type, obj_id in batch]
 
 
-# TODO: This has to be factorized with other database base classes and helpers
-# (swh.scheduler.backend.SchedulerBackend, swh.storage.db.BaseDb, ...)
-# The three first methods are imported from swh.scheduler.backend.
 class VaultBackend:
     """
     Backend for the Software Heritage vault.
     """
-    def __init__(self, **config):
+    def __init__(self, db, cache, scheduler, storage=None, **config):
         self.config = config
-        self.cache = VaultCache(self.config['cache'])
+        self.cache = cache
+        self.scheduler = scheduler
+        self.storage = storage
         self.smtp_server = smtplib.SMTP()
-        self.scheduler = get_scheduler(**self.config['scheduler'])
 
-        cfg = config['vault']
-        assert cfg['cls'] == 'local'
-        args = cfg['args']
         self._pool = psycopg2.pool.ThreadedConnectionPool(
-            args.get('min_pool_conns', 1),
-            args.get('max_pool_conns', 10),
-            args['db'],
+            config.get('min_pool_conns', 1),
+            config.get('max_pool_conns', 10),
+            db,
             cursor_factory=psycopg2.extras.RealDictCursor,
         )
         self._db = None
@@ -112,7 +105,7 @@ class VaultBackend:
             res['object_id'] = bytes(res['object_id'])
         return res
 
-    def _send_task(self, args):
+    def _send_task(self, *args):
         """Send a cooking task to the celery scheduler"""
         task = create_oneshot_task_dict('swh-vault-cooking', *args)
         added_tasks = self.scheduler.create_tasks([task])
@@ -123,11 +116,10 @@ class VaultBackend:
         """Create and send a cooking task"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         hex_id = hashutil.hash_to_hex(obj_id)
-        args = [obj_type, hex_id]
 
-        backend_storage_config = {'storage': self.config['storage']}
-        cooker_class = get_cooker(obj_type)
-        cooker = cooker_class(*args, override_cfg=backend_storage_config)
+        cooker_class = get_cooker_cls(obj_type)
+        cooker = cooker_class(obj_type, hex_id,
+                              backend=self, storage=self.storage)
         if not cooker.check_exists():
             raise NotFoundExc("Object {} was not found.".format(hex_id))
 
@@ -136,7 +128,7 @@ class VaultBackend:
             VALUES (%s, %s, %s)''', (obj_type, obj_id, sticky))
         db.conn.commit()
 
-        task_id = self._send_task(args)
+        task_id = self._send_task(obj_type, hex_id)
 
         cur.execute('''
             UPDATE vault_bundle

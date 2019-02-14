@@ -193,13 +193,8 @@ def make_app(config, **kwargs):
     return app
 
 
-api_cfg = None
-
-
 def make_app_from_configfile(config_path=DEFAULT_CONFIG_PATH, **kwargs):
-    global api_cfg
-    if not api_cfg:
-        api_cfg = config.read(config_path, DEFAULT_CONFIG)
+    api_cfg = config.read(config_path, DEFAULT_CONFIG)
     return make_app(api_cfg, **kwargs)
 
 

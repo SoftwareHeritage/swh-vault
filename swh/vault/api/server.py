@@ -228,6 +228,7 @@ def get_local_backend(config_file):
 
 
 def make_app_from_configfile(config_file=DEFAULT_CONFIG_PATH, **kwargs):
+    config_file = os.environ.get('SWH_CONFIG_FILENAME', config_file)
     vault = get_local_backend(config_file)
     return make_app(backend=vault, **kwargs)
 

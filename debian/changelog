@@ -1,3 +1,13 @@
+swh-vault (0.0.22-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.22     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-02-14 10:12:41
+    +0100)
+  * Upstream changes:     - v0.0.22     - api/server: Do not read
+    configuration at each request
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 14 Feb 2019 09:16:23 +0000
+
 swh-vault (0.0.21-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.21     - (tagged by David Douard

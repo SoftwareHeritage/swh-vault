@@ -1,8 +1,8 @@
-swh-vault (0.0.24-1~swh2~bpo9+1) stretch-swh; urgency=medium
+swh-vault (0.0.24-1~swh3) unstable-swh; urgency=low
 
-  * Rebuild for stretch-swh
+  * d/control: Update missing build dependency on postgresql-contrib
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 18 Feb 2019 15:15:56 +0000
+ -- Antoine Romain Dumont <antoine.romain.dumont@gmail.com>  Mon, 18 Feb 2019 16:20:50 +0100
 
 swh-vault (0.0.24-1~swh2) unstable-swh; urgency=low
 

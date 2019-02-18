@@ -86,6 +86,13 @@ class TestRepo:
             commit_timezone=0,
             ref=ref)
         self.counter += 1
+
+        # committing on another branch leaves
+        # dangling files in index
+        if ref != b'HEAD':
+            # XXX this should work (but does not)
+            # dulwich.porcelain.reset(self.repo, 'hard')
+            self.git_shell('reset', '--hard', 'HEAD')
         return ret
 
     def merge(self, parent_sha_list, message='Merge branches.'):

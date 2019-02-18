@@ -7,12 +7,9 @@ import abc
 import io
 import logging
 
-from swh.core import config
 from swh.model import hashutil
-from swh.storage import get_storage
-from swh.vault.api.client import RemoteVaultClient
 
-
+MAX_BUNDLE_SIZE = 2 ** 29  # 512 MiB
 DEFAULT_CONFIG_PATH = 'vault/cooker'
 DEFAULT_CONFIG = {
     'storage': ('dict', {
@@ -21,8 +18,13 @@ DEFAULT_CONFIG = {
             'url': 'http://localhost:5002/',
         },
     }),
-    'vault_url': ('str', 'http://localhost:5005/'),
-    'max_bundle_size': ('int', 2 ** 29),  # 512 MiB
+    'vault': ('dict', {
+        'cls': 'remote',
+        'args': {
+            'url': 'http://localhost:5005/',
+        },
+    }),
+    'max_bundle_size': ('int', MAX_BUNDLE_SIZE),
 }
 
 
@@ -61,7 +63,8 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     """
     CACHE_TYPE_KEY = None
 
-    def __init__(self, obj_type, obj_id, *, override_cfg=None):
+    def __init__(self, obj_type, obj_id, backend, storage,
+                 max_bundle_size=MAX_BUNDLE_SIZE):
         """Initialize the cooker.
 
         The type of the object represented by the id depends on the
@@ -69,20 +72,17 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         own cooker class.
 
         Args:
-            storage: the storage object
-            cache: the cache where to store the bundle
+            obj_type: type of the object to be cooked into a bundle (directory,
+                      revision_flat or revision_gitfast; see
+                      swh.vault.cooker.COOKER_TYPES).
             obj_id: id of the object to be cooked into a bundle.
+            backend: the vault backend (swh.vault.backend.VaultBackend).
         """
-        self.config = config.load_named_config(DEFAULT_CONFIG_PATH,
-                                               DEFAULT_CONFIG)
-        if override_cfg is not None:
-            self.config.update(override_cfg)
-
         self.obj_type = obj_type
         self.obj_id = hashutil.hash_to_bytes(obj_id)
-        self.backend = RemoteVaultClient(self.config['vault_url'])
-        self.storage = get_storage(**self.config['storage'])
-        self.max_bundle_size = self.config['max_bundle_size']
+        self.backend = backend
+        self.storage = storage
+        self.max_bundle_size = max_bundle_size
 
     @abc.abstractmethod
     def check_exists(self):

@@ -78,6 +78,13 @@ class TestRepo:
                               stdout=stdout, **kwargs)
 
     def commit(self, message='Commit test\n', ref=b'HEAD'):
+        """Commit the current working tree in a new commit with message on
+        the branch 'ref'.
+
+        At the end of the commit, the reference should stay the same
+        and the index should be clean.
+
+        """
         self.git_shell('add', '.')
         message = message.encode() + b'\n'
         ret = self.repo.do_commit(

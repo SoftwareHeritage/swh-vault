@@ -30,6 +30,7 @@ swh/vault/cookers/base.py
 swh/vault/cookers/directory.py
 swh/vault/cookers/revision_flat.py
 swh/vault/cookers/revision_gitfast.py
+swh/vault/sql/30-swh-schema.sql
 swh/vault/tests/__init__.py
 swh/vault/tests/conftest.py
 swh/vault/tests/test_backend.py

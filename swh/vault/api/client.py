@@ -17,9 +17,9 @@ class VaultAPIError(Exception):
 class RemoteVaultClient(SWHRemoteAPI):
     """Client to the Software Heritage vault cache."""
 
-    def __init__(self, base_url, timeout=None):
+    def __init__(self, url, timeout=None):
         super().__init__(
-            api_exception=VaultAPIError, url=base_url, timeout=timeout)
+            api_exception=VaultAPIError, url=url, timeout=timeout)
 
     # Web API endpoints
 

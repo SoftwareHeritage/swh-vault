@@ -1,8 +1,53 @@
-swh-vault (0.0.20-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-vault (0.0.24-1~swh2) unstable-swh; urgency=low
 
-  * Rebuild for stretch-backports.
+  * d/control: Update missing build dependency on git
+  * d/rules: Sanitize build locale
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 24 May 2018 12:31:51 +0200
+ -- Antoine Romain Dumont <antoine.romain.dumont@gmail.com>  Mon, 18 Feb 2019 16:04:50 +0100
+
+swh-vault (0.0.24-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.24     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-02-18 15:21:31
+    +0100)
+  * Upstream changes:     - v0.0.24     - MANIFEST.in: Fix packaging to
+    include the sql schema definitions
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 18 Feb 2019 14:25:33 +0000
+
+swh-vault (0.0.23-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.23     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-02-18 14:39:25
+    +0100)
+  * Upstream changes:     - v0.0.23     - test_cookers: Fix commit
+    behavior when committing to another branch     - Rewrite tests using
+    pytest's fixtures and adapt them to recent refactorings     -
+    Normalize the configuration of VaultBackend and cooker     - Make it
+    possible to specify the config file via SWH_CONFIG_FILENAME env var
+    - Refactor the VaultBackend to use BaseDb and pool-based db access
+    - Add a swh.vault.api.wsgi module to instanciate the (singleton)
+    wsgi app object
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 18 Feb 2019 13:48:28 +0000
+
+swh-vault (0.0.22-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.22     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-02-14 10:12:41
+    +0100)
+  * Upstream changes:     - v0.0.22     - api/server: Do not read
+    configuration at each request
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 14 Feb 2019 09:16:23 +0000
+
+swh-vault (0.0.21-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.21     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2019-02-07 17:38:49 +0100)
+  * Upstream changes:     - v0.0.21
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 07 Feb 2019 16:44:51 +0000
 
 swh-vault (0.0.20-1~swh1) unstable-swh; urgency=medium
 

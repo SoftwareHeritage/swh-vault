@@ -1,11 +1,11 @@
-# Copyright (C) 2016  The Software Heritage developers
+# Copyright (C) 2016-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import os
 import aiohttp.web
 import asyncio
-import click
 import collections
 
 from swh.core import config
@@ -13,23 +13,17 @@ from swh.core.api_async import (SWHRemoteAPI,
                                 encode_data_server as encode_data,
                                 decode_request)
 from swh.model import hashutil
+from swh.vault import get_vault
 from swh.vault.cookers import COOKER_TYPES
-from swh.vault.backend import VaultBackend, NotFoundExc
+from swh.vault.backend import NotFoundExc
 
 
 DEFAULT_CONFIG_PATH = 'vault/server'
 DEFAULT_CONFIG = {
     'storage': ('dict', {
-        'cls': 'local',
+        'cls': 'remote',
         'args': {
-            'db': 'dbname=softwareheritage-dev',
-            'objstorage': {
-                'cls': 'pathslicing',
-                'args': {
-                    'root': '/srv/softwareheritage/objects',
-                    'slicing': '0:2/2:4/4:6',
-                },
-            },
+            'url': 'http://localhost:5002/',
         },
     }),
     'cache': ('dict', {
@@ -40,8 +34,18 @@ DEFAULT_CONFIG = {
         },
     }),
     'client_max_size': ('int', 1024 ** 3),
-    'db': ('str', 'dbname=softwareheritage-vault-dev'),
-    'scheduling_db': ('str', 'dbname=softwareheritage-scheduler-dev'),
+    'vault': ('dict', {
+        'cls': 'local',
+        'args': {
+            'db': 'dbname=softwareheritage-vault-dev',
+        },
+    }),
+    'scheduler': ('dict', {
+        'cls': 'remote',
+        'args': {
+            'url': 'http://localhost:5008/',
+        }
+    }),
 }
 
 
@@ -170,10 +174,7 @@ def batch_progress(request):
 
 # Web server
 
-def make_app(config, **kwargs):
-    if 'client_max_size' in config:
-        kwargs['client_max_size'] = config['client_max_size']
-
+def make_app(backend, **kwargs):
     app = SWHRemoteAPI(**kwargs)
     app.router.add_route('GET', '/', index)
 
@@ -192,26 +193,45 @@ def make_app(config, **kwargs):
     app.router.add_route('POST', '/batch_cook', batch_cook)
     app.router.add_route('GET', '/batch_progress/{batch_id}', batch_progress)
 
-    app['backend'] = VaultBackend(config)
+    app['backend'] = backend
     return app
 
 
-def make_app_from_configfile(config_path=DEFAULT_CONFIG_PATH, **kwargs):
-    cfg = config.load_named_config(config_path, DEFAULT_CONFIG)
-    return make_app(cfg, **kwargs)
+def get_local_backend(config_file):
+    if os.path.isfile(config_file):
+        cfg = config.read(config_file, DEFAULT_CONFIG)
+    else:
+        cfg = config.load_named_config(config_file, DEFAULT_CONFIG)
+
+    if 'vault' not in cfg:
+        raise ValueError("missing '%vault' configuration")
+
+    vcfg = cfg['vault']
+    if vcfg['cls'] != 'local':
+        raise EnvironmentError(
+            "The vault backend can only be started with a 'local' "
+            "configuration", err=True)
+    args = vcfg['args']
+    if 'cache' not in args:
+        args['cache'] = cfg.get('cache')
+    if 'storage' not in args:
+        args['storage'] = cfg.get('storage')
+    if 'scheduler' not in args:
+        args['scheduler'] = cfg.get('scheduler')
+
+    for key in ('cache', 'storage', 'scheduler'):
+        if not args.get(key):
+            raise ValueError(
+                "invalid configuration; missing %s config entry." % key)
+
+    return get_vault('local', args)
 
 
-@click.command()
-@click.argument('config-path', required=1)
-@click.option('--host', default='0.0.0.0', help="Host to run the server")
-@click.option('--port', default=5005, type=click.INT,
-              help="Binding port of the server")
-@click.option('--debug/--nodebug', default=True,
-              help="Indicates if the server should run in debug mode")
-def launch(config_path, host, port, debug):
-    app = make_app(config.read(config_path, DEFAULT_CONFIG), debug=bool(debug))
-    aiohttp.web.run_app(app, host=host, port=int(port))
+def make_app_from_configfile(config_file=DEFAULT_CONFIG_PATH, **kwargs):
+    config_file = os.environ.get('SWH_CONFIG_FILENAME', config_file)
+    vault = get_local_backend(config_file)
+    return make_app(backend=vault, **kwargs)
 
 
 if __name__ == '__main__':
-    launch()
+    print('Deprecated. Use swh-vault ')

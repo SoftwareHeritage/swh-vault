@@ -1,21 +1,18 @@
-# Copyright (C) 2017  The Software Heritage developers
+# Copyright (C) 2017-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import smtplib
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg2.extras
 
-from functools import wraps
 from email.mime.text import MIMEText
 
+from swh.core.db import BaseDb
+from swh.core.db.common import db_transaction
 from swh.model import hashutil
-from swh.scheduler.backend import SchedulerBackend
 from swh.scheduler.utils import create_oneshot_task_dict
-from swh.vault.cache import VaultCache
-from swh.vault.cookers import get_cooker
-from swh.vault.cooking_tasks import SWHCookingTask  # noqa
+from swh.vault.cookers import get_cooker_cls
 
 cooking_task_name = 'swh.vault.cooking_tasks.SWHCookingTask'
 
@@ -70,147 +67,87 @@ def batch_to_bytes(batch):
             for obj_type, obj_id in batch]
 
 
-# TODO: Imported from swh.scheduler.backend. Factorization needed.
-def autocommit(fn):
-    @wraps(fn)
-    def wrapped(self, *args, **kwargs):
-        autocommit = False
-        # TODO: I don't like using None, it's confusing for the user. how about
-        # a NEW_CURSOR object()?
-        if 'cursor' not in kwargs or not kwargs['cursor']:
-            autocommit = True
-            kwargs['cursor'] = self.cursor()
-
-        try:
-            ret = fn(self, *args, **kwargs)
-        except BaseException:
-            if autocommit:
-                self.rollback()
-            raise
-
-        if autocommit:
-            self.commit()
-
-        return ret
-
-    return wrapped
-
-
-# TODO: This has to be factorized with other database base classes and helpers
-# (swh.scheduler.backend.SchedulerBackend, swh.storage.db.BaseDb, ...)
-# The three first methods are imported from swh.scheduler.backend.
 class VaultBackend:
     """
     Backend for the Software Heritage vault.
     """
-    def __init__(self, config):
+    def __init__(self, db, cache, scheduler, storage=None, **config):
         self.config = config
-        self.cache = VaultCache(self.config['cache'])
-        self.db = None
-        self.reconnect()
+        self.cache = cache
+        self.scheduler = scheduler
+        self.storage = storage
         self.smtp_server = smtplib.SMTP()
-        if self.config['scheduling_db'] is not None:
-            self.scheduler = SchedulerBackend(
-                scheduling_db=self.config['scheduling_db'])
 
-    def reconnect(self):
-        """Reconnect to the database."""
-        if not self.db or self.db.closed:
-            self.db = psycopg2.connect(
-                dsn=self.config['db'],
-                cursor_factory=RealDictCursor,
-            )
+        self._pool = psycopg2.pool.ThreadedConnectionPool(
+            config.get('min_pool_conns', 1),
+            config.get('max_pool_conns', 10),
+            db,
+            cursor_factory=psycopg2.extras.RealDictCursor,
+        )
+        self._db = None
 
-    def close(self):
-        """Close the underlying database connection."""
-        self.db.close()
+    def get_db(self):
+        if self._db:
+            return self._db
+        return BaseDb.from_pool(self._pool)
 
-    def cursor(self):
-        """Return a fresh cursor on the database, with auto-reconnection in
-        case of failure"""
-        cur = None
-
-        # Get a fresh cursor and reconnect at most three times
-        tries = 0
-        while True:
-            tries += 1
-            try:
-                cur = self.db.cursor()
-                cur.execute('select 1')
-                break
-            except psycopg2.OperationalError:
-                if tries < 3:
-                    self.reconnect()
-                else:
-                    raise
-        return cur
-
-    def commit(self):
-        """Commit a transaction"""
-        self.db.commit()
-
-    def rollback(self):
-        """Rollback a transaction"""
-        self.db.rollback()
-
-    @autocommit
-    def task_info(self, obj_type, obj_id, cursor=None):
+    @db_transaction()
+    def task_info(self, obj_type, obj_id, db=None, cur=None):
         """Fetch information from a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
-        cursor.execute('''
+        cur.execute('''
             SELECT id, type, object_id, task_id, task_status, sticky,
                    ts_created, ts_done, ts_last_access, progress_msg
             FROM vault_bundle
             WHERE type = %s AND object_id = %s''', (obj_type, obj_id))
-        res = cursor.fetchone()
+        res = cur.fetchone()
         if res:
             res['object_id'] = bytes(res['object_id'])
         return res
 
-    def _send_task(self, args):
+    def _send_task(self, *args):
         """Send a cooking task to the celery scheduler"""
         task = create_oneshot_task_dict('swh-vault-cooking', *args)
         added_tasks = self.scheduler.create_tasks([task])
         return added_tasks[0]['id']
 
-    @autocommit
-    def create_task(self, obj_type, obj_id, sticky=False, cursor=None):
+    @db_transaction()
+    def create_task(self, obj_type, obj_id, sticky=False, db=None, cur=None):
         """Create and send a cooking task"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         hex_id = hashutil.hash_to_hex(obj_id)
-        args = [obj_type, hex_id]
 
-        backend_storage_config = {'storage': self.config['storage']}
-        cooker_class = get_cooker(obj_type)
-        cooker = cooker_class(*args, override_cfg=backend_storage_config)
+        cooker_class = get_cooker_cls(obj_type)
+        cooker = cooker_class(obj_type, hex_id,
+                              backend=self, storage=self.storage)
         if not cooker.check_exists():
             raise NotFoundExc("Object {} was not found.".format(hex_id))
 
-        cursor.execute('''
+        cur.execute('''
             INSERT INTO vault_bundle (type, object_id, sticky)
             VALUES (%s, %s, %s)''', (obj_type, obj_id, sticky))
-        self.commit()
+        db.conn.commit()
 
-        task_id = self._send_task(args)
+        task_id = self._send_task(obj_type, hex_id)
 
-        cursor.execute('''
+        cur.execute('''
             UPDATE vault_bundle
             SET task_id = %s
             WHERE type = %s AND object_id = %s''', (task_id, obj_type, obj_id))
 
-    @autocommit
-    def add_notif_email(self, obj_type, obj_id, email, cursor=None):
+    @db_transaction()
+    def add_notif_email(self, obj_type, obj_id, email, db=None, cur=None):
         """Add an e-mail address to notify when a given bundle is ready"""
         obj_id = hashutil.hash_to_bytes(obj_id)
-        cursor.execute('''
+        cur.execute('''
             INSERT INTO vault_notif_email (email, bundle_id)
             VALUES (%s, (SELECT id FROM vault_bundle
                          WHERE type = %s AND object_id = %s))''',
-                       (email, obj_type, obj_id))
+                    (email, obj_type, obj_id))
 
-    @autocommit
+    @db_transaction()
     def cook_request(self, obj_type, obj_id, *, sticky=False,
-                     email=None, cursor=None):
+                     email=None, db=None, cur=None):
         """Main entry point for cooking requests. This starts a cooking task if
             needed, and add the given e-mail to the notify list"""
         obj_id = hashutil.hash_to_bytes(obj_id)
@@ -218,10 +155,10 @@ class VaultBackend:
 
         # If there's a failed bundle entry, delete it first.
         if info is not None and info['task_status'] == 'failed':
-            cursor.execute('''DELETE FROM vault_bundle
+            cur.execute('''DELETE FROM vault_bundle
                               WHERE type = %s AND object_id = %s''',
-                           (obj_type, obj_id))
-            self.commit()
+                        (obj_type, obj_id))
+            db.conn.commit()
             info = None
 
         # If there's no bundle entry, create the task.
@@ -240,47 +177,48 @@ class VaultBackend:
         info = self.task_info(obj_type, obj_id)
         return info
 
-    @autocommit
-    def batch_cook(self, batch, cursor=None):
+    @db_transaction()
+    def batch_cook(self, batch, db=None, cur=None):
         """Cook a batch of bundles and returns the cooking id."""
         # Import execute_values at runtime only, because it requires
         # psycopg2 >= 2.7 (only available on postgresql servers)
         from psycopg2.extras import execute_values
 
-        cursor.execute('''
+        cur.execute('''
             INSERT INTO vault_batch (id)
             VALUES (DEFAULT)
             RETURNING id''')
-        batch_id = cursor.fetchone()['id']
+        batch_id = cur.fetchone()['id']
         batch = batch_to_bytes(batch)
 
         # Delete all failed bundles from the batch
-        cursor.execute('''
+        cur.execute('''
             DELETE FROM vault_bundle
             WHERE task_status = 'failed'
               AND (type, object_id) IN %s''', (tuple(batch),))
 
         # Insert all the bundles, return the new ones
-        execute_values(cursor, '''
+        execute_values(cur, '''
             INSERT INTO vault_bundle (type, object_id)
-            VALUES %s ON CONFLICT DO NOTHING
-            RETURNING type, object_id''', batch)
-        batch_new = [(bundle['type'], bytes(bundle['object_id']))
-                     for bundle in cursor.fetchall()]
+            VALUES %s ON CONFLICT DO NOTHING''', batch)
 
-        # Get the bundle ids
-        cursor.execute('''
-            SELECT id FROM vault_bundle
+        # Get the bundle ids and task status
+        cur.execute('''
+            SELECT id, type, object_id, task_id FROM vault_bundle
             WHERE (type, object_id) IN %s''', (tuple(batch),))
-        bundle_ids = cursor.fetchall()
+        bundles = cur.fetchall()
 
         # Insert the batch-bundle entries
-        batch_id_bundle_ids = [(batch_id, row['id']) for row in bundle_ids]
-        execute_values(cursor, '''
+        batch_id_bundle_ids = [(batch_id, row['id']) for row in bundles]
+        execute_values(cur, '''
             INSERT INTO vault_batch_bundle (batch_id, bundle_id)
             VALUES %s ON CONFLICT DO NOTHING''',
                        batch_id_bundle_ids)
-        self.commit()
+        db.conn.commit()
+
+        # Get the tasks to fetch
+        batch_new = [(row['type'], bytes(row['object_id']))
+                     for row in bundles if row['task_id'] is None]
 
         # Send the tasks
         args_batch = [(obj_type, hashutil.hash_to_hex(obj_id))
@@ -297,7 +235,7 @@ class VaultBackend:
                                 in tasks_ids_bundle_ids]
 
         # Update the task ids
-        execute_values(cursor, '''
+        execute_values(cur, '''
             UPDATE vault_bundle
             SET task_id = s_task_id
             FROM (VALUES %s) AS sub (s_task_id, s_type, s_object_id)
@@ -305,50 +243,50 @@ class VaultBackend:
                        tasks_ids_bundle_ids)
         return batch_id
 
-    @autocommit
-    def batch_info(self, batch_id, cursor=None):
+    @db_transaction()
+    def batch_info(self, batch_id, db=None, cur=None):
         """Fetch information from a batch of bundles"""
-        cursor.execute('''
+        cur.execute('''
             SELECT vault_bundle.id as id,
                    type, object_id, task_id, task_status, sticky,
                    ts_created, ts_done, ts_last_access, progress_msg
             FROM vault_batch_bundle
             LEFT JOIN vault_bundle ON vault_bundle.id = bundle_id
             WHERE batch_id = %s''', (batch_id,))
-        res = cursor.fetchall()
+        res = cur.fetchall()
         if res:
             for d in res:
                 d['object_id'] = bytes(d['object_id'])
         return res
 
-    @autocommit
-    def is_available(self, obj_type, obj_id, cursor=None):
+    @db_transaction()
+    def is_available(self, obj_type, obj_id, db=None, cur=None):
         """Check whether a bundle is available for retrieval"""
-        info = self.task_info(obj_type, obj_id, cursor=cursor)
+        info = self.task_info(obj_type, obj_id, cur=cur)
         return (info is not None
                 and info['task_status'] == 'done'
                 and self.cache.is_cached(obj_type, obj_id))
 
-    @autocommit
-    def fetch(self, obj_type, obj_id, cursor=None):
+    @db_transaction()
+    def fetch(self, obj_type, obj_id, db=None, cur=None):
         """Retrieve a bundle from the cache"""
-        if not self.is_available(obj_type, obj_id, cursor=cursor):
+        if not self.is_available(obj_type, obj_id, cur=cur):
             return None
-        self.update_access_ts(obj_type, obj_id, cursor=cursor)
+        self.update_access_ts(obj_type, obj_id, cur=cur)
         return self.cache.get(obj_type, obj_id)
 
-    @autocommit
-    def update_access_ts(self, obj_type, obj_id, cursor=None):
+    @db_transaction()
+    def update_access_ts(self, obj_type, obj_id, db=None, cur=None):
         """Update the last access timestamp of a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
-        cursor.execute('''
+        cur.execute('''
             UPDATE vault_bundle
             SET ts_last_access = NOW()
             WHERE type = %s AND object_id = %s''',
-                       (obj_type, obj_id))
+                    (obj_type, obj_id))
 
-    @autocommit
-    def set_status(self, obj_type, obj_id, status, cursor=None):
+    @db_transaction()
+    def set_status(self, obj_type, obj_id, status, db=None, cur=None):
         """Set the cooking status of a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
         req = ('''
@@ -356,36 +294,36 @@ class VaultBackend:
                SET task_status = %s '''
                + (''', ts_done = NOW() ''' if status == 'done' else '')
                + '''WHERE type = %s AND object_id = %s''')
-        cursor.execute(req, (status, obj_type, obj_id))
+        cur.execute(req, (status, obj_type, obj_id))
 
-    @autocommit
-    def set_progress(self, obj_type, obj_id, progress, cursor=None):
+    @db_transaction()
+    def set_progress(self, obj_type, obj_id, progress, db=None, cur=None):
         """Set the cooking progress of a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
-        cursor.execute('''
+        cur.execute('''
             UPDATE vault_bundle
             SET progress_msg = %s
             WHERE type = %s AND object_id = %s''',
-                       (progress, obj_type, obj_id))
+                    (progress, obj_type, obj_id))
 
-    @autocommit
-    def send_all_notifications(self, obj_type, obj_id, cursor=None):
+    @db_transaction()
+    def send_all_notifications(self, obj_type, obj_id, db=None, cur=None):
         """Send all the e-mails in the notification list of a bundle"""
         obj_id = hashutil.hash_to_bytes(obj_id)
-        cursor.execute('''
+        cur.execute('''
             SELECT vault_notif_email.id AS id, email, task_status, progress_msg
             FROM vault_notif_email
             INNER JOIN vault_bundle ON bundle_id = vault_bundle.id
             WHERE vault_bundle.type = %s AND vault_bundle.object_id = %s''',
-                       (obj_type, obj_id))
-        for d in cursor:
+                    (obj_type, obj_id))
+        for d in cur:
             self.send_notification(d['id'], d['email'], obj_type, obj_id,
                                    status=d['task_status'],
                                    progress_msg=d['progress_msg'])
 
-    @autocommit
+    @db_transaction()
     def send_notification(self, n_id, email, obj_type, obj_id, status,
-                          progress_msg=None, cursor=None):
+                          progress_msg=None, db=None, cur=None):
         """Send the notification of a bundle to a specific e-mail"""
         hex_id = hashutil.hash_to_hex(obj_id)
         short_id = hex_id[:7]
@@ -422,7 +360,7 @@ class VaultBackend:
         self._smtp_send(msg)
 
         if n_id is not None:
-            cursor.execute('''
+            cur.execute('''
                 DELETE FROM vault_notif_email
                 WHERE id = %s''', (n_id,))
 
@@ -438,11 +376,11 @@ class VaultBackend:
         # Send the message
         self.smtp_server.send_message(msg)
 
-    @autocommit
-    def _cache_expire(self, cond, *args, cursor=None):
+    @db_transaction()
+    def _cache_expire(self, cond, *args, db=None, cur=None):
         """Low-level expiration method, used by cache_expire_* methods"""
         # Embedded SELECT query to be able to use ORDER BY and LIMIT
-        cursor.execute('''
+        cur.execute('''
             DELETE FROM vault_bundle
             WHERE ctid IN (
                 SELECT ctid
@@ -453,18 +391,18 @@ class VaultBackend:
             RETURNING type, object_id
             '''.format(cond), args)
 
-        for d in cursor:
+        for d in cur:
             self.cache.delete(d['type'], bytes(d['object_id']))
 
-    @autocommit
-    def cache_expire_oldest(self, n=1, by='last_access', cursor=None):
+    @db_transaction()
+    def cache_expire_oldest(self, n=1, by='last_access', db=None, cur=None):
         """Expire the `n` oldest bundles"""
         assert by in ('created', 'done', 'last_access')
         filter = '''ORDER BY ts_{} LIMIT {}'''.format(by, n)
         return self._cache_expire(filter)
 
-    @autocommit
-    def cache_expire_until(self, date, by='last_access', cursor=None):
+    @db_transaction()
+    def cache_expire_until(self, date, by='last_access', db=None, cur=None):
         """Expire all the bundles until a certain date"""
         assert by in ('created', 'done', 'last_access')
         filter = '''AND ts_{} <= %s'''.format(by)

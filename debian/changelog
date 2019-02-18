@@ -1,3 +1,9 @@
+swh-vault (0.0.24-1~swh2~bpo9+1) stretch-swh; urgency=medium
+
+  * Rebuild for stretch-swh
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 18 Feb 2019 15:15:56 +0000
+
 swh-vault (0.0.24-1~swh2) unstable-swh; urgency=low
 
   * d/control: Update missing build dependency on git

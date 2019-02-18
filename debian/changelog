@@ -1,3 +1,9 @@
+swh-vault (0.0.24-1~swh3) unstable-swh; urgency=low
+
+  * d/control: Update missing build dependency on postgresql-contrib
+
+ -- Antoine Romain Dumont <antoine.romain.dumont@gmail.com>  Mon, 18 Feb 2019 16:20:50 +0100
+
 swh-vault (0.0.24-1~swh2) unstable-swh; urgency=low
 
   * d/control: Update missing build dependency on git

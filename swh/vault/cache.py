@@ -15,7 +15,7 @@ class VaultCache:
     internal identifiers used in the underlying objstorage.
     """
 
-    def __init__(self, objstorage):
+    def __init__(self, **objstorage):
         self.objstorage = get_objstorage(**objstorage)
 
     def add(self, obj_type, obj_id, content):

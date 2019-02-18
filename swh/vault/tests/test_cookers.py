@@ -26,7 +26,7 @@ from swh.loader.git.from_disk import GitLoaderFromDisk
 from swh.model import hashutil
 from swh.model.from_disk import Directory
 from swh.vault.cookers import DirectoryCooker, RevisionGitfastCooker
-from swh.vault.tests.vault_testing import VaultTestFixture, hash_content
+from swh.vault.tests.vault_testing import hash_content
 from swh.vault.to_disk import SKIPPED_MESSAGE, HIDDEN_MESSAGE
 
 
@@ -78,6 +78,13 @@ class TestRepo:
                               stdout=stdout, **kwargs)
 
     def commit(self, message='Commit test\n', ref=b'HEAD'):
+        """Commit the current working tree in a new commit with message on
+        the branch 'ref'.
+
+        At the end of the commit, the reference should stay the same
+        and the index should be clean.
+
+        """
         self.git_shell('add', '.')
         message = message.encode() + b'\n'
         ret = self.repo.do_commit(
@@ -86,6 +93,13 @@ class TestRepo:
             commit_timezone=0,
             ref=ref)
         self.counter += 1
+
+        # committing on another branch leaves
+        # dangling files in index
+        if ref != b'HEAD':
+            # XXX this should work (but does not)
+            # dulwich.porcelain.reset(self.repo, 'hard')
+            self.git_shell('reset', '--hard', 'HEAD')
         return ret
 
     def merge(self, parent_sha_list, message='Merge branches.'):
@@ -101,61 +115,61 @@ class TestRepo:
         self.git_shell(*args, stdout=None)
 
 
-@pytest.mark.config_issue
-class BaseTestCookers(VaultTestFixture):
-    """Base class of cookers unit tests"""
-    def setUp(self):
-        super().setUp()
-        self.loader = GitLoaderFromDisk()
-        self.loader.storage = self.storage
+@pytest.fixture
+def swh_git_loader(swh_vault):
+    loader = GitLoaderFromDisk()
+    loader.storage = swh_vault.storage
+    return loader
 
-    def tearDown(self):
-        self.loader = None
-        super().tearDown()
 
-    def load(self, repo_path):
-        """Load a repository in the test storage"""
-        self.loader.load('fake_origin', repo_path, datetime.datetime.now())
+def load(loader, repo_path):
+    """Load a repository in the test storage"""
+    loader.load('fake_origin', repo_path, datetime.datetime.now())
 
-    @contextlib.contextmanager
-    def cook_extract_directory(self, obj_id):
-        """Context manager that cooks a directory and extract it."""
-        cooker = DirectoryCooker('directory', obj_id)
-        cooker.storage = self.storage
-        cooker.backend = unittest.mock.MagicMock()
-        cooker.fileobj = io.BytesIO()
-        assert cooker.check_exists()
-        cooker.prepare_bundle()
-        cooker.fileobj.seek(0)
-        with tempfile.TemporaryDirectory(prefix='tmp-vault-extract-') as td:
-            with tarfile.open(fileobj=cooker.fileobj, mode='r') as tar:
-                tar.extractall(td)
-            yield pathlib.Path(td) / hashutil.hash_to_hex(obj_id)
-        cooker.storage = None
 
-    @contextlib.contextmanager
-    def cook_stream_revision_gitfast(self, obj_id):
-        """Context manager that cooks a revision and stream its fastexport."""
-        cooker = RevisionGitfastCooker('revision_gitfast', obj_id)
-        cooker.storage = self.storage
-        cooker.backend = unittest.mock.MagicMock()
-        cooker.fileobj = io.BytesIO()
-        assert cooker.check_exists()
-        cooker.prepare_bundle()
-        cooker.fileobj.seek(0)
-        fastexport_stream = gzip.GzipFile(fileobj=cooker.fileobj)
-        yield fastexport_stream
-        cooker.storage = None
+@contextlib.contextmanager
+def cook_extract_directory(storage, obj_id):
+    """Context manager that cooks a directory and extract it."""
+    backend = unittest.mock.MagicMock()
+    backend.storage = storage
+    cooker = DirectoryCooker(
+        'directory', obj_id, backend=backend, storage=storage)
+    cooker.fileobj = io.BytesIO()
+    assert cooker.check_exists()
+    cooker.prepare_bundle()
+    cooker.fileobj.seek(0)
+    with tempfile.TemporaryDirectory(prefix='tmp-vault-extract-') as td:
+        with tarfile.open(fileobj=cooker.fileobj, mode='r') as tar:
+            tar.extractall(td)
+        yield pathlib.Path(td) / hashutil.hash_to_hex(obj_id)
+    cooker.storage = None
 
-    @contextlib.contextmanager
-    def cook_extract_revision_gitfast(self, obj_id):
-        """Context manager that cooks a revision and extract it."""
-        test_repo = TestRepo()
-        with self.cook_stream_revision_gitfast(obj_id) as stream, \
-                test_repo as p:
-            processor = dulwich.fastexport.GitImportProcessor(test_repo.repo)
-            processor.import_stream(stream)
-            yield test_repo, p
+
+@contextlib.contextmanager
+def cook_stream_revision_gitfast(storage, obj_id):
+    """Context manager that cooks a revision and stream its fastexport."""
+    backend = unittest.mock.MagicMock()
+    backend.storage = storage
+    cooker = RevisionGitfastCooker(
+        'revision_gitfast', obj_id, backend=backend, storage=storage)
+    cooker.fileobj = io.BytesIO()
+    assert cooker.check_exists()
+    cooker.prepare_bundle()
+    cooker.fileobj.seek(0)
+    fastexport_stream = gzip.GzipFile(fileobj=cooker.fileobj)
+    yield fastexport_stream
+    cooker.storage = None
+
+
+@contextlib.contextmanager
+def cook_extract_revision_gitfast(storage, obj_id):
+    """Context manager that cooks a revision and extract it."""
+    test_repo = TestRepo()
+    with cook_stream_revision_gitfast(storage, obj_id) as stream, \
+            test_repo as p:
+        processor = dulwich.fastexport.GitImportProcessor(test_repo.repo)
+        processor.import_stream(stream)
+        yield test_repo, p
 
 
 TEST_CONTENT = ("   test content\n"
@@ -164,8 +178,8 @@ TEST_CONTENT = ("   test content\n"
 TEST_EXECUTABLE = b'\x42\x40\x00\x00\x05'
 
 
-class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):
-    def test_directory_simple(self):
+class TestDirectoryCooker:
+    def test_directory_simple(self, swh_git_loader):
         repo = TestRepo()
         with repo as rp:
             (rp / 'file').write_text(TEST_CONTENT)
@@ -175,25 +189,25 @@ class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):
             (rp / 'dir1/dir2').mkdir(parents=True)
             (rp / 'dir1/dir2/file').write_text(TEST_CONTENT)
             c = repo.commit()
-            self.load(str(rp))
+            load(swh_git_loader, str(rp))
 
             obj_id_hex = repo.repo[c].tree.decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
 
-        with self.cook_extract_directory(obj_id) as p:
-            self.assertEqual((p / 'file').stat().st_mode, 0o100644)
-            self.assertEqual((p / 'file').read_text(), TEST_CONTENT)
-            self.assertEqual((p / 'executable').stat().st_mode, 0o100755)
-            self.assertEqual((p / 'executable').read_bytes(), TEST_EXECUTABLE)
-            self.assertTrue((p / 'link').is_symlink)
-            self.assertEqual(os.readlink(str(p / 'link')), 'file')
-            self.assertEqual((p / 'dir1/dir2/file').stat().st_mode, 0o100644)
-            self.assertEqual((p / 'dir1/dir2/file').read_text(), TEST_CONTENT)
+        with cook_extract_directory(swh_git_loader.storage, obj_id) as p:
+            assert (p / 'file').stat().st_mode == 0o100644
+            assert (p / 'file').read_text() == TEST_CONTENT
+            assert (p / 'executable').stat().st_mode == 0o100755
+            assert (p / 'executable').read_bytes() == TEST_EXECUTABLE
+            assert (p / 'link').is_symlink
+            assert os.readlink(str(p / 'link')) == 'file'
+            assert (p / 'dir1/dir2/file').stat().st_mode == 0o100644
+            assert (p / 'dir1/dir2/file').read_text() == TEST_CONTENT
 
             directory = Directory.from_disk(path=bytes(p))
-            self.assertEqual(obj_id_hex, hashutil.hash_to_hex(directory.hash))
+            assert obj_id_hex == hashutil.hash_to_hex(directory.hash)
 
-    def test_directory_filtered_objects(self):
+    def test_directory_filtered_objects(self, swh_git_loader):
         repo = TestRepo()
         with repo as rp:
             file_1, id_1 = hash_content(b'test1')
@@ -205,14 +219,14 @@ class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):
             (rp / 'absent_file').write_bytes(file_3)
 
             c = repo.commit()
-            self.load(str(rp))
+            load(swh_git_loader, str(rp))
 
             obj_id_hex = repo.repo[c].tree.decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
 
         # FIXME: storage.content_update() should be changed to allow things
         # like that
-        with self.storage.get_db().transaction() as cur:
+        with swh_git_loader.storage.get_db().transaction() as cur:
             cur.execute("""update content set status = 'visible'
                            where sha1 = %s""", (id_1,))
             cur.execute("""update content set status = 'hidden'
@@ -220,12 +234,12 @@ class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):
             cur.execute("""update content set status = 'absent'
                            where sha1 = %s""", (id_3,))
 
-        with self.cook_extract_directory(obj_id) as p:
-            self.assertEqual((p / 'file').read_bytes(), b'test1')
-            self.assertEqual((p / 'hidden_file').read_bytes(), HIDDEN_MESSAGE)
-            self.assertEqual((p / 'absent_file').read_bytes(), SKIPPED_MESSAGE)
+        with cook_extract_directory(swh_git_loader.storage, obj_id) as p:
+            assert (p / 'file').read_bytes() == b'test1'
+            assert (p / 'hidden_file').read_bytes() == HIDDEN_MESSAGE
+            assert (p / 'absent_file').read_bytes() == SKIPPED_MESSAGE
 
-    def test_directory_bogus_perms(self):
+    def test_directory_bogus_perms(self, swh_git_loader):
         # Some early git repositories have 664/775 permissions... let's check
         # if all the weird modes are properly normalized in the directory
         # cooker.
@@ -238,17 +252,17 @@ class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):
             (rp / 'wat').write_text(TEST_CONTENT)
             (rp / 'wat').chmod(0o604)
             c = repo.commit()
-            self.load(str(rp))
+            load(swh_git_loader, str(rp))
 
             obj_id_hex = repo.repo[c].tree.decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
 
-        with self.cook_extract_directory(obj_id) as p:
-            self.assertEqual((p / 'file').stat().st_mode, 0o100644)
-            self.assertEqual((p / 'executable').stat().st_mode, 0o100755)
-            self.assertEqual((p / 'wat').stat().st_mode, 0o100644)
+        with cook_extract_directory(swh_git_loader.storage, obj_id) as p:
+            assert (p / 'file').stat().st_mode == 0o100644
+            assert (p / 'executable').stat().st_mode == 0o100755
+            assert (p / 'wat').stat().st_mode == 0o100644
 
-    def test_directory_revision_data(self):
+    def test_directory_revision_data(self, swh_git_loader):
         target_rev = '0e8a3ad980ec179856012b7eecf4327e99cd44cd'
         d = hashutil.hash_to_bytes('17a3e48bce37be5226490e750202ad3a9a1a3fe9')
 
@@ -263,18 +277,19 @@ class TestDirectoryCooker(BaseTestCookers, unittest.TestCase):
                 }
             ],
         }
-        self.storage.directory_add([dir])
+        swh_git_loader.storage.directory_add([dir])
 
-        with self.cook_extract_directory(d) as p:
-            self.assertTrue((p / 'submodule').is_symlink())
-            self.assertEqual(os.readlink(str(p / 'submodule')), target_rev)
+        with cook_extract_directory(swh_git_loader.storage, d) as p:
+            assert (p / 'submodule').is_symlink()
+            assert os.readlink(str(p / 'submodule')) == target_rev
 
 
-class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
-    def test_revision_simple(self):
+class TestRevisionGitfastCooker:
+    def test_revision_simple(self, swh_git_loader):
         #
         #     1--2--3--4--5--6--7
         #
+        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             (rp / 'file1').write_text(TEST_CONTENT)
@@ -293,28 +308,29 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
             repo.commit('remove file2')
             (rp / 'bin1').rename(rp / 'bin')
             repo.commit('rename bin1 to bin')
-            self.load(str(rp))
+            load(swh_git_loader, str(rp))
             obj_id_hex = repo.repo.refs[b'HEAD'].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
 
-        with self.cook_extract_revision_gitfast(obj_id) as (ert, p):
+        with cook_extract_revision_gitfast(storage, obj_id) as (ert, p):
             ert.checkout(b'HEAD')
-            self.assertEqual((p / 'file1').stat().st_mode, 0o100644)
-            self.assertEqual((p / 'file1').read_text(), TEST_CONTENT)
-            self.assertTrue((p / 'link1').is_symlink)
-            self.assertEqual(os.readlink(str(p / 'link1')), 'file1')
-            self.assertEqual((p / 'bin').stat().st_mode, 0o100755)
-            self.assertEqual((p / 'bin').read_bytes(), TEST_EXECUTABLE)
-            self.assertEqual((p / 'dir1/dir2/file').read_text(), TEST_CONTENT)
-            self.assertEqual((p / 'dir1/dir2/file').stat().st_mode, 0o100644)
-            self.assertEqual(ert.repo.refs[b'HEAD'].decode(), obj_id_hex)
+            assert (p / 'file1').stat().st_mode == 0o100644
+            assert (p / 'file1').read_text() == TEST_CONTENT
+            assert (p / 'link1').is_symlink
+            assert os.readlink(str(p / 'link1')) == 'file1'
+            assert (p / 'bin').stat().st_mode == 0o100755
+            assert (p / 'bin').read_bytes() == TEST_EXECUTABLE
+            assert (p / 'dir1/dir2/file').read_text() == TEST_CONTENT
+            assert (p / 'dir1/dir2/file').stat().st_mode == 0o100644
+            assert ert.repo.refs[b'HEAD'].decode() == obj_id_hex
 
-    def test_revision_two_roots(self):
+    def test_revision_two_roots(self, swh_git_loader):
         #
         #    1----3---4
         #        /
         #   2----
         #
+        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             (rp / 'file1').write_text(TEST_CONTENT)
@@ -327,17 +343,18 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
             repo.commit('add file3')
             obj_id_hex = repo.repo.refs[b'HEAD'].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
-            self.load(str(rp))
+            load(swh_git_loader, str(rp))
 
-        with self.cook_extract_revision_gitfast(obj_id) as (ert, p):
-            self.assertEqual(ert.repo.refs[b'HEAD'].decode(), obj_id_hex)
+        with cook_extract_revision_gitfast(storage, obj_id) as (ert, p):
+            assert ert.repo.refs[b'HEAD'].decode() == obj_id_hex
 
-    def test_revision_two_double_fork_merge(self):
+    def test_revision_two_double_fork_merge(self, swh_git_loader):
         #
         #     2---4---6
         #    /   /   /
         #   1---3---5
         #
+        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             (rp / 'file1').write_text(TEST_CONTENT)
@@ -360,12 +377,12 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
 
             obj_id_hex = repo.repo.refs[b'HEAD'].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
-            self.load(str(rp))
+            load(swh_git_loader, str(rp))
 
-        with self.cook_extract_revision_gitfast(obj_id) as (ert, p):
-            self.assertEqual(ert.repo.refs[b'HEAD'].decode(), obj_id_hex)
+        with cook_extract_revision_gitfast(storage, obj_id) as (ert, p):
+            assert ert.repo.refs[b'HEAD'].decode() == obj_id_hex
 
-    def test_revision_triple_merge(self):
+    def test_revision_triple_merge(self, swh_git_loader):
         #
         #       .---.---5
         #      /   /   /
@@ -373,6 +390,7 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
         #    /   /   /
         #   1---.---.
         #
+        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             (rp / 'file1').write_text(TEST_CONTENT)
@@ -387,12 +405,13 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
 
             obj_id_hex = repo.repo.refs[b'HEAD'].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
-            self.load(str(rp))
+            load(swh_git_loader, str(rp))
 
-        with self.cook_extract_revision_gitfast(obj_id) as (ert, p):
-            self.assertEqual(ert.repo.refs[b'HEAD'].decode(), obj_id_hex)
+        with cook_extract_revision_gitfast(storage, obj_id) as (ert, p):
+            assert ert.repo.refs[b'HEAD'].decode() == obj_id_hex
 
-    def test_revision_filtered_objects(self):
+    def test_revision_filtered_objects(self, swh_git_loader):
+        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             file_1, id_1 = hash_content(b'test1')
@@ -406,11 +425,11 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
             repo.commit()
             obj_id_hex = repo.repo.refs[b'HEAD'].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
-            self.load(str(rp))
+            load(swh_git_loader, str(rp))
 
         # FIXME: storage.content_update() should be changed to allow things
         # like that
-        with self.storage.get_db().transaction() as cur:
+        with storage.get_db().transaction() as cur:
             cur.execute("""update content set status = 'visible'
                            where sha1 = %s""", (id_1,))
             cur.execute("""update content set status = 'hidden'
@@ -418,16 +437,17 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
             cur.execute("""update content set status = 'absent'
                            where sha1 = %s""", (id_3,))
 
-        with self.cook_extract_revision_gitfast(obj_id) as (ert, p):
+        with cook_extract_revision_gitfast(storage, obj_id) as (ert, p):
             ert.checkout(b'HEAD')
-            self.assertEqual((p / 'file').read_bytes(), b'test1')
-            self.assertEqual((p / 'hidden_file').read_bytes(), HIDDEN_MESSAGE)
-            self.assertEqual((p / 'absent_file').read_bytes(), SKIPPED_MESSAGE)
+            assert (p / 'file').read_bytes() == b'test1'
+            assert (p / 'hidden_file').read_bytes() == HIDDEN_MESSAGE
+            assert (p / 'absent_file').read_bytes() == SKIPPED_MESSAGE
 
-    def test_revision_bogus_perms(self):
+    def test_revision_bogus_perms(self, swh_git_loader):
         # Some early git repositories have 664/775 permissions... let's check
         # if all the weird modes are properly normalized in the revision
         # cooker.
+        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             (rp / 'file').write_text(TEST_CONTENT)
@@ -437,24 +457,25 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
             (rp / 'wat').write_text(TEST_CONTENT)
             (rp / 'wat').chmod(0o604)
             repo.commit('initial commit')
-            self.load(str(rp))
+            load(swh_git_loader, str(rp))
             obj_id_hex = repo.repo.refs[b'HEAD'].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
 
-        with self.cook_extract_revision_gitfast(obj_id) as (ert, p):
+        with cook_extract_revision_gitfast(storage, obj_id) as (ert, p):
             ert.checkout(b'HEAD')
-            self.assertEqual((p / 'file').stat().st_mode, 0o100644)
-            self.assertEqual((p / 'executable').stat().st_mode, 0o100755)
-            self.assertEqual((p / 'wat').stat().st_mode, 0o100644)
+            assert (p / 'file').stat().st_mode == 0o100644
+            assert (p / 'executable').stat().st_mode == 0o100755
+            assert (p / 'wat').stat().st_mode == 0o100644
 
-    def test_revision_null_fields(self):
+    def test_revision_null_fields(self, swh_git_loader):
         # Our schema doesn't enforce a lot of non-null revision fields. We need
         # to check these cases don't break the cooker.
+        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             (rp / 'file').write_text(TEST_CONTENT)
             c = repo.commit('initial commit')
-            self.load(str(rp))
+            load(swh_git_loader, str(rp))
             repo.repo.refs[b'HEAD'].decode()
             dir_id_hex = repo.repo[c].tree.decode()
             dir_id = hashutil.hash_to_bytes(dir_id_hex)
@@ -474,13 +495,14 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
             'synthetic': True
         }
 
-        self.storage.revision_add([test_revision])
+        storage.revision_add([test_revision])
 
-        with self.cook_extract_revision_gitfast(test_id) as (ert, p):
+        with cook_extract_revision_gitfast(storage, test_id) as (ert, p):
             ert.checkout(b'HEAD')
-            self.assertEqual((p / 'file').stat().st_mode, 0o100644)
+            assert (p / 'file').stat().st_mode == 0o100644
 
-    def test_revision_revision_data(self):
+    def test_revision_revision_data(self, swh_git_loader):
+        storage = swh_git_loader.storage
         target_rev = '0e8a3ad980ec179856012b7eecf4327e99cd44cd'
         d = hashutil.hash_to_bytes('17a3e48bce37be5226490e750202ad3a9a1a3fe9')
         r = hashutil.hash_to_bytes('1ecc9270c4fc61cfddbc65a774e91ef5c425a6f0')
@@ -496,7 +518,7 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
                 }
             ],
         }
-        self.storage.directory_add([dir])
+        storage.directory_add([dir])
 
         rev = {
             'id': r,
@@ -511,8 +533,8 @@ class TestRevisionGitfastCooker(BaseTestCookers, unittest.TestCase):
             'metadata': {},
             'synthetic': True
         }
-        self.storage.revision_add([rev])
+        storage.revision_add([rev])
 
-        with self.cook_stream_revision_gitfast(r) as stream:
+        with cook_stream_revision_gitfast(storage, r) as stream:
             pattern = 'M 160000 {} submodule'.format(target_rev).encode()
-            self.assertIn(pattern, stream.read())
+            assert pattern in stream.read()

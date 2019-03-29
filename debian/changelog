@@ -1,8 +1,14 @@
-swh-vault (0.0.24-1~swh3~bpo9+1) stretch-swh; urgency=medium
+swh-vault (0.0.25-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-swh
+  * New upstream release 0.0.25     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-03-29 12:19:19
+    +0100)
+  * Upstream changes:     - v0.0.25     - master vault.backend: Migrate
+    email address to bot@swh.org     - API: use default's APIError
+    exception instead of the VaultAPIError     - Remove debian packaging
+    from master branch
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 18 Feb 2019 15:24:37 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 29 Mar 2019 11:28:28 +0000
 
 swh-vault (0.0.24-1~swh3) unstable-swh; urgency=low
 

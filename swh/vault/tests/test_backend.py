@@ -211,7 +211,7 @@ def test_send_all_emails(swh_vault):
         assert {k['To'] for k in sent_emails} == set(emails)
 
         for e in sent_emails:
-            assert 'info@softwareheritage.org' in e['From']
+            assert 'bot@softwareheritage.org' in e['From']
             assert TEST_TYPE in e['Subject']
             assert TEST_HEX_ID[:5] in e['Subject']
             assert TEST_TYPE in str(e)
@@ -317,7 +317,7 @@ def test_send_failure_email(swh_vault):
         e = [k[0][0] for k in m.send_message.call_args_list][0]
         assert e['To'] == 'a@example.com'
 
-        assert 'info@softwareheritage.org' in e['From']
+        assert 'bot@softwareheritage.org' in e['From']
         assert TEST_TYPE in e['Subject']
         assert TEST_HEX_ID[:5] in e['Subject']
         assert 'fail' in e['Subject']

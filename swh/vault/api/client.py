@@ -7,19 +7,8 @@ from swh.model import hashutil
 from swh.core.api import SWHRemoteAPI
 
 
-class VaultAPIError(Exception):
-    """Vault API Error"""
-    def __str__(self):
-        return ('An unexpected error occurred in the Vault backend: {}'
-                .format(self.args))
-
-
 class RemoteVaultClient(SWHRemoteAPI):
     """Client to the Software Heritage vault cache."""
-
-    def __init__(self, url, timeout=None):
-        super().__init__(
-            api_exception=VaultAPIError, url=url, timeout=timeout)
 
     # Web API endpoints
 

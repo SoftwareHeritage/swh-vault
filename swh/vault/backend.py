@@ -17,7 +17,7 @@ from swh.vault.cookers import get_cooker_cls
 cooking_task_name = 'swh.vault.cooking_tasks.SWHCookingTask'
 
 NOTIF_EMAIL_FROM = ('"Software Heritage Vault" '
-                    '<info@softwareheritage.org>')
+                    '<bot@softwareheritage.org>')
 NOTIF_EMAIL_SUBJECT_SUCCESS = ("Bundle ready: {obj_type} {short_id}")
 NOTIF_EMAIL_SUBJECT_FAILURE = ("Bundle failed: {obj_type} {short_id}")
 

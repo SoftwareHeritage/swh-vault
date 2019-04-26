@@ -9,9 +9,11 @@ import asyncio
 import collections
 
 from swh.core import config
-from swh.core.api_async import (SWHRemoteAPI,
-                                encode_data_server as encode_data,
-                                decode_request)
+from swh.core.api.asynchronous import (
+    SWHRemoteAPI,
+    encode_data_server as encode_data,
+    decode_request,
+)
 from swh.model import hashutil
 from swh.vault import get_vault
 from swh.vault.cookers import COOKER_TYPES

@@ -91,6 +91,10 @@ class VaultBackend:
             return self._db
         return BaseDb.from_pool(self._pool)
 
+    def put_db(self, db):
+        if db is not self._db:
+            db.put_conn()
+
     @db_transaction()
     def task_info(self, obj_type, obj_id, db=None, cur=None):
         """Fetch information from a bundle"""

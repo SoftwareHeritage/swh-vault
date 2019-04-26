@@ -6,6 +6,7 @@
 import abc
 import io
 import logging
+from psycopg2.extensions import QueryCanceledError
 
 from swh.model import hashutil
 
@@ -111,7 +112,11 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
 
         self.fileobj = BytesIOBundleSizeLimit(size_limit=self.max_bundle_size)
         try:
-            self.prepare_bundle()
+            try:
+                self.prepare_bundle()
+            except QueryCanceledError:
+                raise PolicyError(
+                    "Timeout reached while assembling the requested bundle")
             bundle = self.fileobj.getvalue()
             # TODO: use proper content streaming instead of put_bundle()
             self.backend.put_bundle(self.CACHE_TYPE_KEY, self.obj_id, bundle)

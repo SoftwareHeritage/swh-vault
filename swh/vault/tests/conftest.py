@@ -10,6 +10,8 @@ from swh.storage.tests import SQL_DIR as STORAGE_SQL_DIR
 from pytest_postgresql import factories
 
 
+os.environ['LC_ALL'] = 'C.UTF-8'
+
 pytest_v = pkg_resources.get_distribution("pytest").parsed_version
 if pytest_v < pkg_resources.extern.packaging.version.parse('3.9'):
     @pytest.fixture

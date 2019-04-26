@@ -1,3 +1,11 @@
+swh-vault (0.0.26-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.26     - (tagged by Antoine Lambert
+    <antoine.lambert@inria.fr> on 2019-04-26 11:59:23 +0200)
+  * Upstream changes:     - version 0.0.26
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 26 Apr 2019 10:06:45 +0000
+
 swh-vault (0.0.25-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.25     - (tagged by Antoine R. Dumont

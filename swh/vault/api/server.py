@@ -199,12 +199,7 @@ def make_app(backend, **kwargs):
     return app
 
 
-def get_local_backend(config_file):
-    if os.path.isfile(config_file):
-        cfg = config.read(config_file, DEFAULT_CONFIG)
-    else:
-        cfg = config.load_named_config(config_file, DEFAULT_CONFIG)
-
+def get_local_backend(cfg):
     if 'vault' not in cfg:
         raise ValueError("missing '%vault' configuration")
 
@@ -231,8 +226,13 @@ def get_local_backend(config_file):
 
 def make_app_from_configfile(config_file=DEFAULT_CONFIG_PATH, **kwargs):
     config_file = os.environ.get('SWH_CONFIG_FILENAME', config_file)
-    vault = get_local_backend(config_file)
-    return make_app(backend=vault, **kwargs)
+    if os.path.isfile(config_file):
+        cfg = config.read(config_file, DEFAULT_CONFIG)
+    else:
+        cfg = config.load_named_config(config_file, DEFAULT_CONFIG)
+    vault = get_local_backend(cfg)
+    return make_app(backend=vault, client_max_size=cfg['client_max_size'],
+                    **kwargs)
 
 
 if __name__ == '__main__':

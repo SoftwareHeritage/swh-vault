@@ -231,7 +231,8 @@ def make_app_from_configfile(config_file=DEFAULT_CONFIG_PATH, **kwargs):
     else:
         cfg = config.load_named_config(config_file, DEFAULT_CONFIG)
     vault = get_local_backend(cfg)
-    return make_app(backend=vault, **kwargs)
+    return make_app(backend=vault, client_max_size=cfg['client_max_size'],
+                    **kwargs)
 
 
 if __name__ == '__main__':

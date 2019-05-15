@@ -20,7 +20,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--host', default='0.0.0.0', help="Host to run the server")
 @click.option('--port', default=5005, type=click.INT,
               help="Binding port of the server")
-@click.option('--debug/--nodebug', default=True,
+@click.option('--debug/--no-debug', default=True,
               help="Indicates if the server should run in debug mode")
 @click.pass_context
 def cli(ctx, config_file, log_level, no_stdout, host, port, debug):

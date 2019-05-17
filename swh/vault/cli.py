@@ -1,15 +1,19 @@
 import logging
 
 import click
-import aiohttp
 
-from swh.vault.api.server import make_app_from_configfile
-
-
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+from swh.core.cli import CONTEXT_SETTINGS, AliasedGroup
 
 
-@click.command(name='vault', context_settings=CONTEXT_SETTINGS)
+@click.group(name='vault', context_settings=CONTEXT_SETTINGS,
+             cls=AliasedGroup)
+@click.pass_context
+def vault(ctx):
+    '''Software Heritage Vault tools.'''
+    pass
+
+
+@vault.command(name='rpc-serve')
 @click.option('--config-file', '-C', default=None,
               type=click.Path(exists=True, dir_okay=False,),
               help="Configuration file.")
@@ -21,11 +25,13 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--debug/--no-debug', default=True,
               help="Indicates if the server should run in debug mode")
 @click.pass_context
-def cli(ctx, config_file, no_stdout, host, port, debug):
+def serve(ctx, config_file, no_stdout, host, port, debug):
     """Software Heritage Vault API server
 
     """
+    import aiohttp
     from swh.scheduler.celery_backend.config import setup_log_handler
+    from swh.vault.api.server import make_app_from_configfile
 
     ctx.ensure_object(dict)
     setup_log_handler(
@@ -42,9 +48,12 @@ def cli(ctx, config_file, no_stdout, host, port, debug):
     aiohttp.web.run_app(app, host=host, port=int(port))
 
 
+vault.add_alias(serve, 'serve')
+
+
 def main():
     logging.basicConfig()
-    return cli(auto_envvar_prefix='SWH_VAULT')
+    return serve(auto_envvar_prefix='SWH_VAULT')
 
 
 if __name__ == '__main__':

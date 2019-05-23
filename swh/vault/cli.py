@@ -18,6 +18,7 @@ checked, then the config file will be searched in:
     os.path.join(d, DEFAULT_CONFIG_PATH), '|'.join(SWH_CONFIG_EXTENSIONS))
                      for d in SWH_CONFIG_DIRECTORIES))
 
+
 @click.group(name='vault', context_settings=CONTEXT_SETTINGS,
              cls=AliasedGroup)
 @click.pass_context

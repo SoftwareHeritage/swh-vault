@@ -111,7 +111,7 @@ class VaultBackend:
 
     def _send_task(self, *args):
         """Send a cooking task to the celery scheduler"""
-        task = create_oneshot_task_dict('swh-vault-cooking', *args)
+        task = create_oneshot_task_dict('cook-vault-bundle', *args)
         added_tasks = self.scheduler.create_tasks([task])
         return added_tasks[0]['id']
 

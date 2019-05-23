@@ -53,6 +53,8 @@ setup(
     entry_points='''
         [console_scripts]
         swh-vault=swh.vault.cli:main
+        [swh.cli.subcommands]
+        vault=swh.vault.cli:cli
     ''',
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -224,7 +224,9 @@ def get_local_backend(cfg):
     return get_vault('local', args)
 
 
-def make_app_from_configfile(config_file=DEFAULT_CONFIG_PATH, **kwargs):
+def make_app_from_configfile(config_file=None, **kwargs):
+    if config_file is None:
+        config_file = DEFAULT_CONFIG_PATH
     config_file = os.environ.get('SWH_CONFIG_FILENAME', config_file)
     if os.path.isfile(config_file):
         cfg = config.read(config_file, DEFAULT_CONFIG)

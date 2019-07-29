@@ -52,7 +52,7 @@ setup(
     zip_safe=False,
     entry_points='''
         [console_scripts]
-        swh-vault=swh.vault.cli:main
+        swh-vault=swh.vault.cli:vault
         [swh.cli.subcommands]
         vault=swh.vault.cli:vault
     ''',

@@ -10,7 +10,7 @@ import collections
 
 from swh.core import config
 from swh.core.api.asynchronous import (
-    SWHRemoteAPI,
+    RPCServerApp,
     encode_data_server as encode_data,
     decode_request,
 )
@@ -177,7 +177,7 @@ def batch_progress(request):
 # Web server
 
 def make_app(backend, **kwargs):
-    app = SWHRemoteAPI(**kwargs)
+    app = RPCServerApp(**kwargs)
     app.router.add_route('GET', '/', index)
 
     # Endpoints used by the web API

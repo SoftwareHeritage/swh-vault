@@ -1,6 +1,6 @@
 
         [console_scripts]
-        swh-vault=swh.vault.cli:main
+        swh-vault=swh.vault.cli:vault
         [swh.cli.subcommands]
         vault=swh.vault.cli:vault
     

@@ -1,8 +1,10 @@
-swh-vault (0.0.29-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-vault (0.0.30-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.30     - (tagged by Antoine Lambert
+    <antoine.lambert@inria.fr> on 2019-07-29 11:17:23 +0200)
+  * Upstream changes:     - version 0.0.30
 
- -- Nicolas Dandrimont <olasd@debian.org>  Thu, 11 Jul 2019 14:21:31 +0200
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 29 Jul 2019 09:22:02 +0000
 
 swh-vault (0.0.29-1~swh1) unstable-swh; urgency=medium
 

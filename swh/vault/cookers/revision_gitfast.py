@@ -1,4 +1,4 @@
-# Copyright (C) 2017  The Software Heritage developers
+# Copyright (C) 2017-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -15,6 +15,7 @@ from swh.model import hashutil
 from swh.model.toposort import toposort
 from swh.model.from_disk import mode_to_perms
 from swh.vault.cookers.base import BaseVaultCooker
+from swh.vault.cookers.utils import revision_log
 from swh.vault.to_disk import get_filtered_files_content
 
 
@@ -26,7 +27,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
         return not list(self.storage.revision_missing([self.obj_id]))
 
     def prepare_bundle(self):
-        self.log = list(toposort(self.storage.revision_log([self.obj_id])))
+        self.log = list(toposort(revision_log(self.storage, self.obj_id)))
         self.gzobj = zlib.compressobj(9, zlib.DEFLATED, zlib.MAX_WBITS | 16)
         self.fastexport()
         self.write(self.gzobj.flush())

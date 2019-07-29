@@ -4,10 +4,10 @@
 # See top-level LICENSE file for more information
 
 from swh.model import hashutil
-from swh.core.api import SWHRemoteAPI
+from swh.core.api import RPCClient
 
 
-class RemoteVaultClient(SWHRemoteAPI):
+class RemoteVaultClient(RPCClient):
     """Client to the Software Heritage vault cache."""
 
     # Web API endpoints

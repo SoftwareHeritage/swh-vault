@@ -14,5 +14,5 @@ swh.storage>=0.0.106
 pytest<4
 pytest-postgresql
 dulwich>=0.18.7
-swh.loader.git>=0.0.48
+swh.loader.git>=0.0.52
 swh.storage[testing]

@@ -6,7 +6,9 @@
 import abc
 import io
 import logging
+
 from psycopg2.extensions import QueryCanceledError
+from typing import Optional
 
 from swh.model import hashutil
 
@@ -62,7 +64,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     - CACHE_TYPE_KEY: key to use for the bundle to reference in cache
     - def cook(): cook the object into a bundle
     """
-    CACHE_TYPE_KEY = None
+    CACHE_TYPE_KEY = None  # type: Optional[str]
 
     def __init__(self, obj_type, obj_id, backend, storage,
                  max_bundle_size=MAX_BUNDLE_SIZE):

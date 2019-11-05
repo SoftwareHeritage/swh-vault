@@ -7,3 +7,4 @@ include requirements-swh.txt
 include version.txt
 recursive-include sql *.sql
 recursive-include swh/vault/sql *.sql
+recursive-include swh py.typed

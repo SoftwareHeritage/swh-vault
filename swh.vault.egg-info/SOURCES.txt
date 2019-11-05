@@ -20,11 +20,11 @@ swh/vault/backend.py
 swh/vault/cache.py
 swh/vault/cli.py
 swh/vault/cooking_tasks.py
+swh/vault/py.typed
 swh/vault/to_disk.py
 swh/vault/api/__init__.py
 swh/vault/api/client.py
 swh/vault/api/server.py
-swh/vault/api/wsgi.py
 swh/vault/cookers/__init__.py
 swh/vault/cookers/base.py
 swh/vault/cookers/directory.py

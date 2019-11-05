@@ -62,9 +62,6 @@ def serve(ctx, config_file, no_stdout, host, port, debug):
     aiohttp.web.run_app(app, host=host, port=int(port))
 
 
-vault.add_alias(serve, 'serve')
-
-
 def main():
     logging.basicConfig()
     return serve(auto_envvar_prefix='SWH_VAULT')

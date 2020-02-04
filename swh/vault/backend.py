@@ -5,6 +5,7 @@
 
 import smtplib
 import psycopg2.extras
+import psycopg2.pool
 
 from email.mime.text import MIMEText
 

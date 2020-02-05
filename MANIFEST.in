@@ -2,8 +2,8 @@ include Makefile
 include Makefile.local
 include README.db_testing
 include README.dev
-include requirements.txt
-include requirements-swh.txt
+include requirements*.txt
 include version.txt
 recursive-include sql *.sql
 recursive-include swh/vault/sql *.sql
+recursive-include swh py.typed

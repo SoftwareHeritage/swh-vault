@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2018  The Software Heritage developers
+# Copyright (C) 2017-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,7 +9,6 @@ import gzip
 import io
 import os
 import pathlib
-import pytest
 import subprocess
 import tarfile
 import tempfile
@@ -115,16 +114,14 @@ class TestRepo:
         self.git_shell(*args, stdout=None)
 
 
-@pytest.fixture
-def swh_git_loader(swh_vault):
-    loader = GitLoaderFromDisk()
-    loader.storage = swh_vault.storage
+def git_loader(storage, repo_path, visit_date=datetime.datetime.now()):
+    """Instantiate a Git Loader using the storage instance as storage.
+
+    """
+    loader = GitLoaderFromDisk(
+        'fake_origin', directory=repo_path, visit_date=visit_date)
+    loader.storage = storage
     return loader
-
-
-def load(loader, repo_path):
-    """Load a repository in the test storage"""
-    loader.load('fake_origin', repo_path, datetime.datetime.now())
 
 
 @contextlib.contextmanager
@@ -179,7 +176,7 @@ TEST_EXECUTABLE = b'\x42\x40\x00\x00\x05'
 
 
 class TestDirectoryCooker:
-    def test_directory_simple(self, swh_git_loader):
+    def test_directory_simple(self, swh_storage):
         repo = TestRepo()
         with repo as rp:
             (rp / 'file').write_text(TEST_CONTENT)
@@ -189,12 +186,13 @@ class TestDirectoryCooker:
             (rp / 'dir1/dir2').mkdir(parents=True)
             (rp / 'dir1/dir2/file').write_text(TEST_CONTENT)
             c = repo.commit()
-            load(swh_git_loader, str(rp))
+            loader = git_loader(swh_storage, str(rp))
+            loader.load()
 
             obj_id_hex = repo.repo[c].tree.decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
 
-        with cook_extract_directory(swh_git_loader.storage, obj_id) as p:
+        with cook_extract_directory(swh_storage, obj_id) as p:
             assert (p / 'file').stat().st_mode == 0o100644
             assert (p / 'file').read_text() == TEST_CONTENT
             assert (p / 'executable').stat().st_mode == 0o100755
@@ -207,7 +205,7 @@ class TestDirectoryCooker:
             directory = Directory.from_disk(path=bytes(p))
             assert obj_id_hex == hashutil.hash_to_hex(directory.hash)
 
-    def test_directory_filtered_objects(self, swh_git_loader):
+    def test_directory_filtered_objects(self, swh_storage):
         repo = TestRepo()
         with repo as rp:
             file_1, id_1 = hash_content(b'test1')
@@ -219,14 +217,15 @@ class TestDirectoryCooker:
             (rp / 'absent_file').write_bytes(file_3)
 
             c = repo.commit()
-            load(swh_git_loader, str(rp))
+            loader = git_loader(swh_storage, str(rp))
+            loader.load()
 
             obj_id_hex = repo.repo[c].tree.decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
 
         # FIXME: storage.content_update() should be changed to allow things
         # like that
-        with swh_git_loader.storage.get_db().transaction() as cur:
+        with swh_storage.get_db().transaction() as cur:
             cur.execute("""update content set status = 'visible'
                            where sha1 = %s""", (id_1,))
             cur.execute("""update content set status = 'hidden'
@@ -234,12 +233,12 @@ class TestDirectoryCooker:
             cur.execute("""update content set status = 'absent'
                            where sha1 = %s""", (id_3,))
 
-        with cook_extract_directory(swh_git_loader.storage, obj_id) as p:
+        with cook_extract_directory(swh_storage, obj_id) as p:
             assert (p / 'file').read_bytes() == b'test1'
             assert (p / 'hidden_file').read_bytes() == HIDDEN_MESSAGE
             assert (p / 'absent_file').read_bytes() == SKIPPED_MESSAGE
 
-    def test_directory_bogus_perms(self, swh_git_loader):
+    def test_directory_bogus_perms(self, swh_storage):
         # Some early git repositories have 664/775 permissions... let's check
         # if all the weird modes are properly normalized in the directory
         # cooker.
@@ -252,17 +251,18 @@ class TestDirectoryCooker:
             (rp / 'wat').write_text(TEST_CONTENT)
             (rp / 'wat').chmod(0o604)
             c = repo.commit()
-            load(swh_git_loader, str(rp))
+            loader = git_loader(swh_storage, str(rp))
+            loader.load()
 
             obj_id_hex = repo.repo[c].tree.decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
 
-        with cook_extract_directory(swh_git_loader.storage, obj_id) as p:
+        with cook_extract_directory(swh_storage, obj_id) as p:
             assert (p / 'file').stat().st_mode == 0o100644
             assert (p / 'executable').stat().st_mode == 0o100755
             assert (p / 'wat').stat().st_mode == 0o100644
 
-    def test_directory_revision_data(self, swh_git_loader):
+    def test_directory_revision_data(self, swh_storage):
         target_rev = '0e8a3ad980ec179856012b7eecf4327e99cd44cd'
         d = hashutil.hash_to_bytes('17a3e48bce37be5226490e750202ad3a9a1a3fe9')
 
@@ -277,19 +277,18 @@ class TestDirectoryCooker:
                 }
             ],
         }
-        swh_git_loader.storage.directory_add([dir])
+        swh_storage.directory_add([dir])
 
-        with cook_extract_directory(swh_git_loader.storage, d) as p:
+        with cook_extract_directory(swh_storage, d) as p:
             assert (p / 'submodule').is_symlink()
             assert os.readlink(str(p / 'submodule')) == target_rev
 
 
 class TestRevisionGitfastCooker:
-    def test_revision_simple(self, swh_git_loader):
+    def test_revision_simple(self, swh_storage):
         #
         #     1--2--3--4--5--6--7
         #
-        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             (rp / 'file1').write_text(TEST_CONTENT)
@@ -308,11 +307,12 @@ class TestRevisionGitfastCooker:
             repo.commit('remove file2')
             (rp / 'bin1').rename(rp / 'bin')
             repo.commit('rename bin1 to bin')
-            load(swh_git_loader, str(rp))
+            loader = git_loader(swh_storage, str(rp))
+            loader.load()
             obj_id_hex = repo.repo.refs[b'HEAD'].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
 
-        with cook_extract_revision_gitfast(storage, obj_id) as (ert, p):
+        with cook_extract_revision_gitfast(swh_storage, obj_id) as (ert, p):
             ert.checkout(b'HEAD')
             assert (p / 'file1').stat().st_mode == 0o100644
             assert (p / 'file1').read_text() == TEST_CONTENT
@@ -324,13 +324,12 @@ class TestRevisionGitfastCooker:
             assert (p / 'dir1/dir2/file').stat().st_mode == 0o100644
             assert ert.repo.refs[b'HEAD'].decode() == obj_id_hex
 
-    def test_revision_two_roots(self, swh_git_loader):
+    def test_revision_two_roots(self, swh_storage):
         #
         #    1----3---4
         #        /
         #   2----
         #
-        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             (rp / 'file1').write_text(TEST_CONTENT)
@@ -343,18 +342,18 @@ class TestRevisionGitfastCooker:
             repo.commit('add file3')
             obj_id_hex = repo.repo.refs[b'HEAD'].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
-            load(swh_git_loader, str(rp))
+            loader = git_loader(swh_storage, str(rp))
+            loader.load()
 
-        with cook_extract_revision_gitfast(storage, obj_id) as (ert, p):
+        with cook_extract_revision_gitfast(swh_storage, obj_id) as (ert, p):
             assert ert.repo.refs[b'HEAD'].decode() == obj_id_hex
 
-    def test_revision_two_double_fork_merge(self, swh_git_loader):
+    def test_revision_two_double_fork_merge(self, swh_storage):
         #
         #     2---4---6
         #    /   /   /
         #   1---3---5
         #
-        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             (rp / 'file1').write_text(TEST_CONTENT)
@@ -377,12 +376,13 @@ class TestRevisionGitfastCooker:
 
             obj_id_hex = repo.repo.refs[b'HEAD'].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
-            load(swh_git_loader, str(rp))
+            loader = git_loader(swh_storage, str(rp))
+            loader.load()
 
-        with cook_extract_revision_gitfast(storage, obj_id) as (ert, p):
+        with cook_extract_revision_gitfast(swh_storage, obj_id) as (ert, p):
             assert ert.repo.refs[b'HEAD'].decode() == obj_id_hex
 
-    def test_revision_triple_merge(self, swh_git_loader):
+    def test_revision_triple_merge(self, swh_storage):
         #
         #       .---.---5
         #      /   /   /
@@ -390,7 +390,6 @@ class TestRevisionGitfastCooker:
         #    /   /   /
         #   1---.---.
         #
-        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             (rp / 'file1').write_text(TEST_CONTENT)
@@ -405,13 +404,13 @@ class TestRevisionGitfastCooker:
 
             obj_id_hex = repo.repo.refs[b'HEAD'].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
-            load(swh_git_loader, str(rp))
+            loader = git_loader(swh_storage, str(rp))
+            loader.load()
 
-        with cook_extract_revision_gitfast(storage, obj_id) as (ert, p):
+        with cook_extract_revision_gitfast(swh_storage, obj_id) as (ert, p):
             assert ert.repo.refs[b'HEAD'].decode() == obj_id_hex
 
-    def test_revision_filtered_objects(self, swh_git_loader):
-        storage = swh_git_loader.storage
+    def test_revision_filtered_objects(self, swh_storage):
         repo = TestRepo()
         with repo as rp:
             file_1, id_1 = hash_content(b'test1')
@@ -425,11 +424,12 @@ class TestRevisionGitfastCooker:
             repo.commit()
             obj_id_hex = repo.repo.refs[b'HEAD'].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
-            load(swh_git_loader, str(rp))
+            loader = git_loader(swh_storage, str(rp))
+            loader.load()
 
         # FIXME: storage.content_update() should be changed to allow things
         # like that
-        with storage.get_db().transaction() as cur:
+        with swh_storage.get_db().transaction() as cur:
             cur.execute("""update content set status = 'visible'
                            where sha1 = %s""", (id_1,))
             cur.execute("""update content set status = 'hidden'
@@ -437,17 +437,16 @@ class TestRevisionGitfastCooker:
             cur.execute("""update content set status = 'absent'
                            where sha1 = %s""", (id_3,))
 
-        with cook_extract_revision_gitfast(storage, obj_id) as (ert, p):
+        with cook_extract_revision_gitfast(swh_storage, obj_id) as (ert, p):
             ert.checkout(b'HEAD')
             assert (p / 'file').read_bytes() == b'test1'
             assert (p / 'hidden_file').read_bytes() == HIDDEN_MESSAGE
             assert (p / 'absent_file').read_bytes() == SKIPPED_MESSAGE
 
-    def test_revision_bogus_perms(self, swh_git_loader):
+    def test_revision_bogus_perms(self, swh_storage):
         # Some early git repositories have 664/775 permissions... let's check
         # if all the weird modes are properly normalized in the revision
         # cooker.
-        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             (rp / 'file').write_text(TEST_CONTENT)
@@ -457,25 +456,26 @@ class TestRevisionGitfastCooker:
             (rp / 'wat').write_text(TEST_CONTENT)
             (rp / 'wat').chmod(0o604)
             repo.commit('initial commit')
-            load(swh_git_loader, str(rp))
+            loader = git_loader(swh_storage, str(rp))
+            loader.load()
             obj_id_hex = repo.repo.refs[b'HEAD'].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
 
-        with cook_extract_revision_gitfast(storage, obj_id) as (ert, p):
+        with cook_extract_revision_gitfast(swh_storage, obj_id) as (ert, p):
             ert.checkout(b'HEAD')
             assert (p / 'file').stat().st_mode == 0o100644
             assert (p / 'executable').stat().st_mode == 0o100755
             assert (p / 'wat').stat().st_mode == 0o100644
 
-    def test_revision_null_fields(self, swh_git_loader):
+    def test_revision_null_fields(self, swh_storage):
         # Our schema doesn't enforce a lot of non-null revision fields. We need
         # to check these cases don't break the cooker.
-        storage = swh_git_loader.storage
         repo = TestRepo()
         with repo as rp:
             (rp / 'file').write_text(TEST_CONTENT)
             c = repo.commit('initial commit')
-            load(swh_git_loader, str(rp))
+            loader = git_loader(swh_storage, str(rp))
+            loader.load()
             repo.repo.refs[b'HEAD'].decode()
             dir_id_hex = repo.repo[c].tree.decode()
             dir_id = hashutil.hash_to_bytes(dir_id_hex)
@@ -495,14 +495,13 @@ class TestRevisionGitfastCooker:
             'synthetic': True
         }
 
-        storage.revision_add([test_revision])
+        swh_storage.revision_add([test_revision])
 
-        with cook_extract_revision_gitfast(storage, test_id) as (ert, p):
+        with cook_extract_revision_gitfast(swh_storage, test_id) as (ert, p):
             ert.checkout(b'HEAD')
             assert (p / 'file').stat().st_mode == 0o100644
 
-    def test_revision_revision_data(self, swh_git_loader):
-        storage = swh_git_loader.storage
+    def test_revision_revision_data(self, swh_storage):
         target_rev = '0e8a3ad980ec179856012b7eecf4327e99cd44cd'
         d = hashutil.hash_to_bytes('17a3e48bce37be5226490e750202ad3a9a1a3fe9')
         r = hashutil.hash_to_bytes('1ecc9270c4fc61cfddbc65a774e91ef5c425a6f0')
@@ -518,7 +517,7 @@ class TestRevisionGitfastCooker:
                 }
             ],
         }
-        storage.directory_add([dir])
+        swh_storage.directory_add([dir])
 
         rev = {
             'id': r,
@@ -533,8 +532,8 @@ class TestRevisionGitfastCooker:
             'metadata': {},
             'synthetic': True
         }
-        storage.revision_add([rev])
+        swh_storage.revision_add([rev])
 
-        with cook_stream_revision_gitfast(storage, r) as stream:
+        with cook_stream_revision_gitfast(swh_storage, r) as stream:
             pattern = 'M 160000 {} submodule'.format(target_rev).encode()
             assert pattern in stream.read()

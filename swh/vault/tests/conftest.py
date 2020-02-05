@@ -80,3 +80,8 @@ def swh_vault(request, postgresql_proc, postgresql, postgresql2, tmp_path):
     }
 
     return get_vault('local', vault_config)
+
+
+@pytest.fixture
+def swh_storage(swh_vault):
+    return swh_vault.storage

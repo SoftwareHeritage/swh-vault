@@ -11,7 +11,7 @@ swh.scheduler>=0.0.39
 swh.storage>=0.0.106
 
 [testing]
-pytest<4
+pytest
 pytest-postgresql
 dulwich>=0.18.7
 swh.loader.git>=0.0.52

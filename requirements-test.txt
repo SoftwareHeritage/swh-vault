@@ -1,0 +1,5 @@
+pytest
+pytest-postgresql
+dulwich >= 0.18.7
+swh.loader.git >= 0.0.52
+swh.storage[testing]

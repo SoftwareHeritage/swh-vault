@@ -51,14 +51,17 @@ def swh_vault(request, postgresql_proc, postgresql, postgresql2, tmp_path):
     vault_config = {
         'db': db_url('tests', postgresql_proc),
         'storage': {
-            'cls': 'local',
-            'args': {
-                'db': db_url('tests2', postgresql_proc),
-                'objstorage': {
-                    'cls': 'pathslicing',
-                    'args': {
-                        'root': str(tmp_path),
-                        'slicing': '0:1/1:5',
+            'cls': 'validate',
+            'storage': {
+                'cls': 'local',
+                'args': {
+                    'db': db_url('tests2', postgresql_proc),
+                    'objstorage': {
+                        'cls': 'pathslicing',
+                        'args': {
+                            'root': str(tmp_path),
+                            'slicing': '0:1/1:5',
+                        },
                     },
                 },
             },

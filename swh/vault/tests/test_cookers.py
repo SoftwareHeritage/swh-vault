@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2019  The Software Heritage developers
+# Copyright (C) 2017-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -23,7 +23,8 @@ import dulwich.repo
 
 from swh.loader.git.from_disk import GitLoaderFromDisk
 from swh.model import hashutil
-from swh.model.from_disk import Directory
+from swh.model import from_disk
+from swh.model.model import Directory, Revision
 from swh.vault.cookers import DirectoryCooker, RevisionGitfastCooker
 from swh.vault.tests.vault_testing import hash_content
 from swh.vault.to_disk import SKIPPED_MESSAGE, HIDDEN_MESSAGE
@@ -202,7 +203,7 @@ class TestDirectoryCooker:
             assert (p / 'dir1/dir2/file').stat().st_mode == 0o100644
             assert (p / 'dir1/dir2/file').read_text() == TEST_CONTENT
 
-            directory = Directory.from_disk(path=bytes(p))
+            directory = from_disk.Directory.from_disk(path=bytes(p))
             assert obj_id_hex == hashutil.hash_to_hex(directory.hash)
 
     def test_directory_filtered_objects(self, swh_storage):
@@ -266,7 +267,7 @@ class TestDirectoryCooker:
         target_rev = '0e8a3ad980ec179856012b7eecf4327e99cd44cd'
         d = hashutil.hash_to_bytes('17a3e48bce37be5226490e750202ad3a9a1a3fe9')
 
-        dir = {
+        dir = Directory.from_dict({
             'id': d,
             'entries': [
                 {
@@ -276,7 +277,7 @@ class TestDirectoryCooker:
                     'perms': 0o100644,
                 }
             ],
-        }
+        })
         swh_storage.directory_add([dir])
 
         with cook_extract_directory(swh_storage, d) as p:
@@ -481,7 +482,7 @@ class TestRevisionGitfastCooker:
             dir_id = hashutil.hash_to_bytes(dir_id_hex)
 
         test_id = b'56789012345678901234'
-        test_revision = {
+        test_revision = Revision.from_dict({
             'id': test_id,
             'message': None,
             'author': {'name': None, 'email': None, 'fullname': ''},
@@ -493,7 +494,7 @@ class TestRevisionGitfastCooker:
             'directory': dir_id,
             'metadata': {},
             'synthetic': True
-        }
+        })
 
         swh_storage.revision_add([test_revision])
 
@@ -506,7 +507,7 @@ class TestRevisionGitfastCooker:
         d = hashutil.hash_to_bytes('17a3e48bce37be5226490e750202ad3a9a1a3fe9')
         r = hashutil.hash_to_bytes('1ecc9270c4fc61cfddbc65a774e91ef5c425a6f0')
 
-        dir = {
+        dir = Directory.from_dict({
             'id': d,
             'entries': [
                 {
@@ -516,10 +517,10 @@ class TestRevisionGitfastCooker:
                     'perms': 0o100644,
                 }
             ],
-        }
+        })
         swh_storage.directory_add([dir])
 
-        rev = {
+        rev = Revision.from_dict({
             'id': r,
             'message': None,
             'author': {'name': None, 'email': None, 'fullname': ''},
@@ -531,7 +532,7 @@ class TestRevisionGitfastCooker:
             'directory': d,
             'metadata': {},
             'synthetic': True
-        }
+        })
         swh_storage.revision_add([rev])
 
         with cook_stream_revision_gitfast(swh_storage, r) as stream:

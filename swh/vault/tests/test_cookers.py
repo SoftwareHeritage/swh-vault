@@ -24,7 +24,9 @@ import dulwich.repo
 from swh.loader.git.from_disk import GitLoaderFromDisk
 from swh.model import hashutil
 from swh.model import from_disk
-from swh.model.model import Directory, Revision
+from swh.model.model import (
+    Directory, DirectoryEntry, Person, Revision, RevisionType
+)
 from swh.vault.cookers import DirectoryCooker, RevisionGitfastCooker
 from swh.vault.tests.vault_testing import hash_content
 from swh.vault.to_disk import SKIPPED_MESSAGE, HIDDEN_MESSAGE
@@ -265,22 +267,18 @@ class TestDirectoryCooker:
 
     def test_directory_revision_data(self, swh_storage):
         target_rev = '0e8a3ad980ec179856012b7eecf4327e99cd44cd'
-        d = hashutil.hash_to_bytes('17a3e48bce37be5226490e750202ad3a9a1a3fe9')
 
-        dir = Directory.from_dict({
-            'id': d,
-            'entries': [
-                {
-                    'name': b'submodule',
-                    'type': 'rev',
-                    'target': hashutil.hash_to_bytes(target_rev),
-                    'perms': 0o100644,
-                }
+        dir = Directory(
+            entries=[
+                DirectoryEntry(name=b'submodule',
+                               type='rev',
+                               target=hashutil.hash_to_bytes(target_rev),
+                               perms=0o100644)
             ],
-        })
+        )
         swh_storage.directory_add([dir])
 
-        with cook_extract_directory(swh_storage, d) as p:
+        with cook_extract_directory(swh_storage, dir.id) as p:
             assert (p / 'submodule').is_symlink()
             assert os.readlink(str(p / 'submodule')) == target_rev
 
@@ -481,60 +479,53 @@ class TestRevisionGitfastCooker:
             dir_id_hex = repo.repo[c].tree.decode()
             dir_id = hashutil.hash_to_bytes(dir_id_hex)
 
-        test_id = b'56789012345678901234'
-        test_revision = Revision.from_dict({
-            'id': test_id,
-            'message': None,
-            'author': {'name': None, 'email': None, 'fullname': ''},
-            'date': None,
-            'committer': {'name': None, 'email': None, 'fullname': ''},
-            'committer_date': None,
-            'parents': [],
-            'type': 'git',
-            'directory': dir_id,
-            'metadata': {},
-            'synthetic': True
-        })
+        test_revision = Revision(
+            message=b'',
+            author=Person(name=None, email=None, fullname=b''),
+            date=None,
+            committer=Person(name=None, email=None, fullname=b''),
+            committer_date=None,
+            parents=[],
+            type=RevisionType.GIT,
+            directory=dir_id,
+            metadata={},
+            synthetic=True
+        )
 
         swh_storage.revision_add([test_revision])
 
-        with cook_extract_revision_gitfast(swh_storage, test_id) as (ert, p):
+        with cook_extract_revision_gitfast(swh_storage,
+                                           test_revision.id) as (ert, p):
             ert.checkout(b'HEAD')
             assert (p / 'file').stat().st_mode == 0o100644
 
     def test_revision_revision_data(self, swh_storage):
         target_rev = '0e8a3ad980ec179856012b7eecf4327e99cd44cd'
-        d = hashutil.hash_to_bytes('17a3e48bce37be5226490e750202ad3a9a1a3fe9')
-        r = hashutil.hash_to_bytes('1ecc9270c4fc61cfddbc65a774e91ef5c425a6f0')
 
-        dir = Directory.from_dict({
-            'id': d,
-            'entries': [
-                {
-                    'name': b'submodule',
-                    'type': 'rev',
-                    'target': hashutil.hash_to_bytes(target_rev),
-                    'perms': 0o100644,
-                }
+        dir = Directory(
+            entries=[
+                DirectoryEntry(name=b'submodule',
+                               type='rev',
+                               target=hashutil.hash_to_bytes(target_rev),
+                               perms=0o100644)
             ],
-        })
+        )
         swh_storage.directory_add([dir])
 
-        rev = Revision.from_dict({
-            'id': r,
-            'message': None,
-            'author': {'name': None, 'email': None, 'fullname': ''},
-            'date': None,
-            'committer': {'name': None, 'email': None, 'fullname': ''},
-            'committer_date': None,
-            'parents': [],
-            'type': 'git',
-            'directory': d,
-            'metadata': {},
-            'synthetic': True
-        })
+        rev = Revision(
+            message=b'',
+            author=Person(name=None, email=None, fullname=b''),
+            date=None,
+            committer=Person(name=None, email=None, fullname=b''),
+            committer_date=None,
+            parents=[],
+            type=RevisionType.GIT,
+            directory=dir.id,
+            metadata={},
+            synthetic=True
+        )
         swh_storage.revision_add([rev])
 
-        with cook_stream_revision_gitfast(swh_storage, r) as stream:
+        with cook_stream_revision_gitfast(swh_storage, rev.id) as stream:
             pattern = 'M 160000 {} submodule'.format(target_rev).encode()
             assert pattern in stream.read()

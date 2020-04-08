@@ -8,8 +8,13 @@ import os
 import time
 import zlib
 
-from fastimport.commands import (CommitCommand, ResetCommand, BlobCommand,
-                                 FileDeleteCommand, FileModifyCommand)
+from fastimport.commands import (
+    CommitCommand,
+    ResetCommand,
+    BlobCommand,
+    FileDeleteCommand,
+    FileModifyCommand,
+)
 
 from swh.model import hashutil
 from swh.model.toposort import toposort
@@ -21,7 +26,8 @@ from swh.vault.to_disk import get_filtered_files_content
 
 class RevisionGitfastCooker(BaseVaultCooker):
     """Cooker to create a git fast-import bundle """
-    CACHE_TYPE_KEY = 'revision_gitfast'
+
+    CACHE_TYPE_KEY = "revision_gitfast"
 
     def check_exists(self):
         return not list(self.storage.revision_missing([self.obj_id]))
@@ -33,13 +39,13 @@ class RevisionGitfastCooker(BaseVaultCooker):
         self.write(self.gzobj.flush())
 
     def write_cmd(self, cmd):
-        chunk = bytes(cmd) + b'\n'
+        chunk = bytes(cmd) + b"\n"
         super().write(self.gzobj.compress(chunk))
 
     def fastexport(self):
         """Generate all the git fast-import commands from a given log.
         """
-        self.rev_by_id = {r['id']: r for r in self.log}
+        self.rev_by_id = {r["id"]: r for r in self.log}
         self.obj_done = set()
         self.obj_to_mark = {}
         self.next_available_mark = 1
@@ -49,10 +55,9 @@ class RevisionGitfastCooker(BaseVaultCooker):
         for i, rev in enumerate(self.log, 1):
             # Update progress if needed
             ct = time.time()
-            if (last_progress_report is None
-                    or last_progress_report + 2 <= ct):
+            if last_progress_report is None or last_progress_report + 2 <= ct:
                 last_progress_report = ct
-                pg = ('Computing revision {}/{}'.format(i, len(self.log)))
+                pg = "Computing revision {}/{}".format(i, len(self.log))
                 self.backend.set_progress(self.obj_type, self.obj_id, pg)
 
             # Compute the current commit
@@ -73,11 +78,11 @@ class RevisionGitfastCooker(BaseVaultCooker):
         """Compute the blob command of a file entry if it has not been
         computed yet.
         """
-        obj_id = file_data['sha1']
+        obj_id = file_data["sha1"]
         if obj_id in self.obj_done:
             return
         contents = list(get_filtered_files_content(self.storage, [file_data]))
-        content = contents[0]['content']
+        content = contents[0]["content"]
         self.write_cmd(BlobCommand(mark=self.mark(obj_id), data=content))
         self.obj_done.add(obj_id)
 
@@ -85,13 +90,14 @@ class RevisionGitfastCooker(BaseVaultCooker):
         # We never want to have None values here so we replace null entries
         # by ''.
         if author is not None:
-            author_tuple = (author.get('name') or b'',
-                            author.get('email') or b'')
+            author_tuple = (author.get("name") or b"", author.get("email") or b"")
         else:
-            author_tuple = (b'', b'')
+            author_tuple = (b"", b"")
         if date is not None:
-            date_tuple = (date.get('timestamp', {}).get('seconds') or 0,
-                          (date.get('offset') or 0) * 60)
+            date_tuple = (
+                date.get("timestamp", {}).get("seconds") or 0,
+                (date.get("offset") or 0) * 60,
+            )
         else:
             date_tuple = (0, 0)
         return author_tuple + date_tuple
@@ -99,14 +105,14 @@ class RevisionGitfastCooker(BaseVaultCooker):
     def _compute_commit_command(self, rev):
         """Compute a commit command from a specific revision.
         """
-        if 'parents' in rev and rev['parents']:
-            from_ = b':' + self.mark(rev['parents'][0])
-            merges = [b':' + self.mark(r) for r in rev['parents'][1:]]
-            parent = self.rev_by_id[rev['parents'][0]]
+        if "parents" in rev and rev["parents"]:
+            from_ = b":" + self.mark(rev["parents"][0])
+            merges = [b":" + self.mark(r) for r in rev["parents"][1:]]
+            parent = self.rev_by_id[rev["parents"][0]]
         else:
             # We issue a reset command before all the new roots so that they
             # are not automatically added as children of the current branch.
-            self.write_cmd(ResetCommand(b'refs/heads/master', None))
+            self.write_cmd(ResetCommand(b"refs/heads/master", None))
             from_ = None
             merges = None
             parent = None
@@ -116,18 +122,20 @@ class RevisionGitfastCooker(BaseVaultCooker):
         files = list(self._compute_file_commands(rev, parent))
 
         # Construct and write the commit command
-        author = self._author_tuple_format(rev['author'], rev['date'])
-        committer = self._author_tuple_format(rev['committer'],
-                                              rev['committer_date'])
-        self.write_cmd(CommitCommand(
-            ref=b'refs/heads/master',
-            mark=self.mark(rev['id']),
-            author=author,
-            committer=committer,
-            message=rev['message'] or b'',
-            from_=from_,
-            merges=merges,
-            file_iter=files))
+        author = self._author_tuple_format(rev["author"], rev["date"])
+        committer = self._author_tuple_format(rev["committer"], rev["committer_date"])
+        self.write_cmd(
+            CommitCommand(
+                ref=b"refs/heads/master",
+                mark=self.mark(rev["id"]),
+                author=author,
+                committer=committer,
+                message=rev["message"] or b"",
+                from_=from_,
+                merges=merges,
+                file_iter=files,
+            )
+        )
 
     @functools.lru_cache(maxsize=4096)
     def _get_dir_ents(self, dir_id=None):
@@ -136,9 +144,8 @@ class RevisionGitfastCooker(BaseVaultCooker):
         This function has a cache to avoid doing multiple requests to retrieve
         the same entities, as doing a directory_ls() is expensive.
         """
-        data = (self.storage.directory_ls(dir_id)
-                if dir_id is not None else [])
-        return {f['name']: f for f in data}
+        data = self.storage.directory_ls(dir_id) if dir_id is not None else []
+        return {f["name"]: f for f in data}
 
     def _compute_file_commands(self, rev, parent=None):
         """Compute all the file commands of a revision.
@@ -147,9 +154,9 @@ class RevisionGitfastCooker(BaseVaultCooker):
         to find the necessary file commands to apply.
         """
         # Initialize the stack with the root of the tree.
-        cur_dir = rev['directory']
-        parent_dir = parent['directory'] if parent else None
-        stack = [(b'', cur_dir, parent_dir)]
+        cur_dir = rev["directory"]
+        parent_dir = parent["directory"] if parent else None
+        stack = [(b"", cur_dir, parent_dir)]
 
         while stack:
             # Retrieve the current directory and the directory of the parent
@@ -166,8 +173,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
             # After this step, every node remaining in the previous directory
             # has the same type than the one in the current directory.
             for fname, f in prev_dir.items():
-                if ((fname not in cur_dir
-                     or f['type'] != cur_dir[fname]['type'])):
+                if fname not in cur_dir or f["type"] != cur_dir[fname]["type"]:
                     yield FileDeleteCommand(path=os.path.join(root, fname))
 
             # Find subtrees to modify:
@@ -177,33 +183,37 @@ class RevisionGitfastCooker(BaseVaultCooker):
             for fname, f in cur_dir.items():
                 # A file is added or modified if it was not in the tree, if its
                 # permissions changed or if its content changed.
-                if (f['type'] == 'file'
-                    and (fname not in prev_dir
-                         or f['sha1'] != prev_dir[fname]['sha1']
-                         or f['perms'] != prev_dir[fname]['perms'])):
+                if f["type"] == "file" and (
+                    fname not in prev_dir
+                    or f["sha1"] != prev_dir[fname]["sha1"]
+                    or f["perms"] != prev_dir[fname]["perms"]
+                ):
                     # Issue a blob command for the new blobs if needed.
                     self._compute_blob_command_content(f)
                     yield FileModifyCommand(
                         path=os.path.join(root, fname),
-                        mode=mode_to_perms(f['perms']).value,
-                        dataref=(b':' + self.mark(f['sha1'])),
-                        data=None)
+                        mode=mode_to_perms(f["perms"]).value,
+                        dataref=(b":" + self.mark(f["sha1"])),
+                        data=None,
+                    )
                 # A revision is added or modified if it was not in the tree or
                 # if its target changed
-                elif (f['type'] == 'rev'
-                      and (fname not in prev_dir
-                           or f['target'] != prev_dir[fname]['target'])):
+                elif f["type"] == "rev" and (
+                    fname not in prev_dir or f["target"] != prev_dir[fname]["target"]
+                ):
                     yield FileModifyCommand(
                         path=os.path.join(root, fname),
                         mode=0o160000,
-                        dataref=hashutil.hash_to_hex(f['target']).encode(),
-                        data=None)
+                        dataref=hashutil.hash_to_hex(f["target"]).encode(),
+                        data=None,
+                    )
                 # A directory is added or modified if it was not in the tree or
                 # if its target changed.
-                elif f['type'] == 'dir':
+                elif f["type"] == "dir":
                     f_prev_target = None
-                    if fname in prev_dir and prev_dir[fname]['type'] == 'dir':
-                        f_prev_target = prev_dir[fname]['target']
-                    if f_prev_target is None or f['target'] != f_prev_target:
-                        stack.append((os.path.join(root, fname),
-                                      f['target'], f_prev_target))
+                    if fname in prev_dir and prev_dir[fname]["type"] == "dir":
+                        f_prev_target = prev_dir[fname]["target"]
+                    if f_prev_target is None or f["target"] != f_prev_target:
+                        stack.append(
+                            (os.path.join(root, fname), f["target"], f_prev_target)
+                        )

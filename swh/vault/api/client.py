@@ -6,7 +6,7 @@
 from swh.model import hashutil
 from swh.core.api import RPCClient
 
-from swh.vault.backend import NotFoundExc
+from swh.vault.exc import NotFoundExc
 
 
 class RemoteVaultClient(RPCClient):

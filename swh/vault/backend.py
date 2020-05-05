@@ -4,16 +4,18 @@
 # See top-level LICENSE file for more information
 
 import smtplib
+from email.mime.text import MIMEText
+
 import psycopg2.extras
 import psycopg2.pool
-
-from email.mime.text import MIMEText
 
 from swh.core.db import BaseDb
 from swh.core.db.common import db_transaction
 from swh.model import hashutil
 from swh.scheduler.utils import create_oneshot_task_dict
+
 from swh.vault.cookers import get_cooker_cls
+from swh.vault.exc import NotFoundExc
 
 cooking_task_name = "swh.vault.cooking_tasks.SWHCookingTask"
 
@@ -55,12 +57,6 @@ We apologize for the inconvenience.
 --\x20
 The Software Heritage Developers
 """
-
-
-class NotFoundExc(Exception):
-    """Bundle was not found."""
-
-    pass
 
 
 def batch_to_bytes(batch):

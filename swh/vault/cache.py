@@ -44,4 +44,4 @@ class VaultCache:
 
     def _get_internal_id(self, obj_type, obj_id):
         obj_id = hashutil.hash_to_hex(obj_id)
-        return compute_hash('{}:{}'.format(obj_type, obj_id).encode())
+        return compute_hash("{}:{}".format(obj_type, obj_id).encode())

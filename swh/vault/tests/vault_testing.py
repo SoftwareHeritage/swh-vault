@@ -16,6 +16,5 @@ def hash_content(content):
         The tuple (content, content's id as bytes)
 
     """
-    hashes = hashutil.MultiHash.from_data(
-        content, hash_names=['sha1']).digest()
-    return content, hashes['sha1']
+    hashes = hashutil.MultiHash.from_data(content, hash_names=["sha1"]).digest()
+    return content, hashes["sha1"]

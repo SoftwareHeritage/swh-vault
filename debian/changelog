@@ -1,8 +1,15 @@
-swh-vault (0.0.32-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-vault (0.0.33-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.33     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2020-05-05 17:56:33 +0200)
+  * Upstream changes:     - v0.0.33     - * Use swh-storage validation
+    proxy.     - * Use model objects to send to storage     - * Add a
+    pyproject.toml file to target py37 for black     - * setup: Update
+    the minimum required runtime python3 version     - * setup.py: add
+    documentation link     - * Raise NotFoundExc within our RPC
+    framework instead of returning 404.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 05 Feb 2020 12:18:17 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 05 May 2020 15:59:51 +0000
 
 swh-vault (0.0.32-1~swh1) unstable-swh; urgency=medium
 

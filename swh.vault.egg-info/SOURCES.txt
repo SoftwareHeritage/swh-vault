@@ -1,9 +1,11 @@
 MANIFEST.in
 Makefile
 README.md
+pyproject.toml
 requirements-swh.txt
 requirements-test.txt
 requirements.txt
+setup.cfg
 setup.py
 version.txt
 sql/upgrades/002.sql
@@ -21,6 +23,7 @@ swh/vault/backend.py
 swh/vault/cache.py
 swh/vault/cli.py
 swh/vault/cooking_tasks.py
+swh/vault/exc.py
 swh/vault/py.typed
 swh/vault/to_disk.py
 swh/vault/api/__init__.py
@@ -39,4 +42,5 @@ swh/vault/tests/test_backend.py
 swh/vault/tests/test_cache.py
 swh/vault/tests/test_cookers.py
 swh/vault/tests/test_cookers_base.py
+swh/vault/tests/test_server.py
 swh/vault/tests/vault_testing.py

@@ -27,9 +27,9 @@ def revision_log(storage, rev_id, per_page=1000):
         # Get an iterator returning the commits log from rev_id.
         # At most max_revs visited revisions from rev_id in the commits graph
         # will be returned.
-        revs_walker = get_revisions_walker('bfs', storage, rev_id,
-                                           max_revs=max_revs,
-                                           state=rw_state)
+        revs_walker = get_revisions_walker(
+            "bfs", storage, rev_id, max_revs=max_revs, state=rw_state
+        )
         # Iterate on at most per_page revisions in the commits log.
         for rev in revs_walker:
             nb_revs += 1

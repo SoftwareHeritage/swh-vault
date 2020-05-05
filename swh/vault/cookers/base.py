@@ -13,31 +13,23 @@ from typing import Optional
 from swh.model import hashutil
 
 MAX_BUNDLE_SIZE = 2 ** 29  # 512 MiB
-DEFAULT_CONFIG_PATH = 'vault/cooker'
+DEFAULT_CONFIG_PATH = "vault/cooker"
 DEFAULT_CONFIG = {
-    'storage': ('dict', {
-        'cls': 'remote',
-        'args': {
-            'url': 'http://localhost:5002/',
-        },
-    }),
-    'vault': ('dict', {
-        'cls': 'remote',
-        'args': {
-            'url': 'http://localhost:5005/',
-        },
-    }),
-    'max_bundle_size': ('int', MAX_BUNDLE_SIZE),
+    "storage": ("dict", {"cls": "remote", "args": {"url": "http://localhost:5002/",},}),
+    "vault": ("dict", {"cls": "remote", "args": {"url": "http://localhost:5005/",},}),
+    "max_bundle_size": ("int", MAX_BUNDLE_SIZE),
 }
 
 
 class PolicyError(Exception):
     """Raised when the bundle violates the cooking policy."""
+
     pass
 
 
 class BundleTooLargeError(PolicyError):
     """Raised when the bundle is too large to be cooked."""
+
     pass
 
 
@@ -47,11 +39,14 @@ class BytesIOBundleSizeLimit(io.BytesIO):
         self.size_limit = size_limit
 
     def write(self, chunk):
-        if ((self.size_limit is not None
-             and self.getbuffer().nbytes + len(chunk) > self.size_limit)):
+        if (
+            self.size_limit is not None
+            and self.getbuffer().nbytes + len(chunk) > self.size_limit
+        ):
             raise BundleTooLargeError(
                 "The requested bundle exceeds the maximum allowed "
-                "size of {} bytes.".format(self.size_limit))
+                "size of {} bytes.".format(self.size_limit)
+            )
         return super().write(chunk)
 
 
@@ -64,10 +59,12 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     - CACHE_TYPE_KEY: key to use for the bundle to reference in cache
     - def cook(): cook the object into a bundle
     """
+
     CACHE_TYPE_KEY = None  # type: Optional[str]
 
-    def __init__(self, obj_type, obj_id, backend, storage,
-                 max_bundle_size=MAX_BUNDLE_SIZE):
+    def __init__(
+        self, obj_type, obj_id, backend, storage, max_bundle_size=MAX_BUNDLE_SIZE
+    ):
         """Initialize the cooker.
 
         The type of the object represented by the id depends on the
@@ -109,8 +106,8 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     def cook(self):
         """Cook the requested object into a bundle
         """
-        self.backend.set_status(self.obj_type, self.obj_id, 'pending')
-        self.backend.set_progress(self.obj_type, self.obj_id, 'Processing...')
+        self.backend.set_status(self.obj_type, self.obj_id, "pending")
+        self.backend.set_progress(self.obj_type, self.obj_id, "Processing...")
 
         self.fileobj = BytesIOBundleSizeLimit(size_limit=self.max_bundle_size)
         try:
@@ -118,21 +115,24 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
                 self.prepare_bundle()
             except QueryCanceledError:
                 raise PolicyError(
-                    "Timeout reached while assembling the requested bundle")
+                    "Timeout reached while assembling the requested bundle"
+                )
             bundle = self.fileobj.getvalue()
             # TODO: use proper content streaming instead of put_bundle()
             self.backend.put_bundle(self.CACHE_TYPE_KEY, self.obj_id, bundle)
         except PolicyError as e:
-            self.backend.set_status(self.obj_type, self.obj_id, 'failed')
+            self.backend.set_status(self.obj_type, self.obj_id, "failed")
             self.backend.set_progress(self.obj_type, self.obj_id, str(e))
         except Exception:
-            self.backend.set_status(self.obj_type, self.obj_id, 'failed')
+            self.backend.set_status(self.obj_type, self.obj_id, "failed")
             self.backend.set_progress(
-                self.obj_type, self.obj_id,
-                "Internal Server Error. This incident will be reported.")
+                self.obj_type,
+                self.obj_id,
+                "Internal Server Error. This incident will be reported.",
+            )
             logging.exception("Bundle cooking failed.")
         else:
-            self.backend.set_status(self.obj_type, self.obj_id, 'done')
+            self.backend.set_status(self.obj_type, self.obj_id, "done")
             self.backend.set_progress(self.obj_type, self.obj_id, None)
         finally:
             self.backend.send_notif(self.obj_type, self.obj_id)

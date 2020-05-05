@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2019  The Software Heritage developers
+# Copyright (C) 2016-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -56,7 +56,7 @@ def vault_fetch(request):
     obj_id = request.match_info["id"]
 
     if not request.app["backend"].is_available(obj_type, obj_id):
-        raise aiohttp.web.HTTPNotFound
+        raise NotFoundExc(f"{obj_type} {obj_id} is not available.")
 
     return encode_data(request.app["backend"].fetch(obj_type, obj_id))
 
@@ -79,14 +79,11 @@ def vault_cook(request):
     sticky = request.query.get("sticky") in ("true", "1")
 
     if obj_type not in COOKER_TYPES:
-        raise aiohttp.web.HTTPNotFound
+        raise NotFoundExc(f"{obj_type} is an unknown type.")
 
-    try:
-        info = request.app["backend"].cook_request(
-            obj_type, obj_id, email=email, sticky=sticky
-        )
-    except NotFoundExc:
-        raise aiohttp.web.HTTPNotFound
+    info = request.app["backend"].cook_request(
+        obj_type, obj_id, email=email, sticky=sticky
+    )
 
     # TODO: return 201 status (Created) once the api supports it
     return encode_data(user_info(info))
@@ -99,7 +96,7 @@ def vault_progress(request):
 
     info = request.app["backend"].task_info(obj_type, obj_id)
     if not info:
-        raise aiohttp.web.HTTPNotFound
+        raise NotFoundExc(f"{obj_type} {obj_id} was not found.")
 
     return encode_data(user_info(info))
 
@@ -152,7 +149,7 @@ def batch_cook(request):
     batch = yield from decode_request(request)
     for obj_type, obj_id in batch:
         if obj_type not in COOKER_TYPES:
-            raise aiohttp.web.HTTPNotFound
+            raise NotFoundExc(f"{obj_type} is an unknown type.")
     batch_id = request.app["backend"].batch_cook(batch)
     return encode_data({"id": batch_id})
 
@@ -162,7 +159,7 @@ def batch_progress(request):
     batch_id = request.match_info["batch_id"]
     bundles = request.app["backend"].batch_info(batch_id)
     if not bundles:
-        raise aiohttp.web.HTTPNotFound
+        raise NotFoundExc(f"Batch {batch_id} does not exist.")
     bundles = [user_info(bundle) for bundle in bundles]
     counter = collections.Counter(b["status"] for b in bundles)
     res = {
@@ -180,6 +177,7 @@ def batch_progress(request):
 def make_app(backend, **kwargs):
     app = RPCServerApp(**kwargs)
     app.router.add_route("GET", "/", index)
+    app.client_exception_classes = (NotFoundExc,)
 
     # Endpoints used by the web API
     app.router.add_route("GET", "/fetch/{type}/{id}", vault_fetch)

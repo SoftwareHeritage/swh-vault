@@ -3,4 +3,4 @@ flask
 psycopg2
 python-dateutil
 fastimport
-vcversioner
+

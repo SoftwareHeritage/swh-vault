@@ -46,9 +46,9 @@ setup(
     url="https://forge.softwareheritage.org/diffusion/DVAU/",
     packages=find_packages(),
     install_requires=parse_requirements() + parse_requirements("swh"),
-    setup_requires=["vcversioner"],
+    setup_requires=["setuptools-scm"],
+    use_scm_version=True,
     extras_require={"testing": parse_requirements("test")},
-    vcversioner={},
     include_package_data=True,
     zip_safe=False,
     entry_points="""

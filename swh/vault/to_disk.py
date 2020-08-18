@@ -1,15 +1,19 @@
-# Copyright (C) 2016-2018 The Software Heritage developers
+# Copyright (C) 2016-2020 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import functools
 import collections
+import functools
 import os
+
+from typing import Any, Dict, Iterator, List
 
 from swh.model import hashutil
 from swh.model.from_disk import mode_to_perms, DentryPerms
 from swh.storage.algos.dir_iterators import dir_iterator
+from swh.storage.interface import StorageInterface
+
 
 SKIPPED_MESSAGE = (
     b"This content has not been retrieved in the "
@@ -19,7 +23,9 @@ SKIPPED_MESSAGE = (
 HIDDEN_MESSAGE = b"This content is hidden."
 
 
-def get_filtered_files_content(storage, files_data):
+def get_filtered_files_content(
+    storage: StorageInterface, files_data: List[Dict]
+) -> Iterator[Dict[str, Any]]:
     """Retrieve the files specified by files_data and apply filters for skipped
     and missing contents.
 
@@ -34,18 +40,21 @@ def get_filtered_files_content(storage, files_data):
         The contents can be replaced by a specific message to indicate that
         they could not be retrieved (either due to privacy policy or because
         their sizes were too big for us to archive it).
-    """
-    contents_to_fetch = [f["sha1"] for f in files_data if f["status"] == "visible"]
-    contents_fetched = storage.content_get(contents_to_fetch)
-    contents = {c["sha1"]: c["data"] for c in contents_fetched}
 
+    """
     for file_data in files_data:
-        if file_data["status"] == "visible":
-            content = contents[file_data["sha1"]]
-        elif file_data["status"] == "absent":
+        status = file_data["status"]
+        if status == "absent":
             content = SKIPPED_MESSAGE
-        elif file_data["status"] == "hidden":
+        elif status == "hidden":
             content = HIDDEN_MESSAGE
+        elif status == "visible":
+            sha1 = file_data["sha1"]
+            data = storage.content_get_data(sha1)
+            if data is None:
+                content = SKIPPED_MESSAGE
+            else:
+                content = data
 
         yield {"content": content, **file_data}
 

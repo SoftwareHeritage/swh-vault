@@ -1,3 +1,11 @@
+swh-vault (0.0.34-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.34     - (tagged by Antoine Lambert
+    <antoine.lambert@inria.fr> on 2020-08-18 13:55:51 +0200)
+  * Upstream changes:     - version 0.0.34
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 18 Aug 2020 11:58:22 +0000
+
 swh-vault (0.0.33-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.33     - (tagged by Valentin Lorentz

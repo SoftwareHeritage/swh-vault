@@ -111,7 +111,7 @@ class TestRepo:
             "--allow-unrelated-histories",
             "-m",
             message,
-            *[p.decode() for p in parent_sha_list]
+            *[p.decode() for p in parent_sha_list],
         )
         self.counter += 1
         return self.repo.refs[b"HEAD"]
@@ -284,14 +284,14 @@ class TestDirectoryCooker:
         target_rev = "0e8a3ad980ec179856012b7eecf4327e99cd44cd"
 
         dir = Directory(
-            entries=[
+            entries=(
                 DirectoryEntry(
                     name=b"submodule",
                     type="rev",
                     target=hashutil.hash_to_bytes(target_rev),
                     perms=0o100644,
-                )
-            ],
+                ),
+            ),
         )
         swh_storage.directory_add([dir])
 
@@ -511,7 +511,7 @@ class TestRevisionGitfastCooker:
             date=None,
             committer=Person(name=None, email=None, fullname=b""),
             committer_date=None,
-            parents=[],
+            parents=(),
             type=RevisionType.GIT,
             directory=dir_id,
             metadata={},
@@ -528,14 +528,14 @@ class TestRevisionGitfastCooker:
         target_rev = "0e8a3ad980ec179856012b7eecf4327e99cd44cd"
 
         dir = Directory(
-            entries=[
+            entries=(
                 DirectoryEntry(
                     name=b"submodule",
                     type="rev",
                     target=hashutil.hash_to_bytes(target_rev),
                     perms=0o100644,
-                )
-            ],
+                ),
+            ),
         )
         swh_storage.directory_add([dir])
 
@@ -545,7 +545,7 @@ class TestRevisionGitfastCooker:
             date=None,
             committer=Person(name=None, email=None, fullname=b""),
             committer_date=None,
-            parents=[],
+            parents=(),
             type=RevisionType.GIT,
             directory=dir.id,
             metadata={},

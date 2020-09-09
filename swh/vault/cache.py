@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 from swh.model import hashutil
-from swh.objstorage import get_objstorage
+from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import compute_hash
 
 

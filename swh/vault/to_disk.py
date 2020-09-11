@@ -55,6 +55,11 @@ def get_filtered_files_content(
                 content = SKIPPED_MESSAGE
             else:
                 content = data
+        else:
+            assert False, (
+                f"unexpected status {status!r} "
+                f"for content {hashutil.hash_to_hex(file_data['target'])}"
+            )
 
         yield {"content": content, **file_data}
 

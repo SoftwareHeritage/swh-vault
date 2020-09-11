@@ -1,26 +1,18 @@
-import os
+# Copyright (C) 2015-2020  The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
+# WARNING: do not import unnecessary things here to keep cli startup time under
+# control
 import logging
 
 import click
 
-from swh.core.config import SWH_CONFIG_DIRECTORIES, SWH_CONFIG_EXTENSIONS
 from swh.core.cli import CONTEXT_SETTINGS, AliasedGroup
 
-from swh.vault.api.server import make_app_from_configfile, DEFAULT_CONFIG_PATH
 
-CFG_HELP = """Software Heritage Vault RPC server.
-
-If the CONFIGFILE option is not set, the default config file search will
-be used; first the SWH_CONFIG_FILENAME environment variable will be
-checked, then the config file will be searched in:
-
-%s""" % (
-    "\n\n".join(
-        "- %s(%s)"
-        % (os.path.join(d, DEFAULT_CONFIG_PATH), "|".join(SWH_CONFIG_EXTENSIONS))
-        for d in SWH_CONFIG_DIRECTORIES
-    )
-)
+CFG_HELP = """Software Heritage Vault RPC server."""
 
 
 @click.group(name="vault", context_settings=CONTEXT_SETTINGS, cls=AliasedGroup)
@@ -65,6 +57,7 @@ def vault(ctx):
 def serve(ctx, config_file, no_stdout, host, port, debug):
     import aiohttp
     from swh.scheduler.celery_backend.config import setup_log_handler
+    from swh.vault.api.server import make_app_from_configfile
 
     ctx.ensure_object(dict)
     setup_log_handler(

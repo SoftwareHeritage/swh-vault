@@ -123,7 +123,9 @@ class TestRepo:
         self.git_shell(*args, stdout=None)
 
 
-def git_loader(storage, repo_path, visit_date=datetime.datetime.now()):
+def git_loader(
+    storage, repo_path, visit_date=datetime.datetime.now(datetime.timezone.utc)
+):
     """Instantiate a Git Loader using the storage instance as storage.
 
     """

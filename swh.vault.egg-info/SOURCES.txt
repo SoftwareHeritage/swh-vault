@@ -59,4 +59,5 @@ swh/vault/tests/test_cache.py
 swh/vault/tests/test_cookers.py
 swh/vault/tests/test_cookers_base.py
 swh/vault/tests/test_server.py
+swh/vault/tests/test_to_disk.py
 swh/vault/tests/vault_testing.py

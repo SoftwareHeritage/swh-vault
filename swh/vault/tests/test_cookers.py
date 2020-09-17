@@ -22,12 +22,11 @@ import dulwich.porcelain
 import dulwich.repo
 
 from swh.loader.git.from_disk import GitLoaderFromDisk
-from swh.model import hashutil
-from swh.model import from_disk
+from swh.model import from_disk, hashutil
 from swh.model.model import Directory, DirectoryEntry, Person, Revision, RevisionType
 from swh.vault.cookers import DirectoryCooker, RevisionGitfastCooker
 from swh.vault.tests.vault_testing import hash_content
-from swh.vault.to_disk import SKIPPED_MESSAGE, HIDDEN_MESSAGE
+from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE
 
 
 class TestRepo:

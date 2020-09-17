@@ -11,7 +11,6 @@ import click
 
 from swh.core.cli import CONTEXT_SETTINGS, AliasedGroup
 
-
 CFG_HELP = """Software Heritage Vault RPC server."""
 
 
@@ -56,6 +55,7 @@ def vault(ctx):
 @click.pass_context
 def serve(ctx, config_file, no_stdout, host, port, debug):
     import aiohttp
+
     from swh.scheduler.celery_backend.config import setup_log_handler
     from swh.vault.api.server import make_app_from_configfile
 

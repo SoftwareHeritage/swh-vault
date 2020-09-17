@@ -3,9 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from swh.model import hashutil
 from swh.core.api import RPCClient
-
+from swh.model import hashutil
 from swh.vault.exc import NotFoundExc
 
 

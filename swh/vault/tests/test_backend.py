@@ -5,9 +5,9 @@
 
 import contextlib
 import datetime
-import psycopg2
+from unittest.mock import MagicMock, patch
 
-from unittest.mock import patch, MagicMock
+import psycopg2
 import pytest
 
 from swh.model import hashutil

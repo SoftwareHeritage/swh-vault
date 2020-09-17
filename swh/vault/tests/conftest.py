@@ -1,14 +1,14 @@
-import pytest
 import glob
 import os
-import pkg_resources.extern.packaging.version
 
-from swh.core.utils import numfile_sortkey as sortkey
-from swh.vault import get_vault
-from swh.vault.tests import SQL_DIR
-from swh.storage.tests import SQL_DIR as STORAGE_SQL_DIR
+import pkg_resources.extern.packaging.version
+import pytest
 from pytest_postgresql import factories
 
+from swh.core.utils import numfile_sortkey as sortkey
+from swh.storage.tests import SQL_DIR as STORAGE_SQL_DIR
+from swh.vault import get_vault
+from swh.vault.tests import SQL_DIR
 
 os.environ["LC_ALL"] = "C.UTF-8"
 
@@ -17,8 +17,8 @@ if pytest_v < pkg_resources.extern.packaging.version.parse("3.9"):
 
     @pytest.fixture
     def tmp_path(request):
-        import tempfile
         import pathlib
+        import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
             yield pathlib.Path(tmpdir)

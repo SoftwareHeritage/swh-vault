@@ -6,14 +6,12 @@
 import collections
 import functools
 import os
-
 from typing import Any, Dict, Iterator, List
 
 from swh.model import hashutil
-from swh.model.from_disk import mode_to_perms, DentryPerms
+from swh.model.from_disk import DentryPerms, mode_to_perms
 from swh.storage.algos.dir_iterators import dir_iterator
 from swh.storage.interface import StorageInterface
-
 
 SKIPPED_MESSAGE = (
     b"This content has not been retrieved in the "

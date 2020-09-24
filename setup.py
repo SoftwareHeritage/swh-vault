@@ -52,10 +52,8 @@ setup(
     include_package_data=True,
     zip_safe=False,
     entry_points="""
-        [console_scripts]
-        swh-vault=swh.vault.cli:vault
         [swh.cli.subcommands]
-        vault=swh.vault.cli:vault
+        vault=swh.vault.cli
     """,
     classifiers=[
         "Programming Language :: Python :: 3",

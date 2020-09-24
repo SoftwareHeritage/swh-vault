@@ -9,12 +9,12 @@ import logging
 
 import click
 
-from swh.core.cli import CONTEXT_SETTINGS, AliasedGroup
+from swh.core.cli import CONTEXT_SETTINGS, AliasedGroup, swh as swh_cli_group
 
 CFG_HELP = """Software Heritage Vault RPC server."""
 
 
-@click.group(name="vault", context_settings=CONTEXT_SETTINGS, cls=AliasedGroup)
+@swh_cli_group.group(name="vault", context_settings=CONTEXT_SETTINGS, cls=AliasedGroup)
 @click.pass_context
 def vault(ctx):
     """Software Heritage Vault tools."""

@@ -1,5 +1,6 @@
 import glob
 import os
+import subprocess
 
 import pkg_resources.extern.packaging.version
 import pytest
@@ -43,13 +44,20 @@ def swh_vault(request, postgresql_proc, postgresql, postgresql2, tmp_path):
         dump_files = os.path.join(sql_dir, "*.sql")
         all_dump_files = sorted(glob.glob(dump_files), key=sortkey)
 
-        cursor = pg.cursor()
         for fname in all_dump_files:
-            with open(fname) as fobj:
-                # disable concurrent index creation since we run in a
-                # transaction
-                cursor.execute(fobj.read().replace("concurrently", ""))
-        pg.commit()
+            subprocess.check_call(
+                [
+                    "psql",
+                    "--quiet",
+                    "--no-psqlrc",
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                    "-d",
+                    pg.dsn,
+                    "-f",
+                    fname,
+                ]
+            )
 
     vault_config = {
         "db": db_url("tests", postgresql_proc),

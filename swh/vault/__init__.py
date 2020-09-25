@@ -29,8 +29,8 @@ def get_vault(cls="remote", args={}):
     elif cls == "local":
         from swh.scheduler import get_scheduler
         from swh.storage import get_storage
-        from swh.vault.cache import VaultCache
         from swh.vault.backend import VaultBackend as Vault
+        from swh.vault.cache import VaultCache
 
         args["cache"] = VaultCache(**args["cache"])
         args["storage"] = get_storage(**args["storage"])

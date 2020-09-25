@@ -5,8 +5,7 @@
 
 import pytest
 
-from swh.core.api.serializers import msgpack_loads, msgpack_dumps
-
+from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.vault.api.server import make_app
 
 

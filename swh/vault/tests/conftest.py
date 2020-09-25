@@ -1,14 +1,15 @@
-import pytest
 import glob
 import os
-import pkg_resources.extern.packaging.version
+import subprocess
 
-from swh.core.utils import numfile_sortkey as sortkey
-from swh.vault import get_vault
-from swh.vault.tests import SQL_DIR
-from swh.storage.tests import SQL_DIR as STORAGE_SQL_DIR
+import pkg_resources.extern.packaging.version
+import pytest
 from pytest_postgresql import factories
 
+from swh.core.utils import numfile_sortkey as sortkey
+from swh.storage.tests import SQL_DIR as STORAGE_SQL_DIR
+from swh.vault import get_vault
+from swh.vault.tests import SQL_DIR
 
 os.environ["LC_ALL"] = "C.UTF-8"
 
@@ -17,8 +18,8 @@ if pytest_v < pkg_resources.extern.packaging.version.parse("3.9"):
 
     @pytest.fixture
     def tmp_path(request):
-        import tempfile
         import pathlib
+        import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
             yield pathlib.Path(tmpdir)
@@ -43,13 +44,20 @@ def swh_vault(request, postgresql_proc, postgresql, postgresql2, tmp_path):
         dump_files = os.path.join(sql_dir, "*.sql")
         all_dump_files = sorted(glob.glob(dump_files), key=sortkey)
 
-        cursor = pg.cursor()
         for fname in all_dump_files:
-            with open(fname) as fobj:
-                # disable concurrent index creation since we run in a
-                # transaction
-                cursor.execute(fobj.read().replace("concurrently", ""))
-        pg.commit()
+            subprocess.check_call(
+                [
+                    "psql",
+                    "--quiet",
+                    "--no-psqlrc",
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                    "-d",
+                    pg.dsn,
+                    "-f",
+                    fname,
+                ]
+            )
 
     vault_config = {
         "db": db_url("tests", postgresql_proc),

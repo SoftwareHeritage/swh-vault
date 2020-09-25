@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 from swh.model import hashutil
 from swh.vault.cookers.base import BaseVaultCooker
 
-
 TEST_BUNDLE_CHUNKS = [b"test content 1\n", b"test content 2\n", b"test content 3\n"]
 TEST_BUNDLE_CONTENT = b"".join(TEST_BUNDLE_CHUNKS)
 TEST_OBJ_TYPE = "test_type"

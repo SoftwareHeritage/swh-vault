@@ -6,9 +6,9 @@
 import abc
 import io
 import logging
+from typing import Optional
 
 from psycopg2.extensions import QueryCanceledError
-from typing import Optional
 
 from swh.model import hashutil
 

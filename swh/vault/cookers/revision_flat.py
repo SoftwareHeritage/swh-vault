@@ -3,9 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from pathlib import Path
 import tarfile
 import tempfile
-from pathlib import Path
 
 from swh.model import hashutil
 from swh.vault.cookers.base import BaseVaultCooker

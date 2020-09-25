@@ -3,22 +3,19 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import os
-import aiohttp.web
 import asyncio
 import collections
+import os
+
+import aiohttp.web
 
 from swh.core import config
-from swh.core.api.asynchronous import (
-    RPCServerApp,
-    encode_data_server as encode_data,
-    decode_request,
-)
+from swh.core.api.asynchronous import RPCServerApp, decode_request
+from swh.core.api.asynchronous import encode_data_server as encode_data
 from swh.model import hashutil
 from swh.vault import get_vault
-from swh.vault.cookers import COOKER_TYPES
 from swh.vault.backend import NotFoundExc
-
+from swh.vault.cookers import COOKER_TYPES
 
 DEFAULT_CONFIG_PATH = "vault/server"
 DEFAULT_CONFIG = {

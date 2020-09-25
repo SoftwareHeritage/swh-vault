@@ -4,10 +4,11 @@
 # See top-level LICENSE file for more information
 import os
 
-from swh.core.config import load_named_config, read as read_config
+from swh.core.config import load_named_config
+from swh.core.config import read as read_config
 from swh.storage import get_storage
 from swh.vault import get_vault
-from swh.vault.cookers.base import DEFAULT_CONFIG_PATH, DEFAULT_CONFIG
+from swh.vault.cookers.base import DEFAULT_CONFIG, DEFAULT_CONFIG_PATH
 from swh.vault.cookers.directory import DirectoryCooker
 from swh.vault.cookers.revision_flat import RevisionFlatCooker
 from swh.vault.cookers.revision_gitfast import RevisionGitfastCooker

@@ -3,7 +3,7 @@ flask
 psycopg2
 python-dateutil
 fastimport
-swh.core[db,http]>=0.0.65
+swh.core[db,http]>=0.3
 swh.model>=0.3
 swh.objstorage>=0.0.17
 swh.scheduler>=0.0.39

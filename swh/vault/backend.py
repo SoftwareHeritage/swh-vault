@@ -3,8 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import smtplib
 from email.mime.text import MIMEText
+import smtplib
 
 import psycopg2.extras
 import psycopg2.pool
@@ -13,7 +13,6 @@ from swh.core.db import BaseDb
 from swh.core.db.common import db_transaction
 from swh.model import hashutil
 from swh.scheduler.utils import create_oneshot_task_dict
-
 from swh.vault.cookers import get_cooker_cls
 from swh.vault.exc import NotFoundExc
 

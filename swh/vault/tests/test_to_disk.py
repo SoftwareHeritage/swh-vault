@@ -6,7 +6,6 @@
 import pytest
 
 from swh.model.model import Content, SkippedContent
-
 from swh.vault.to_disk import get_filtered_files_content
 
 

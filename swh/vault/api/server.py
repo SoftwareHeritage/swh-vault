@@ -6,6 +6,7 @@
 import asyncio
 import collections
 import os
+from typing import Any, Dict, Optional
 
 import aiohttp.web
 
@@ -192,15 +193,14 @@ def make_app(backend, **kwargs):
     return app
 
 
-def get_local_backend(cfg):
+def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     if "vault" not in cfg:
-        raise ValueError("missing '%vault' configuration")
+        raise ValueError("missing 'vault' configuration")
 
     vcfg = cfg["vault"]
     if vcfg["cls"] != "local":
         raise EnvironmentError(
-            "The vault backend can only be started with a 'local' " "configuration",
-            err=True,
+            "The vault backend can only be started with a 'local' configuration",
         )
     args = vcfg["args"]
     if "cache" not in args:
@@ -212,20 +212,22 @@ def get_local_backend(cfg):
 
     for key in ("cache", "storage", "scheduler"):
         if not args.get(key):
-            raise ValueError("invalid configuration; missing %s config entry." % key)
+            raise ValueError(f"invalid configuration: missing {key} config entry.")
 
-    return get_vault("local", **args)
+    return args
 
 
-def make_app_from_configfile(config_file=None, **kwargs):
+def make_app_from_configfile(config_file: Optional[str] = None, **kwargs):
     if config_file is None:
         config_file = DEFAULT_CONFIG_PATH
     config_file = os.environ.get("SWH_CONFIG_FILENAME", config_file)
+    assert config_file is not None
     if os.path.isfile(config_file):
         cfg = config.read(config_file, DEFAULT_CONFIG)
     else:
         cfg = config.load_named_config(config_file, DEFAULT_CONFIG)
-    vault = get_local_backend(cfg)
+    kwargs = check_config(cfg)
+    vault = get_vault("local", **kwargs)
     return make_app(backend=vault, client_max_size=cfg["client_max_size"], **kwargs)
 
 

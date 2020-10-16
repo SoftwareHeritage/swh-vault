@@ -3,10 +3,12 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import copy
+
 import pytest
 
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
-from swh.vault.api.server import make_app
+from swh.vault.api.server import check_config, make_app
 
 
 @pytest.fixture
@@ -53,3 +55,37 @@ async def test_batch_progress_notfound(client):
     content = msgpack_loads(await resp.content.read())
     assert content["exception"]["type"] == "NotFoundExc"
     assert content["exception"]["args"] == ["Batch 1 does not exist."]
+
+
+def test_check_config_missing_vault_configuration() -> None:
+    """Irrelevant configuration file path raises"""
+    with pytest.raises(ValueError, match="missing 'vault' configuration"):
+        check_config({})
+
+
+def test_check_config_not_local() -> None:
+    """Wrong configuration raises"""
+    expected_error = (
+        "The vault backend can only be started with a 'local' configuration"
+    )
+    with pytest.raises(EnvironmentError, match=expected_error):
+        check_config({"vault": {"cls": "remote"}})
+
+
+@pytest.mark.parametrize("missing_key", ["storage", "cache", "scheduler"])
+def test_check_config_missing_key(missing_key, swh_vault_config) -> None:
+    """Any other configuration than 'local' (the default) is rejected"""
+    config_ok = {"vault": {"cls": "local", "args": swh_vault_config}}
+    config_ko = copy.deepcopy(config_ok)
+    config_ko["vault"]["args"].pop(missing_key, None)
+
+    expected_error = f"invalid configuration: missing {missing_key} config entry"
+    with pytest.raises(ValueError, match=expected_error):
+        check_config(config_ko)
+
+
+@pytest.mark.parametrize("missing_key", ["storage", "cache", "scheduler"])
+def test_check_config_ok(missing_key, swh_vault_config) -> None:
+    """Any other configuration than 'local' (the default) is rejected"""
+    config_ok = {"vault": {"cls": "local", "args": swh_vault_config}}
+    assert check_config(config_ok) is not None

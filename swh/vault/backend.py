@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2018  The Software Heritage developers
+# Copyright (C) 2017-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,7 +12,10 @@ import psycopg2.pool
 from swh.core.db import BaseDb
 from swh.core.db.common import db_transaction
 from swh.model import hashutil
+from swh.scheduler import get_scheduler
 from swh.scheduler.utils import create_oneshot_task_dict
+from swh.storage import get_storage
+from swh.vault.cache import VaultCache
 from swh.vault.cookers import get_cooker_cls
 from swh.vault.exc import NotFoundExc
 
@@ -67,11 +70,11 @@ class VaultBackend:
     Backend for the Software Heritage vault.
     """
 
-    def __init__(self, db, cache, scheduler, storage=None, **config):
+    def __init__(self, db, **config):
         self.config = config
-        self.cache = cache
-        self.scheduler = scheduler
-        self.storage = storage
+        self.cache = VaultCache(**config["cache"])
+        self.scheduler = get_scheduler(**config["scheduler"])
+        self.storage = get_storage(**config["storage"])
         self.smtp_server = smtplib.SMTP()
 
         self._pool = psycopg2.pool.ThreadedConnectionPool(

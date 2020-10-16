@@ -214,7 +214,7 @@ def get_local_backend(cfg):
         if not args.get(key):
             raise ValueError("invalid configuration; missing %s config entry." % key)
 
-    return get_vault("local", args)
+    return get_vault("local", **args)
 
 
 def make_app_from_configfile(config_file=None, **kwargs):

@@ -1,6 +1,7 @@
 import glob
 import os
 import subprocess
+from typing import Any, Dict
 
 import pkg_resources.extern.packaging.version
 import pytest
@@ -38,8 +39,28 @@ postgresql2 = factories.postgresql("postgresql_proc", "tests2")
 
 
 @pytest.fixture
-def swh_vault(request, postgresql_proc, postgresql, postgresql2, tmp_path):
+def swh_vault_config(postgresql, postgresql2, tmp_path) -> Dict[str, Any]:
+    tmp_path = str(tmp_path)
+    return {
+        "db": postgresql.dsn,
+        "storage": {
+            "cls": "local",
+            "db": postgresql2.dsn,
+            "objstorage": {
+                "cls": "pathslicing",
+                "args": {"root": tmp_path, "slicing": "0:1/1:5",},
+            },
+        },
+        "cache": {
+            "cls": "pathslicing",
+            "args": {"root": tmp_path, "slicing": "0:1/1:5", "allow_delete": True,},
+        },
+        "scheduler": {"cls": "remote", "url": "http://swh-scheduler:5008",},
+    }
 
+
+@pytest.fixture
+def swh_vault(request, swh_vault_config, postgresql, postgresql2, tmp_path):
     for sql_dir, pg in ((SQL_DIR, postgresql), (STORAGE_SQL_DIR, postgresql2)):
         dump_files = os.path.join(sql_dir, "*.sql")
         all_dump_files = sorted(glob.glob(dump_files), key=sortkey)
@@ -59,28 +80,7 @@ def swh_vault(request, postgresql_proc, postgresql, postgresql2, tmp_path):
                 ]
             )
 
-    vault_config = {
-        "db": db_url("tests", postgresql_proc),
-        "storage": {
-            "cls": "local",
-            "db": db_url("tests2", postgresql_proc),
-            "objstorage": {
-                "cls": "pathslicing",
-                "args": {"root": str(tmp_path), "slicing": "0:1/1:5",},
-            },
-        },
-        "cache": {
-            "cls": "pathslicing",
-            "args": {
-                "root": str(tmp_path),
-                "slicing": "0:1/1:5",
-                "allow_delete": True,
-            },
-        },
-        "scheduler": {"cls": "remote", "url": "http://swh-scheduler:5008",},
-    }
-
-    return get_vault("local", vault_config)
+    return get_vault("local", **swh_vault_config)
 
 
 @pytest.fixture

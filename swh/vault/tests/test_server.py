@@ -4,44 +4,110 @@
 # See top-level LICENSE file for more information
 
 import copy
+import os
+from typing import Any, Dict
 
 import pytest
+import yaml
 
-from swh.core.api.serializers import msgpack_dumps, msgpack_loads
-from swh.vault.api.server import check_config, make_app
+from swh.core.api.serializers import json_dumps, msgpack_dumps, msgpack_loads
+from swh.vault.api.server import (
+    VaultServerApp,
+    check_config,
+    make_app,
+    make_app_from_configfile,
+)
+from swh.vault.tests.test_backend import TEST_HEX_ID
+
+
+def test_make_app_from_file_missing():
+    with pytest.raises(ValueError, match="Missing configuration path."):
+        make_app_from_configfile()
+
+
+def test_make_app_from_file_does_not_exist(tmp_path):
+    conf_path = os.path.join(str(tmp_path), "vault-server.yml")
+    assert os.path.exists(conf_path) is False
+
+    with pytest.raises(
+        ValueError, match=f"Configuration path {conf_path} should exist."
+    ):
+        make_app_from_configfile(conf_path)
+
+
+def test_make_app_from_env_variable(swh_vault_config_file):
+    """Instantiation of the server should happen once (through environment variable)
+
+    """
+    app0 = make_app_from_configfile()
+    assert app0 is not None
+    app1 = make_app_from_configfile()
+    assert app1 == app0
+
+
+def test_make_app_from_file(swh_local_vault_config, tmp_path):
+    """Instantiation of the server should happen once (through environment variable)
+
+    """
+    conf_path = os.path.join(str(tmp_path), "vault-server.yml")
+    with open(conf_path, "w") as f:
+        f.write(yaml.dump(swh_local_vault_config))
+
+    app0 = make_app_from_configfile(conf_path)
+    assert app0 is not None
+    app1 = make_app_from_configfile(conf_path)
+    assert app1 == app0
 
 
 @pytest.fixture
-def client(swh_vault, loop, aiohttp_client):
-    app = make_app(backend=swh_vault)
-    return loop.run_until_complete(aiohttp_client(app))
+def async_app(swh_local_vault_config: Dict[str, Any],) -> VaultServerApp:
+    """Instantiate the vault server application.
+
+    Note: This requires the db setup to run (fixture swh_vault in charge of this)
+
+    """
+    return make_app(swh_local_vault_config)
 
 
-async def test_index(client):
-    resp = await client.get("/")
+@pytest.fixture
+def cli(async_app, aiohttp_client, loop):
+    return loop.run_until_complete(aiohttp_client(async_app))
+
+
+async def test_client_index(cli):
+    resp = await cli.get("/")
     assert resp.status == 200
 
 
-async def test_cook_notfound(client):
-    resp = await client.post("/cook/directory/000000")
+async def test_client_cook_notfound(cli):
+    resp = await cli.post(
+        "/cook",
+        data=json_dumps({"obj_type": "directory", "obj_id": TEST_HEX_ID}),
+        headers=[("Content-Type", "application/json")],
+    )
     assert resp.status == 400
     content = msgpack_loads(await resp.content.read())
     assert content["exception"]["type"] == "NotFoundExc"
-    assert content["exception"]["args"] == ["Object 000000 was not found."]
+    assert content["exception"]["args"] == [f"directory {TEST_HEX_ID} was not found."]
 
 
-async def test_progress_notfound(client):
-    resp = await client.get("/progress/directory/000000")
+async def test_client_progress_notfound(cli):
+    resp = await cli.post(
+        "/progress",
+        data=json_dumps({"obj_type": "directory", "obj_id": TEST_HEX_ID}),
+        headers=[("Content-Type", "application/json")],
+    )
     assert resp.status == 400
     content = msgpack_loads(await resp.content.read())
     assert content["exception"]["type"] == "NotFoundExc"
-    assert content["exception"]["args"] == ["directory 000000 was not found."]
+    assert content["exception"]["args"] == [f"directory {TEST_HEX_ID} was not found."]
 
 
-async def test_batch_cook_invalid_type(client):
-    data = msgpack_dumps([("foobar", [])])
-    resp = await client.post(
-        "/batch_cook", data=data, headers={"Content-Type": "application/x-msgpack"}
+async def test_client_batch_cook_invalid_type(cli):
+    resp = await cli.post(
+        "/batch_cook",
+        data=msgpack_dumps({"batch": [("foobar", [])]}),
+        headers={"Content-Type": "application/x-msgpack"},
     )
     assert resp.status == 400
     content = msgpack_loads(await resp.content.read())
@@ -49,8 +115,12 @@ async def test_batch_cook_invalid_type(client):
     assert content["exception"]["args"] == ["foobar is an unknown type."]
 
 
-async def test_batch_progress_notfound(client):
-    resp = await client.get("/batch_progress/1")
+async def test_client_batch_progress_notfound(cli):
+    resp = await cli.post(
+        "/batch_progress",
+        data=msgpack_dumps({"batch_id": 1}),
+        headers={"Content-Type": "application/x-msgpack"},
+    )
     assert resp.status == 400
     content = msgpack_loads(await resp.content.read())
     assert content["exception"]["type"] == "NotFoundExc"

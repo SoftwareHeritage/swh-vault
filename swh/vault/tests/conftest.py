@@ -8,6 +8,7 @@ from typing import Any, Dict
 
 import pkg_resources.extern.packaging.version
 import pytest
+import yaml
 
 from swh.core.db.pytest_plugin import postgresql_fact
 from swh.storage.tests import SQL_DIR as STORAGE_SQL_DIR
@@ -63,10 +64,27 @@ def swh_vault_config(postgres_vault, postgres_storage, tmp_path) -> Dict[str, An
         },
         "cache": {
             "cls": "pathslicing",
-            "args": {"root": tmp_path, "slicing": "0:1/1:5", "allow_delete": True,},
+            "args": {"root": tmp_path, "slicing": "0:1/1:5", "allow_delete": True},
         },
         "scheduler": {"cls": "remote", "url": "http://swh-scheduler:5008",},
     }
+
+
+@pytest.fixture
+def swh_local_vault_config(swh_vault_config: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "vault": {"cls": "local", "args": swh_vault_config},
+        "client_max_size": 1024 ** 3,
+    }
+
+
+@pytest.fixture
+def swh_vault_config_file(swh_local_vault_config, monkeypatch, tmp_path):
+    conf_path = os.path.join(str(tmp_path), "vault-server.yml")
+    with open(conf_path, "w") as f:
+        f.write(yaml.dump(swh_local_vault_config))
+    monkeypatch.setenv("SWH_CONFIG_FILENAME", conf_path)
+    return conf_path
 
 
 @pytest.fixture

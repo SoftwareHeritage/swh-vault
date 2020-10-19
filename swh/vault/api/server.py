@@ -32,10 +32,7 @@ DEFAULT_CONFIG = {
         "dict",
         {"cls": "local", "args": {"db": "dbname=softwareheritage-vault-dev",},},
     ),
-    "scheduler": (
-        "dict",
-        {"cls": "remote", "args": {"url": "http://localhost:5008/",}},
-    ),
+    "scheduler": ("dict", {"cls": "remote", "url": "http://localhost:5008/",},),
 }
 
 

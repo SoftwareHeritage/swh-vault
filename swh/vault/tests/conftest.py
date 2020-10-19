@@ -77,7 +77,7 @@ def swh_vault(request, postgresql_proc, postgresql, postgresql2, tmp_path):
                 "allow_delete": True,
             },
         },
-        "scheduler": {"cls": "remote", "args": {"url": "http://swh-scheduler:5008",},},
+        "scheduler": {"cls": "remote", "url": "http://swh-scheduler:5008",},
     }
 
     return get_vault("local", vault_config)

@@ -1,4 +1,4 @@
-# Copyright (C) 2017  The Software Heritage developers
+# Copyright (C) 2017-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -24,26 +24,37 @@ def get_cooker_cls(obj_type):
     return COOKER_TYPES[obj_type]
 
 
-def get_cooker(obj_type, obj_id):
+def get_cooker(obj_type: str, obj_id: str):
+    """Instantiate a cooker class of type obj_type.
+
+    Returns:
+        Cooker class in charge of cooking the obj_type with id obj_id.
+
+    Raises:
+        ValueError in case of a missing top-level vault key configuration or a storage
+          key.
+        EnvironmentError in case the vault configuration reference a non remote class.
+
+    """
     if "SWH_CONFIG_FILENAME" in os.environ:
         cfg = read_config(os.environ["SWH_CONFIG_FILENAME"], DEFAULT_CONFIG)
     else:
         cfg = load_named_config(DEFAULT_CONFIG_PATH, DEFAULT_CONFIG)
     cooker_cls = get_cooker_cls(obj_type)
     if "vault" not in cfg:
-        raise ValueError("missing '%vault' configuration")
+        raise ValueError("missing 'vault' configuration")
 
     vcfg = cfg["vault"]
     if vcfg["cls"] != "remote":
         raise EnvironmentError(
-            "This vault backend can only be a 'remote' " "configuration", err=True
+            "This vault backend can only be a 'remote' configuration"
         )
     args = vcfg["args"]
     if "storage" not in args:
         args["storage"] = cfg.get("storage")
 
     if not args.get("storage"):
-        raise ValueError("invalid configuration; missing 'storage' config entry.")
+        raise ValueError("invalid configuration: missing 'storage' config entry.")
 
     storage = get_storage(**args.pop("storage"))
     backend = get_vault(**vcfg)

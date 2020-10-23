@@ -124,11 +124,10 @@ class DirectoryBuilder:
         identifier."""
         for file_data in revs_data:
             path = os.path.join(self.root, file_data["path"])
-            self._create_file(
-                path, hashutil.hash_to_hex(file_data["target"]), mode=0o120000
-            )
+            target = hashutil.hash_to_hex(file_data["target"])
+            self._create_file(path, target, mode=DentryPerms.symlink)
 
-    def _create_file(self, path, content, mode=0o100644):
+    def _create_file(self, path, content, mode=DentryPerms.content):
         """Create the given file and fill it with content."""
         perms = mode_to_perms(mode)
         if perms == DentryPerms.symlink:

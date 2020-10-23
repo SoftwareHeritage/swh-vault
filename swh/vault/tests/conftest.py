@@ -21,7 +21,7 @@ pytest_v = pkg_resources.get_distribution("pytest").parsed_version
 if pytest_v < pkg_resources.extern.packaging.version.parse("3.9"):
 
     @pytest.fixture
-    def tmp_path(request):
+    def tmp_path():
         import pathlib
         import tempfile
 
@@ -88,7 +88,7 @@ def swh_vault_config_file(swh_local_vault_config, monkeypatch, tmp_path):
 
 
 @pytest.fixture
-def swh_vault(request, swh_vault_config):
+def swh_vault(swh_vault_config):
     return get_vault("local", **swh_vault_config)
 
 

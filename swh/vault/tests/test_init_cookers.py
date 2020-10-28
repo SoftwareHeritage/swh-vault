@@ -63,7 +63,6 @@ def test_write_to_env(swh_cooker_config, tmp_path, monkeypatch):
             ValueError,
             "invalid configuration: missing 'storage' config entry",
         ),
-        ({"vault": {"cls": "remote"}}, KeyError, "args",),
     ],
 )
 def test_get_cooker_config_ko(
@@ -92,6 +91,10 @@ def test_get_cooker_config_ko(
         },
         {
             "vault": {"cls": "remote", "args": {"url": "mock://vault-backend",},},
+            "storage": {"cls": "remote", "url": "mock://storage-url"},
+        },
+        {
+            "vault": {"cls": "remote", "url": "mock://vault-backend",},
             "storage": {"cls": "remote", "url": "mock://storage-url"},
         },
     ],

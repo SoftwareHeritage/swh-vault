@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from __future__ import annotations
+
 import asyncio
 import os
 from typing import Any, Dict, Optional
@@ -49,7 +51,7 @@ def index(request):
 
 
 def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    """Ensure the configuration is ok to run a local vault server
+    """Ensure the configuration is ok to run a local vault server, and propagate defaults.
 
     Raises:
         EnvironmentError if the configuration is not for local instance
@@ -57,9 +59,11 @@ def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
         scheduler
 
     Returns:
-        Configuration dict to instantiate a local vault server instance
+        New configuration dict to instantiate a local vault server instance.
 
     """
+    cfg = cfg.copy()
+
     if "vault" not in cfg:
         raise ValueError("missing 'vault' configuration")
 
@@ -68,31 +72,35 @@ def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
         raise EnvironmentError(
             "The vault backend can only be started with a 'local' configuration",
         )
-    args = vcfg["args"]
-    if "cache" not in args:
-        args["cache"] = cfg.get("cache")
-    if "storage" not in args:
-        args["storage"] = cfg.get("storage")
-    if "scheduler" not in args:
-        args["scheduler"] = cfg.get("scheduler")
+
+    # TODO: Soft-deprecation of args key. Remove when ready.
+    vcfg.update(vcfg.get("args", {}))
+
+    # Default to top-level value if any
+    if "cache" not in vcfg:
+        vcfg["cache"] = cfg.get("cache")
+    if "storage" not in vcfg:
+        vcfg["storage"] = cfg.get("storage")
+    if "scheduler" not in vcfg:
+        vcfg["scheduler"] = cfg.get("scheduler")
 
     for key in ("cache", "storage", "scheduler"):
-        if not args.get(key):
+        if not vcfg.get(key):
             raise ValueError(f"invalid configuration: missing {key} config entry.")
 
     return cfg
 
 
-def make_app(config_to_check: Dict[str, Any]) -> VaultServerApp:
+def make_app(config: Dict[str, Any]) -> VaultServerApp:
     """Ensure the configuration is ok, then instantiate the server application
 
     """
-    config_ok = check_config(config_to_check)
+    config = check_config(config)
     app = VaultServerApp(
         __name__,
         backend_class=VaultInterface,
-        backend_factory=lambda: get_vault(config_ok["vault"]),
-        client_max_size=config_ok["client_max_size"],
+        backend_factory=lambda: get_vault(config["vault"]),
+        client_max_size=config["client_max_size"],
     )
     app.router.add_route("GET", "/", index)
     return app

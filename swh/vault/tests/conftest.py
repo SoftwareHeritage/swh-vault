@@ -73,7 +73,7 @@ def swh_vault_config(postgres_vault, postgres_storage, tmp_path) -> Dict[str, An
 @pytest.fixture
 def swh_local_vault_config(swh_vault_config: Dict[str, Any]) -> Dict[str, Any]:
     return {
-        "vault": {"cls": "local", "args": swh_vault_config},
+        "vault": {"cls": "local", **swh_vault_config},
         "client_max_size": 1024 ** 3,
     }
 

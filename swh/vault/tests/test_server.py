@@ -145,9 +145,9 @@ def test_check_config_not_local() -> None:
 @pytest.mark.parametrize("missing_key", ["storage", "cache", "scheduler"])
 def test_check_config_missing_key(missing_key, swh_vault_config) -> None:
     """Any other configuration than 'local' (the default) is rejected"""
-    config_ok = {"vault": {"cls": "local", "args": swh_vault_config}}
+    config_ok = {"vault": {"cls": "local", **swh_vault_config}}
     config_ko = copy.deepcopy(config_ok)
-    config_ko["vault"]["args"].pop(missing_key, None)
+    config_ko["vault"].pop(missing_key, None)
 
     expected_error = f"invalid configuration: missing {missing_key} config entry"
     with pytest.raises(ValueError, match=expected_error):
@@ -157,5 +157,5 @@ def test_check_config_missing_key(missing_key, swh_vault_config) -> None:
 @pytest.mark.parametrize("missing_key", ["storage", "cache", "scheduler"])
 def test_check_config_ok(missing_key, swh_vault_config) -> None:
     """Any other configuration than 'local' (the default) is rejected"""
-    config_ok = {"vault": {"cls": "local", "args": swh_vault_config}}
+    config_ok = {"vault": {"cls": "local", **swh_vault_config}}
     assert check_config(config_ok) is not None

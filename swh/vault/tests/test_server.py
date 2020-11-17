@@ -36,27 +36,23 @@ def test_make_app_from_file_does_not_exist(tmp_path):
 
 
 def test_make_app_from_env_variable(swh_vault_config_file):
-    """Instantiation of the server should happen once (through environment variable)
+    """Server initialization happens through env variable when no path is provided
 
     """
-    app0 = make_app_from_configfile()
-    assert app0 is not None
-    app1 = make_app_from_configfile()
-    assert app1 == app0
+    app = make_app_from_configfile()
+    assert app is not None
 
 
 def test_make_app_from_file(swh_local_vault_config, tmp_path):
-    """Instantiation of the server should happen once (through environment variable)
+    """Server initialization happens trough path if provided
 
     """
     conf_path = os.path.join(str(tmp_path), "vault-server.yml")
     with open(conf_path, "w") as f:
         f.write(yaml.dump(swh_local_vault_config))
 
-    app0 = make_app_from_configfile(conf_path)
-    assert app0 is not None
-    app1 = make_app_from_configfile(conf_path)
-    assert app1 == app0
+    app = make_app_from_configfile(conf_path)
+    assert app is not None
 
 
 @pytest.fixture

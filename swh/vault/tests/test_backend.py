@@ -1,4 +1,4 @@
-# Copyright (C) 2017  The Software Heritage developers
+# Copyright (C) 2017-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,10 +7,12 @@ import contextlib
 import datetime
 from unittest.mock import MagicMock, patch
 
+import attr
 import psycopg2
 import pytest
 
 from swh.model import hashutil
+from swh.vault.exc import NotFoundExc
 from swh.vault.tests.vault_testing import hash_content
 
 
@@ -64,9 +66,17 @@ TEST_PROGRESS = (
 TEST_EMAIL = "ouiche@lorraine.fr"
 
 
+@pytest.fixture
+def swh_vault(swh_vault, sample_data):
+    # make the vault's storage consistent with test data
+    revision = attr.evolve(sample_data.revision, id=TEST_OBJ_ID)
+    swh_vault.storage.revision_add([revision])
+    return swh_vault
+
+
 def test_create_task_simple(swh_vault):
     with mock_cooking(swh_vault) as m:
-        swh_vault.create_task(TEST_TYPE, TEST_OBJ_ID)
+        swh_vault.create_task(TEST_TYPE, TEST_HEX_ID)
 
     m["get_cooker_cls"].assert_called_once_with(TEST_TYPE)
 
@@ -81,8 +91,8 @@ def test_create_task_simple(swh_vault):
     assert args[0] == TEST_TYPE
     assert args[1] == TEST_HEX_ID
 
-    info = swh_vault.task_info(TEST_TYPE, TEST_OBJ_ID)
-    assert info["object_id"] == TEST_OBJ_ID
+    info = swh_vault.progress(TEST_TYPE, TEST_HEX_ID)
+    assert info["object_id"] == TEST_HEX_ID
     assert info["type"] == TEST_TYPE
     assert info["task_status"] == "new"
     assert info["task_id"] == 42
@@ -95,44 +105,44 @@ def test_create_task_simple(swh_vault):
 
 def test_create_fail_duplicate_task(swh_vault):
     with mock_cooking(swh_vault):
-        swh_vault.create_task(TEST_TYPE, TEST_OBJ_ID)
+        swh_vault.create_task(TEST_TYPE, TEST_HEX_ID)
         with pytest.raises(psycopg2.IntegrityError):
-            swh_vault.create_task(TEST_TYPE, TEST_OBJ_ID)
+            swh_vault.create_task(TEST_TYPE, TEST_HEX_ID)
 
 
 def test_create_fail_nonexisting_object(swh_vault):
     with mock_cooking(swh_vault) as m:
         m["cooker"].check_exists.side_effect = ValueError("Nothing here.")
         with pytest.raises(ValueError):
-            swh_vault.create_task(TEST_TYPE, TEST_OBJ_ID)
+            swh_vault.create_task(TEST_TYPE, TEST_HEX_ID)
 
 
 def test_create_set_progress(swh_vault):
     with mock_cooking(swh_vault):
-        swh_vault.create_task(TEST_TYPE, TEST_OBJ_ID)
+        swh_vault.create_task(TEST_TYPE, TEST_HEX_ID)
 
-    info = swh_vault.task_info(TEST_TYPE, TEST_OBJ_ID)
+    info = swh_vault.progress(TEST_TYPE, TEST_HEX_ID)
     assert info["progress_msg"] is None
-    swh_vault.set_progress(TEST_TYPE, TEST_OBJ_ID, TEST_PROGRESS)
-    info = swh_vault.task_info(TEST_TYPE, TEST_OBJ_ID)
+    swh_vault.set_progress(TEST_TYPE, TEST_HEX_ID, TEST_PROGRESS)
+    info = swh_vault.progress(TEST_TYPE, TEST_HEX_ID)
     assert info["progress_msg"] == TEST_PROGRESS
 
 
 def test_create_set_status(swh_vault):
     with mock_cooking(swh_vault):
-        swh_vault.create_task(TEST_TYPE, TEST_OBJ_ID)
+        swh_vault.create_task(TEST_TYPE, TEST_HEX_ID)
 
-    info = swh_vault.task_info(TEST_TYPE, TEST_OBJ_ID)
+    info = swh_vault.progress(TEST_TYPE, TEST_HEX_ID)
     assert info["task_status"] == "new"
     assert info["ts_done"] is None
 
-    swh_vault.set_status(TEST_TYPE, TEST_OBJ_ID, "pending")
-    info = swh_vault.task_info(TEST_TYPE, TEST_OBJ_ID)
+    swh_vault.set_status(TEST_TYPE, TEST_HEX_ID, "pending")
+    info = swh_vault.progress(TEST_TYPE, TEST_HEX_ID)
     assert info["task_status"] == "pending"
     assert info["ts_done"] is None
 
-    swh_vault.set_status(TEST_TYPE, TEST_OBJ_ID, "done")
-    info = swh_vault.task_info(TEST_TYPE, TEST_OBJ_ID)
+    swh_vault.set_status(TEST_TYPE, TEST_HEX_ID, "done")
+    info = swh_vault.progress(TEST_TYPE, TEST_HEX_ID)
     assert info["task_status"] == "done"
     assertTimestampAlmostNow(info["ts_done"])
 
@@ -141,17 +151,18 @@ def test_create_update_access_ts(swh_vault):
     with mock_cooking(swh_vault):
         swh_vault.create_task(TEST_TYPE, TEST_OBJ_ID)
 
-    info = swh_vault.task_info(TEST_TYPE, TEST_OBJ_ID)
+    info = swh_vault.progress(TEST_TYPE, TEST_OBJ_ID)
     access_ts_1 = info["ts_last_access"]
     assertTimestampAlmostNow(access_ts_1)
 
     swh_vault.update_access_ts(TEST_TYPE, TEST_OBJ_ID)
-    info = swh_vault.task_info(TEST_TYPE, TEST_OBJ_ID)
+    info = swh_vault.progress(TEST_TYPE, TEST_OBJ_ID)
     access_ts_2 = info["ts_last_access"]
     assertTimestampAlmostNow(access_ts_2)
 
     swh_vault.update_access_ts(TEST_TYPE, TEST_OBJ_ID)
-    info = swh_vault.task_info(TEST_TYPE, TEST_OBJ_ID)
+    info = swh_vault.progress(TEST_TYPE, TEST_OBJ_ID)
+
     access_ts_3 = info["ts_last_access"]
     assertTimestampAlmostNow(access_ts_3)
 
@@ -159,11 +170,11 @@ def test_create_update_access_ts(swh_vault):
     assert access_ts_2 < access_ts_3
 
 
-def test_cook_request_idempotent(swh_vault):
+def test_cook_idempotent(swh_vault, sample_data):
     with mock_cooking(swh_vault):
-        info1 = swh_vault.cook_request(TEST_TYPE, TEST_OBJ_ID)
-        info2 = swh_vault.cook_request(TEST_TYPE, TEST_OBJ_ID)
-        info3 = swh_vault.cook_request(TEST_TYPE, TEST_OBJ_ID)
+        info1 = swh_vault.cook(TEST_TYPE, TEST_HEX_ID)
+        info2 = swh_vault.cook(TEST_TYPE, TEST_HEX_ID)
+        info3 = swh_vault.cook(TEST_TYPE, TEST_HEX_ID)
         assert info1 == info2
         assert info1 == info3
 
@@ -173,23 +184,23 @@ def test_cook_email_pending_done(swh_vault):
         swh_vault, "add_notif_email"
     ) as madd, patch.object(swh_vault, "send_notification") as msend:
 
-        swh_vault.cook_request(TEST_TYPE, TEST_OBJ_ID)
+        swh_vault.cook(TEST_TYPE, TEST_HEX_ID)
         madd.assert_not_called()
         msend.assert_not_called()
 
         madd.reset_mock()
         msend.reset_mock()
 
-        swh_vault.cook_request(TEST_TYPE, TEST_OBJ_ID, email=TEST_EMAIL)
+        swh_vault.cook(TEST_TYPE, TEST_HEX_ID, email=TEST_EMAIL)
         madd.assert_called_once_with(TEST_TYPE, TEST_OBJ_ID, TEST_EMAIL)
         msend.assert_not_called()
 
         madd.reset_mock()
         msend.reset_mock()
 
-        swh_vault.set_status(TEST_TYPE, TEST_OBJ_ID, "done")
-        swh_vault.cook_request(TEST_TYPE, TEST_OBJ_ID, email=TEST_EMAIL)
-        msend.assert_called_once_with(None, TEST_EMAIL, TEST_TYPE, TEST_OBJ_ID, "done")
+        swh_vault.set_status(TEST_TYPE, TEST_HEX_ID, "done")
+        swh_vault.cook(TEST_TYPE, TEST_HEX_ID, email=TEST_EMAIL)
+        msend.assert_called_once_with(None, TEST_EMAIL, TEST_TYPE, TEST_HEX_ID, "done")
         madd.assert_not_called()
 
 
@@ -197,12 +208,12 @@ def test_send_all_emails(swh_vault):
     with mock_cooking(swh_vault):
         emails = ("a@example.com", "billg@example.com", "test+42@example.org")
         for email in emails:
-            swh_vault.cook_request(TEST_TYPE, TEST_OBJ_ID, email=email)
+            swh_vault.cook(TEST_TYPE, TEST_HEX_ID, email=email)
 
-    swh_vault.set_status(TEST_TYPE, TEST_OBJ_ID, "done")
+    swh_vault.set_status(TEST_TYPE, TEST_HEX_ID, "done")
 
     with patch.object(swh_vault, "smtp_server") as m:
-        swh_vault.send_all_notifications(TEST_TYPE, TEST_OBJ_ID)
+        swh_vault.send_notif(TEST_TYPE, TEST_HEX_ID)
 
         sent_emails = {k[0][0] for k in m.send_message.call_args_list}
         assert {k["To"] for k in sent_emails} == set(emails)
@@ -219,34 +230,40 @@ def test_send_all_emails(swh_vault):
         # Check that the entries have been deleted and recalling the
         # function does not re-send the e-mails
         m.reset_mock()
-        swh_vault.send_all_notifications(TEST_TYPE, TEST_OBJ_ID)
+        swh_vault.send_notif(TEST_TYPE, TEST_HEX_ID)
         m.assert_not_called()
 
 
 def test_available(swh_vault):
-    assert not swh_vault.is_available(TEST_TYPE, TEST_OBJ_ID)
+    assert not swh_vault.is_available(TEST_TYPE, TEST_HEX_ID)
 
     with mock_cooking(swh_vault):
-        swh_vault.create_task(TEST_TYPE, TEST_OBJ_ID)
-    assert not swh_vault.is_available(TEST_TYPE, TEST_OBJ_ID)
+        swh_vault.create_task(TEST_TYPE, TEST_HEX_ID)
+    assert not swh_vault.is_available(TEST_TYPE, TEST_HEX_ID)
 
-    swh_vault.cache.add(TEST_TYPE, TEST_OBJ_ID, b"content")
-    assert not swh_vault.is_available(TEST_TYPE, TEST_OBJ_ID)
+    swh_vault.cache.add(TEST_TYPE, TEST_HEX_ID, b"content")
+    assert not swh_vault.is_available(TEST_TYPE, TEST_HEX_ID)
 
-    swh_vault.set_status(TEST_TYPE, TEST_OBJ_ID, "done")
-    assert swh_vault.is_available(TEST_TYPE, TEST_OBJ_ID)
+    swh_vault.set_status(TEST_TYPE, TEST_HEX_ID, "done")
+    assert swh_vault.is_available(TEST_TYPE, TEST_HEX_ID)
 
 
 def test_fetch(swh_vault):
-    assert swh_vault.fetch(TEST_TYPE, TEST_OBJ_ID) is None
+    assert swh_vault.fetch(TEST_TYPE, TEST_HEX_ID, raise_notfound=False) is None
+
+    with pytest.raises(
+        NotFoundExc, match=f"{TEST_TYPE} {TEST_HEX_ID} is not available."
+    ):
+        swh_vault.fetch(TEST_TYPE, TEST_HEX_ID)
+
     obj_id, content = fake_cook(swh_vault, TEST_TYPE, b"content")
 
-    info = swh_vault.task_info(TEST_TYPE, obj_id)
+    info = swh_vault.progress(TEST_TYPE, obj_id)
     access_ts_before = info["ts_last_access"]
 
     assert swh_vault.fetch(TEST_TYPE, obj_id) == b"content"
 
-    info = swh_vault.task_info(TEST_TYPE, obj_id)
+    info = swh_vault.progress(TEST_TYPE, obj_id)
     access_ts_after = info["ts_last_access"]
 
     assertTimestampAlmostNow(access_ts_after)
@@ -297,21 +314,21 @@ def test_cache_expire_until(swh_vault):
 
 
 def test_fail_cook_simple(swh_vault):
-    fail_cook(swh_vault, TEST_TYPE, TEST_OBJ_ID, "error42")
-    assert not swh_vault.is_available(TEST_TYPE, TEST_OBJ_ID)
-    info = swh_vault.task_info(TEST_TYPE, TEST_OBJ_ID)
+    fail_cook(swh_vault, TEST_TYPE, TEST_HEX_ID, "error42")
+    assert not swh_vault.is_available(TEST_TYPE, TEST_HEX_ID)
+    info = swh_vault.progress(TEST_TYPE, TEST_HEX_ID)
     assert info["progress_msg"] == "error42"
 
 
 def test_send_failure_email(swh_vault):
     with mock_cooking(swh_vault):
-        swh_vault.cook_request(TEST_TYPE, TEST_OBJ_ID, email="a@example.com")
+        swh_vault.cook(TEST_TYPE, TEST_HEX_ID, email="a@example.com")
 
-    swh_vault.set_status(TEST_TYPE, TEST_OBJ_ID, "failed")
-    swh_vault.set_progress(TEST_TYPE, TEST_OBJ_ID, "test error")
+    swh_vault.set_status(TEST_TYPE, TEST_HEX_ID, "failed")
+    swh_vault.set_progress(TEST_TYPE, TEST_HEX_ID, "test error")
 
     with patch.object(swh_vault, "smtp_server") as m:
-        swh_vault.send_all_notifications(TEST_TYPE, TEST_OBJ_ID)
+        swh_vault.send_notif(TEST_TYPE, TEST_HEX_ID)
 
         e = [k[0][0] for k in m.send_message.call_args_list][0]
         assert e["To"] == "a@example.com"
@@ -327,10 +344,10 @@ def test_send_failure_email(swh_vault):
 
 
 def test_retry_failed_bundle(swh_vault):
-    fail_cook(swh_vault, TEST_TYPE, TEST_OBJ_ID, "error42")
-    info = swh_vault.task_info(TEST_TYPE, TEST_OBJ_ID)
+    fail_cook(swh_vault, TEST_TYPE, TEST_HEX_ID, "error42")
+    info = swh_vault.progress(TEST_TYPE, TEST_HEX_ID)
     assert info["task_status"] == "failed"
     with mock_cooking(swh_vault):
-        swh_vault.cook_request(TEST_TYPE, TEST_OBJ_ID)
-    info = swh_vault.task_info(TEST_TYPE, TEST_OBJ_ID)
+        swh_vault.cook(TEST_TYPE, TEST_HEX_ID)
+    info = swh_vault.progress(TEST_TYPE, TEST_HEX_ID)
     assert info["task_status"] == "new"

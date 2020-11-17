@@ -3,7 +3,8 @@ flask
 psycopg2
 python-dateutil
 fastimport
-swh.core[db,http]>=0.3
+typing-extensions
+swh.core[db,http]>=0.5
 swh.model>=0.3
 swh.objstorage>=0.0.17
 swh.scheduler>=0.7.0
@@ -17,3 +18,4 @@ dulwich>=0.18.7
 swh.loader.core
 swh.loader.git>=0.0.52
 swh.storage[testing]
+pytest-mock

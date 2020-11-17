@@ -17,7 +17,7 @@ from fastimport.commands import (
 )
 
 from swh.model import hashutil
-from swh.model.from_disk import mode_to_perms
+from swh.model.from_disk import DentryPerms, mode_to_perms
 from swh.model.toposort import toposort
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.cookers.utils import revision_log
@@ -203,7 +203,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
                 ):
                     yield FileModifyCommand(
                         path=os.path.join(root, fname),
-                        mode=0o160000,
+                        mode=DentryPerms.revision,
                         dataref=hashutil.hash_to_hex(f["target"]).encode(),
                         data=None,
                     )

@@ -1,8 +1,23 @@
-swh-vault (0.2.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-vault (0.3.0-1~swh2) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * Fix dependency release
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 19 Oct 2020 07:55:49 +0000
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Tue, 17 Nov 2020 16:54:03 +0000
+
+swh-vault (0.3.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.3.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-11-13 12:10:09
+    +0100)
+  * Upstream changes:     - v0.3.0     - Refactor vault configuration
+    without the args indirection     - vault.server: Introduce typed
+    VaultInterface     - Replace file modes literals to DentryPerms enum
+    - Add tests on current configuration check for cooker instantiation
+    - api.server: Add types and tests on configuration checks     -
+    swh.vault: Unify get_vault factory function with other factories
+    - vault.tests: Make postgresql fixture faster
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 17 Nov 2020 16:22:52 +0000
 
 swh-vault (0.2.0-1~swh1) unstable-swh; urgency=medium
 

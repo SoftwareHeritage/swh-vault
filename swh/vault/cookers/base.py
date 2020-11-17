@@ -15,8 +15,6 @@ from swh.model import hashutil
 MAX_BUNDLE_SIZE = 2 ** 29  # 512 MiB
 DEFAULT_CONFIG_PATH = "vault/cooker"
 DEFAULT_CONFIG = {
-    "storage": ("dict", {"cls": "remote", "args": {"url": "http://localhost:5002/",},}),
-    "vault": ("dict", {"cls": "remote", "args": {"url": "http://localhost:5005/",},}),
     "max_bundle_size": ("int", MAX_BUNDLE_SIZE),
 }
 

@@ -5,3 +5,4 @@ dulwich >= 0.18.7
 swh.loader.core
 swh.loader.git >= 0.0.52
 swh.storage[testing]
+pytest-mock

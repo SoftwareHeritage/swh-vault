@@ -102,7 +102,7 @@ def make_app(config: Dict[str, Any]) -> VaultServerApp:
     app = VaultServerApp(
         __name__,
         backend_class=VaultInterface,
-        backend_factory=lambda: get_vault(config["vault"]),
+        backend_factory=lambda: get_vault(config),
         client_max_size=config["client_max_size"],
     )
     app.router.add_route("GET", "/", index)

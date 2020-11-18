@@ -1,3 +1,13 @@
+swh-vault (0.3.3-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.3.3     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-11-18 18:02:35
+    +0100)
+  * Upstream changes:     - v0.3.3     - Fix api.server configuration
+    adaptation issue
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 18 Nov 2020 18:40:45 +0000
+
 swh-vault (0.3.1-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.3.1     - (tagged by Antoine R. Dumont

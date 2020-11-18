@@ -21,10 +21,11 @@ DEFAULT_CONFIG = {
     "storage": {"cls": "remote", "url": "http://localhost:5002/"},
     "cache": {
         "cls": "pathslicing",
-        "args": {"root": "/srv/softwareheritage/vault", "slicing": "0:1/1:5"},
+        "root": "/srv/softwareheritage/vault",
+        "slicing": "0:1/1:5",
     },
     "client_max_size": 1024 ** 3,
-    "vault": {"cls": "local", "args": {"db": "dbname=softwareheritage-vault-dev",}},
+    "vault": {"cls": "local", "db": "dbname=softwareheritage-vault-dev",},
     "scheduler": {"cls": "remote", "url": "http://localhost:5008/"},
 }
 

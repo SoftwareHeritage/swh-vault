@@ -84,12 +84,14 @@ def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
         vcfg["storage"] = cfg.get("storage")
     if "scheduler" not in vcfg:
         vcfg["scheduler"] = cfg.get("scheduler")
+    if "client_max_size" not in vcfg:
+        vcfg["client_max_size"] = cfg.get("client_max_size")
 
     for key in ("cache", "storage", "scheduler"):
         if not vcfg.get(key):
             raise ValueError(f"invalid configuration: missing {key} config entry.")
 
-    return cfg
+    return vcfg
 
 
 def make_app(config: Dict[str, Any]) -> VaultServerApp:

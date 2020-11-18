@@ -70,20 +70,21 @@ def batch_to_bytes(batch: List[Tuple[str, str]]) -> List[Tuple[str, bytes]]:
 
 class VaultBackend:
     """
-    Backend for the Software Heritage vault.
+    Backend for the Software Heritage Vault.
     """
 
-    def __init__(self, db, **config):
+    def __init__(self, **config):
         self.config = config
         self.cache = VaultCache(**config["cache"])
         self.scheduler = get_scheduler(**config["scheduler"])
         self.storage = get_storage(**config["storage"])
         self.smtp_server = smtplib.SMTP()
 
+        db_conn = config["db"]
         self._pool = psycopg2.pool.ThreadedConnectionPool(
             config.get("min_pool_conns", 1),
             config.get("max_pool_conns", 10),
-            db,
+            db_conn,
             cursor_factory=psycopg2.extras.RealDictCursor,
         )
         self._db = None

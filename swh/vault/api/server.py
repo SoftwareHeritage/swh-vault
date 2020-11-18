@@ -21,10 +21,11 @@ DEFAULT_CONFIG = {
     "storage": {"cls": "remote", "url": "http://localhost:5002/"},
     "cache": {
         "cls": "pathslicing",
-        "args": {"root": "/srv/softwareheritage/vault", "slicing": "0:1/1:5"},
+        "root": "/srv/softwareheritage/vault",
+        "slicing": "0:1/1:5",
     },
     "client_max_size": 1024 ** 3,
-    "vault": {"cls": "local", "args": {"db": "dbname=softwareheritage-vault-dev",}},
+    "vault": {"cls": "local", "db": "dbname=softwareheritage-vault-dev",},
     "scheduler": {"cls": "remote", "url": "http://localhost:5008/"},
 }
 
@@ -83,12 +84,14 @@ def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
         vcfg["storage"] = cfg.get("storage")
     if "scheduler" not in vcfg:
         vcfg["scheduler"] = cfg.get("scheduler")
+    if "client_max_size" not in vcfg:
+        vcfg["client_max_size"] = cfg.get("client_max_size")
 
     for key in ("cache", "storage", "scheduler"):
         if not vcfg.get(key):
             raise ValueError(f"invalid configuration: missing {key} config entry.")
 
-    return cfg
+    return vcfg
 
 
 def make_app(config: Dict[str, Any]) -> VaultServerApp:
@@ -99,7 +102,7 @@ def make_app(config: Dict[str, Any]) -> VaultServerApp:
     app = VaultServerApp(
         __name__,
         backend_class=VaultInterface,
-        backend_factory=lambda: get_vault(config["vault"]),
+        backend_factory=lambda: get_vault(config),
         client_max_size=config["client_max_size"],
     )
     app.router.add_route("GET", "/", index)

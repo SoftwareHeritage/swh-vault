@@ -1,5 +1,4 @@
 pytest
-pytest-aiohttp
 pytest-postgresql
 dulwich >= 0.18.7
 swh.loader.core

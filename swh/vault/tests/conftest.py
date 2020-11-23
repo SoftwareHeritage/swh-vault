@@ -29,15 +29,6 @@ if pytest_v < pkg_resources.extern.packaging.version.parse("3.9"):
             yield pathlib.Path(tmpdir)
 
 
-def db_url(name, postgresql_proc):
-    return "postgresql://{user}@{host}:{port}/{dbname}".format(
-        host=postgresql_proc.host,
-        port=postgresql_proc.port,
-        user="postgres",
-        dbname=name,
-    )
-
-
 VAULT_SQL_DIR = os.path.join(os.path.dirname(swh.vault.__file__), "sql")
 
 

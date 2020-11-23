@@ -83,8 +83,8 @@ async def test_client_cook_notfound(cli):
     )
     assert resp.status == 400
     content = msgpack_loads(await resp.content.read())
-    assert content["exception"]["type"] == "NotFoundExc"
-    assert content["exception"]["args"] == [f"directory {TEST_HEX_ID} was not found."]
+    assert content["type"] == "NotFoundExc"
+    assert content["args"] == [f"directory {TEST_HEX_ID} was not found."]
 
 
 async def test_client_progress_notfound(cli):
@@ -95,8 +95,8 @@ async def test_client_progress_notfound(cli):
     )
     assert resp.status == 400
     content = msgpack_loads(await resp.content.read())
-    assert content["exception"]["type"] == "NotFoundExc"
-    assert content["exception"]["args"] == [f"directory {TEST_HEX_ID} was not found."]
+    assert content["type"] == "NotFoundExc"
+    assert content["args"] == [f"directory {TEST_HEX_ID} was not found."]
 
 
 async def test_client_batch_cook_invalid_type(cli):
@@ -107,8 +107,8 @@ async def test_client_batch_cook_invalid_type(cli):
     )
     assert resp.status == 400
     content = msgpack_loads(await resp.content.read())
-    assert content["exception"]["type"] == "NotFoundExc"
-    assert content["exception"]["args"] == ["foobar is an unknown type."]
+    assert content["type"] == "NotFoundExc"
+    assert content["args"] == ["foobar is an unknown type."]
 
 
 async def test_client_batch_progress_notfound(cli):
@@ -119,8 +119,8 @@ async def test_client_batch_progress_notfound(cli):
     )
     assert resp.status == 400
     content = msgpack_loads(await resp.content.read())
-    assert content["exception"]["type"] == "NotFoundExc"
-    assert content["exception"]["args"] == ["Batch 1 does not exist."]
+    assert content["type"] == "NotFoundExc"
+    assert content["args"] == ["Batch 1 does not exist."]
 
 
 def test_check_config_missing_vault_configuration() -> None:

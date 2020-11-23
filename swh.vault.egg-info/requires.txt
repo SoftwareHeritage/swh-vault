@@ -12,8 +12,6 @@ swh.storage>=0.0.106
 
 [testing]
 pytest
-pytest-aiohttp
-pytest-postgresql
 dulwich>=0.18.7
 swh.loader.core
 swh.loader.git>=0.0.52

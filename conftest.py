@@ -3,4 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-pytest_plugins = ["swh.storage.pytest_plugin", "swh.loader.pytest_plugin"]
+pytest_plugins = [
+    "aiohttp.pytest_plugin",
+    "swh.storage.pytest_plugin",
+    "swh.loader.pytest_plugin",
+]

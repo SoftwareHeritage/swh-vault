@@ -1,3 +1,14 @@
+swh-vault (0.3.4-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.3.4     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-11-23 11:35:47
+    +0100)
+  * Upstream changes:     - v0.3.4     - test_server: Fix exception
+    structure     - conftest: Explicitely declare aiohttp pytest plugin
+    use
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 23 Nov 2020 10:37:50 +0000
+
 swh-vault (0.3.3-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.3.3     - (tagged by Antoine R. Dumont

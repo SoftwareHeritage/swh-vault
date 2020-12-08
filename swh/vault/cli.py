@@ -32,9 +32,6 @@ def vault(ctx):
     help="Configuration file.",
 )
 @click.option(
-    "--no-stdout", is_flag=True, default=False, help="Do NOT output logs on the console"
-)
-@click.option(
     "--host",
     default="0.0.0.0",
     metavar="IP",
@@ -54,19 +51,12 @@ def vault(ctx):
     help="Indicates if the server should run in debug mode",
 )
 @click.pass_context
-def serve(ctx, config_file, no_stdout, host, port, debug):
+def serve(ctx, config_file, host, port, debug):
     import aiohttp
 
-    from swh.scheduler.celery_backend.config import setup_log_handler
     from swh.vault.api.server import make_app_from_configfile
 
     ctx.ensure_object(dict)
-    setup_log_handler(
-        loglevel=ctx.obj.get("log_level", logging.INFO),
-        colorize=False,
-        format="[%(levelname)s] %(name)s -- %(message)s",
-        log_console=not no_stdout,
-    )
 
     try:
         app = make_app_from_configfile(config_file, debug=debug)

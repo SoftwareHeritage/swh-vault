@@ -17,16 +17,9 @@ from swh.vault import get_vault as get_swhvault
 from swh.vault.backend import NotFoundExc
 from swh.vault.interface import VaultInterface
 
+# do not define default services here
 DEFAULT_CONFIG = {
-    "storage": {"cls": "remote", "url": "http://localhost:5002/"},
-    "cache": {
-        "cls": "pathslicing",
-        "root": "/srv/softwareheritage/vault",
-        "slicing": "0:1/1:5",
-    },
     "client_max_size": 1024 ** 3,
-    "vault": {"cls": "local", "db": "dbname=softwareheritage-vault-dev",},
-    "scheduler": {"cls": "remote", "url": "http://localhost:5008/"},
 }
 
 

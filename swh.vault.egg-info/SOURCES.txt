@@ -20,6 +20,7 @@ tox.ini
 docs/.gitignore
 docs/Makefile
 docs/api.rst
+docs/cli.rst
 docs/conf.py
 docs/getting-started.rst
 docs/index.rst

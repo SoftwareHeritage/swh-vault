@@ -370,7 +370,7 @@ class VaultBackend:
     @db_transaction()
     def fetch(
         self, obj_type: str, obj_id: ObjectId, raise_notfound=True, db=None, cur=None
-    ):
+    ) -> Optional[bytes]:
         """Retrieve a bundle from the cache"""
         hex_id, obj_id = self._compute_ids(obj_id)
         available = self.is_available(obj_type, obj_id, cur=cur)

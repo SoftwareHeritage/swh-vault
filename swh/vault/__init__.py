@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 BACKEND_TYPES: Dict[str, str] = {
     "remote": ".api.client.RemoteVaultClient",
     "local": ".backend.VaultBackend",
+    "memory": ".in_memory_backend.InMemoryVaultBackend",
 }
 
 

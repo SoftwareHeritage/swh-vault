@@ -124,28 +124,18 @@ class TestRepo:
 
 
 @pytest.fixture
-def swh_loader_config(swh_loader_config):
-    swh_loader_config["max_content_size"] = 100 * 1024 * 1024
-    return swh_loader_config
-
-
-@pytest.fixture
-def git_loader(
-    swh_storage, swh_loader_config,
-):
+def git_loader(swh_storage,):
     """Instantiate a Git Loader using the storage instance as storage.
 
     """
 
     def _create_loader(directory):
-        loader = GitLoaderFromDisk(
+        return GitLoaderFromDisk(
+            swh_storage,
             "fake_origin",
             directory=directory,
             visit_date=datetime.datetime.now(datetime.timezone.utc),
-            config=swh_loader_config,
         )
-        loader.storage = swh_storage
-        return loader
 
     return _create_loader
 

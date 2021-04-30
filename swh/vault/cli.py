@@ -53,7 +53,7 @@ def vault(ctx):
 @click.argument("outfile", type=click.File("wb"))
 @click.option(
     "--cooker-type",
-    type=click.Choice(["flat", "gitfast"]),
+    type=click.Choice(["flat", "gitfast", "git_bare"]),
     help="Selects which cooker to use, when there is more than one available "
     "for the given object type.",
 )

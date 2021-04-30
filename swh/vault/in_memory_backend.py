@@ -19,7 +19,7 @@ class InMemoryVaultBackend:
         self._cache = VaultCache(cls="memory")
 
     def fetch(self, obj_type: str, obj_id: ObjectId) -> Optional[bytes]:
-        return self._cache.get(obj_type, obj_id)
+        return self._cache.get(obj_type, hash_to_bytes(obj_id))
 
     def cook(
         self, obj_type: str, obj_id: ObjectId, email: Optional[str] = None

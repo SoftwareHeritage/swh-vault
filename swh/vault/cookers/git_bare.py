@@ -3,12 +3,29 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+"""
+This cooker creates tarballs containing a bare .git directory,
+that can be unpacked and cloned like any git repository.
+
+It works in three steps:
+
+1. Write objects one by one in :file:`.git/objects/`
+2. Calls ``git repack`` to pack all these objects into git packfiles.
+3. Creates a tarball of the resulting repository
+
+To avoid downloading and writing the same objects twice,
+it checks the existence of the object file in the temporary directory.
+To avoid sending a syscall every time, it also uses ``functools.lru_cache``,
+as a first layer of cache before checking the file's existence.
+"""
+
 import datetime
+import functools
 import os.path
 import subprocess
 import tarfile
 import tempfile
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 import zlib
 
 from swh.model import identifiers
@@ -115,23 +132,24 @@ class GitBareCooker(BaseVaultCooker):
         with tarfile.TarFile(mode="w", fileobj=self.fileobj) as tf:
             tf.add(self.gitdir, arcname=f"{self.obj_swhid()}.git", recursive=True)
 
+    def _obj_path(self, obj_id: Sha1Git):
+        obj_id_hex = hash_to_hex(obj_id)
+        directory = obj_id_hex[0:2]
+        filename = obj_id_hex[2:]
+        return os.path.join(self.gitdir, "objects", directory, filename)
+
+    def object_exists(self, obj_id: Sha1Git) -> bool:
+        return os.path.exists(self._obj_path(obj_id))
+
     def write_object(self, obj_id: Sha1Git, obj: bytes) -> bool:
         """Writes a git object on disk.
 
         Returns whether it was already written."""
-        obj_id_hex = hash_to_hex(obj_id)
-        directory = obj_id_hex[0:2]
-        filename = obj_id_hex[2:]
-        path = os.path.join(self.gitdir, "objects", directory, filename)
-        if os.path.exists(path):
-            # Already written
-            return False
-
         # Git requires objects to be zlib-compressed; but repacking decompresses and
         # removes them, so we don't need to compress them too much.
         data = zlib.compress(obj, level=1)
 
-        with open(path, "wb") as fd:
+        with open(self._obj_path(obj_id), "wb") as fd:
             fd.write(data)
         return True
 
@@ -155,10 +173,15 @@ class GitBareCooker(BaseVaultCooker):
         git_object = identifiers.revision_git_object(revision)
         return self.write_object(revision["id"], git_object)
 
+    @functools.lru_cache(10240)
     def load_directory_subgraph(self, obj_id: Sha1Git) -> None:
         """Fetches a directory and all its children, and writes them to disk"""
+        if self.object_exists(obj_id):
+            # Checks if the object is already written on disk.
+            # This rarely happens thanks to @lru_cache()
+            return
         directory = self.load_directory_node(obj_id)
-        entry_loaders = {
+        entry_loaders: Dict[str, Callable[[Sha1Git], None]] = {
             "file": self.load_content,
             "dir": self.load_directory_subgraph,
             "rev": self.load_revision_subgraph,
@@ -175,7 +198,13 @@ class GitBareCooker(BaseVaultCooker):
         self.write_object(obj_id, git_object)
         return directory
 
+    @functools.lru_cache(10240)
     def load_content(self, obj_id: Sha1Git) -> None:
+        if self.object_exists(obj_id):
+            # Checks if the object is already written on disk.
+            # This rarely happens thanks to @lru_cache()
+            return
+
         # TODO: add support of filtered objects, somehow?
         # It's tricky, because, by definition, we can't write a git object with
         # the expected hash, so git-fsck *will* choke on it.

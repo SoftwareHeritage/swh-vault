@@ -5,6 +5,7 @@
 
 import contextlib
 import datetime
+import glob
 import gzip
 import io
 import os
@@ -86,7 +87,11 @@ class TestRepo:
         and the index should be clean.
 
         """
-        self.git_shell("add", ".")
+        paths = [
+            os.path.relpath(path, self.repo_dir)
+            for path in glob.glob(self.repo_dir + "/**/*", recursive=True)
+        ]
+        self.repo.stage(paths)
         message = message.encode() + b"\n"
         ret = self.repo.do_commit(
             message=message,
@@ -274,9 +279,32 @@ class TestDirectoryCooker:
             (rp / "executable").chmod(0o775)
             (rp / "wat").write_text(TEST_CONTENT)
             (rp / "wat").chmod(0o604)
-            c = repo.commit()
-            loader = git_loader(str(rp))
-            loader.load()
+
+            # Disable mode cleanup
+            with unittest.mock.patch("dulwich.index.cleanup_mode", lambda mode: mode):
+                c = repo.commit()
+
+            # Make sure Dulwich didn't normalize the permissions itself.
+            # (if it did, then the test can't check the cooker normalized them)
+            tree_id = repo.repo[c].tree
+            assert {entry.mode for entry in repo.repo[tree_id].items()} == {
+                0o100775,
+                0o100664,
+                0o100604,
+            }
+
+            # Disable mode checks
+            with unittest.mock.patch("dulwich.objects.Tree.check", lambda self: None):
+                loader = git_loader(str(rp))
+                loader.load()
+
+            # Make sure swh-loader didn't normalize them either
+            dir_entries = loader.storage.directory_ls(hashutil.bytehex_to_hash(tree_id))
+            assert {entry["perms"] for entry in dir_entries} == {
+                0o100664,
+                0o100775,
+                0o100604,
+            }
 
             obj_id_hex = repo.repo[c].tree.decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
@@ -486,9 +514,33 @@ class TestRevisionGitfastCooker:
             (rp / "executable").chmod(0o775)
             (rp / "wat").write_text(TEST_CONTENT)
             (rp / "wat").chmod(0o604)
-            repo.commit("initial commit")
-            loader = git_loader(str(rp))
-            loader.load()
+
+            # Disable mode cleanup
+            with unittest.mock.patch("dulwich.index.cleanup_mode", lambda mode: mode):
+                c = repo.commit("initial commit")
+
+            # Make sure Dulwich didn't normalize the permissions itself.
+            # (if it did, then the test can't check the cooker normalized them)
+            tree_id = repo.repo[c].tree
+            assert {entry.mode for entry in repo.repo[tree_id].items()} == {
+                0o100775,
+                0o100664,
+                0o100604,
+            }
+
+            # Disable mode checks
+            with unittest.mock.patch("dulwich.objects.Tree.check", lambda self: None):
+                loader = git_loader(str(rp))
+                loader.load()
+
+            # Make sure swh-loader didn't normalize them either
+            dir_entries = loader.storage.directory_ls(hashutil.bytehex_to_hash(tree_id))
+            assert {entry["perms"] for entry in dir_entries} == {
+                0o100664,
+                0o100775,
+                0o100604,
+            }
+
             obj_id_hex = repo.repo.refs[b"HEAD"].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
 

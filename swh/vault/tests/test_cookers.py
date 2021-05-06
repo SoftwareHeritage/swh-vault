@@ -26,7 +26,14 @@ import pytest
 
 from swh.loader.git.from_disk import GitLoaderFromDisk
 from swh.model import from_disk, hashutil
-from swh.model.model import Directory, DirectoryEntry, Person, Revision, RevisionType
+from swh.model.model import (
+    Directory,
+    DirectoryEntry,
+    Person,
+    Revision,
+    RevisionType,
+    TimestampWithTimezone,
+)
 from swh.vault.cookers import DirectoryCooker, GitBareCooker, RevisionGitfastCooker
 from swh.vault.tests.vault_testing import hash_content
 from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE
@@ -164,6 +171,35 @@ def cook_extract_directory_dircooker(storage, obj_id, fsck=True):
 
 
 @contextlib.contextmanager
+def cook_extract_directory_gitfast(storage, obj_id, fsck=True):
+    """Context manager that cooks a revision containing a directory and extract it,
+    using RevisionGitfastCooker"""
+    test_repo = TestRepo()
+    with test_repo as p:
+        date = TimestampWithTimezone.from_datetime(
+            datetime.datetime.now(datetime.timezone.utc)
+        )
+        revision = Revision(
+            directory=obj_id,
+            message=b"dummy message",
+            author=Person.from_fullname(b"someone"),
+            committer=Person.from_fullname(b"someone"),
+            date=date,
+            committer_date=date,
+            type=RevisionType.GIT,
+            synthetic=False,
+        )
+        storage.revision_add([revision])
+
+    with cook_stream_revision_gitfast(storage, revision.id) as stream, test_repo as p:
+        processor = dulwich.fastexport.GitImportProcessor(test_repo.repo)
+        processor.import_stream(stream)
+        test_repo.checkout(b"HEAD")
+        shutil.rmtree(p / ".git")
+        yield p
+
+
+@contextlib.contextmanager
 def cook_extract_directory_git_bare(storage, obj_id, fsck=True):
     """Context manager that cooks a revision and extract it,
     using GitBareCooker"""
@@ -195,7 +231,11 @@ def cook_extract_directory_git_bare(storage, obj_id, fsck=True):
 
 @pytest.fixture(
     scope="module",
-    params=[cook_extract_directory_dircooker, cook_extract_directory_git_bare],
+    params=[
+        cook_extract_directory_dircooker,
+        cook_extract_directory_gitfast,
+        cook_extract_directory_git_bare,
+    ],
 )
 def cook_extract_directory(request):
     """A fixture that is instantiated as either cook_extract_directory_dircooker or
@@ -397,9 +437,7 @@ class TestDirectoryCooker:
             assert (p / "executable").stat().st_mode == 0o100755
             assert (p / "wat").stat().st_mode == 0o100644
 
-    def test_directory_revision_data(self, swh_storage, cook_extract_directory):
-        if cook_extract_directory is cook_extract_directory_git_bare:
-            pytest.xfail("GitBareCooker does not support submodules yet")
+    def test_directory_revision_data(self, swh_storage):
         target_rev = "0e8a3ad980ec179856012b7eecf4327e99cd44cd"
 
         dir = Directory(
@@ -414,7 +452,7 @@ class TestDirectoryCooker:
         )
         swh_storage.directory_add([dir])
 
-        with cook_extract_directory(swh_storage, dir.id, fsck=False) as p:
+        with cook_extract_directory_dircooker(swh_storage, dir.id, fsck=False) as p:
             assert (p / "submodule").is_symlink()
             assert os.readlink(str(p / "submodule")) == target_rev
 
@@ -588,54 +626,6 @@ class TestRevisionCooker:
             assert (p / "file").read_bytes() == b"test1"
             assert (p / "hidden_file").read_bytes() == HIDDEN_MESSAGE
             assert (p / "absent_file").read_bytes() == SKIPPED_MESSAGE
-
-    def test_revision_bogus_perms(self, git_loader, cook_extract_revision):
-        # Some early git repositories have 664/775 permissions... let's check
-        # if all the weird modes are properly normalized in the revision
-        # cooker.
-        repo = TestRepo()
-        with repo as rp:
-            (rp / "file").write_text(TEST_CONTENT)
-            (rp / "file").chmod(0o664)
-            (rp / "executable").write_bytes(TEST_EXECUTABLE)
-            (rp / "executable").chmod(0o775)
-            (rp / "wat").write_text(TEST_CONTENT)
-            (rp / "wat").chmod(0o604)
-
-            # Disable mode cleanup
-            with unittest.mock.patch("dulwich.index.cleanup_mode", lambda mode: mode):
-                c = repo.commit("initial commit")
-
-            # Make sure Dulwich didn't normalize the permissions itself.
-            # (if it did, then the test can't check the cooker normalized them)
-            tree_id = repo.repo[c].tree
-            assert {entry.mode for entry in repo.repo[tree_id].items()} == {
-                0o100775,
-                0o100664,
-                0o100604,
-            }
-
-            # Disable mode checks
-            with unittest.mock.patch("dulwich.objects.Tree.check", lambda self: None):
-                loader = git_loader(str(rp))
-                loader.load()
-
-            # Make sure swh-loader didn't normalize them either
-            dir_entries = loader.storage.directory_ls(hashutil.bytehex_to_hash(tree_id))
-            assert {entry["perms"] for entry in dir_entries} == {
-                0o100664,
-                0o100775,
-                0o100604,
-            }
-
-            obj_id_hex = repo.repo.refs[b"HEAD"].decode()
-            obj_id = hashutil.hash_to_bytes(obj_id_hex)
-
-        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
-            ert.checkout(b"HEAD")
-            assert (p / "file").stat().st_mode == 0o100644
-            assert (p / "executable").stat().st_mode == 0o100755
-            assert (p / "wat").stat().st_mode == 0o100644
 
     def test_revision_null_fields(self, git_loader, cook_extract_revision):
         # Our schema doesn't enforce a lot of non-null revision fields. We need

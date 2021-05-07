@@ -96,6 +96,7 @@ def test_cook_directory(obj_type, cooker_name_suffix, swhid_type, mocker):
         b"\x00" * 20,
         backend,
         storage,
+        None,
     )
     cooker.cook.assert_called_once_with()
 

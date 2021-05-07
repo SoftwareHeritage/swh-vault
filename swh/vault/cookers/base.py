@@ -61,7 +61,13 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     CACHE_TYPE_KEY = None  # type: Optional[str]
 
     def __init__(
-        self, obj_type, obj_id, backend, storage, max_bundle_size=MAX_BUNDLE_SIZE
+        self,
+        obj_type,
+        obj_id,
+        backend,
+        storage,
+        graph=None,
+        max_bundle_size=MAX_BUNDLE_SIZE,
     ):
         """Initialize the cooker.
 
@@ -80,6 +86,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         self.obj_id = hashutil.hash_to_bytes(obj_id)
         self.backend = backend
         self.storage = storage
+        self.graph = graph
         self.max_bundle_size = max_bundle_size
 
     @abc.abstractmethod

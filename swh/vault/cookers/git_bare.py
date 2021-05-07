@@ -25,9 +25,11 @@ import os.path
 import subprocess
 import tarfile
 import tempfile
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List
 import zlib
 
+from swh.core.utils import grouper
+from swh.graph.client import GraphArgumentException
 from swh.model import identifiers
 from swh.model.hashutil import hash_to_bytehex, hash_to_hex
 from swh.model.model import (
@@ -39,6 +41,8 @@ from swh.model.model import (
 )
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
 from swh.vault.cookers.base import BaseVaultCooker
+
+REVISION_BATCH_SIZE = 10000
 
 
 class GitBareCooker(BaseVaultCooker):
@@ -63,7 +67,7 @@ class GitBareCooker(BaseVaultCooker):
         )
 
     def prepare_bundle(self):
-        with tempfile.TemporaryDirectory() as workdir:
+        with tempfile.TemporaryDirectory(prefix="swh-vault-gitbare-") as workdir:
             # Initialize a Git directory
             self.workdir = workdir
             self.gitdir = os.path.join(workdir, "clone.git")
@@ -163,10 +167,45 @@ class GitBareCooker(BaseVaultCooker):
 
     def load_revision_subgraph(self, obj_id: Sha1Git) -> None:
         """Fetches a revision and all its children, and writes them to disk"""
-        walker = DFSRevisionsWalker(self.storage, obj_id)
-        for revision in walker:
-            self.write_revision_node(revision)
-            self.load_directory_subgraph(revision["directory"])
+        loaded_from_graph = False
+
+        if self.graph:
+            # First, try to cook using swh-graph, as it is more efficient than
+            # swh-storage for querying the history
+            obj_swhid = identifiers.CoreSWHID(
+                object_type=identifiers.ObjectType.REVISION, object_id=obj_id,
+            )
+            try:
+                revision_ids = (
+                    swhid.object_id
+                    for swhid in map(
+                        identifiers.CoreSWHID.from_string,
+                        self.graph.visit_nodes(str(obj_swhid), edges="rev:rev"),
+                    )
+                )
+                for revision_id_group in grouper(revision_ids, REVISION_BATCH_SIZE):
+                    self.load_revisions_and_directory_subgraphs(revision_id_group)
+            except GraphArgumentException:
+                # Revision not found in the graph
+                pass
+            else:
+                loaded_from_graph = True
+
+        if not loaded_from_graph:
+            # If swh-graph is not available, or the revision is not yet in
+            # swh-graph, fall back to self.storage.revision_log.
+            walker = DFSRevisionsWalker(self.storage, obj_id)
+            for revision in walker:
+                self.write_revision_node(revision)
+                self.load_directory_subgraph(revision["directory"])
+
+    def load_revisions_and_directory_subgraphs(self, obj_ids: List[Sha1Git]) -> None:
+        """Given a list of revision ids, loads these revisions and their directories;
+        but not their parent revisions."""
+        revisions = self.storage.revision_get(obj_ids)
+        for revision in revisions:
+            self.write_revision_node(revision.to_dict())
+            self.load_directory_subgraph(revision.directory)
 
     def write_revision_node(self, revision: Dict[str, Any]) -> bool:
         """Writes a revision object to disk"""

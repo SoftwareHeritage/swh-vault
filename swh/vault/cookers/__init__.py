@@ -10,6 +10,7 @@ from typing import Any, Dict
 
 from swh.core.config import load_named_config
 from swh.core.config import read as read_config
+from swh.graph.client import RemoteGraphClient
 from swh.storage import get_storage
 from swh.vault import get_vault
 from swh.vault.cookers.base import DEFAULT_CONFIG, DEFAULT_CONFIG_PATH
@@ -89,11 +90,13 @@ def get_cooker(obj_type: str, obj_id: str):
 
     storage = get_storage(**vcfg.pop("storage"))
     backend = get_vault(**vcfg)
+    graph = RemoteGraphClient(**vcfg["graph"]) if "graph" in vcfg else None
 
     return cooker_cls(
         obj_type,
         obj_id,
         backend=backend,
         storage=storage,
+        graph=graph,
         max_bundle_size=cfg["max_bundle_size"],
     )

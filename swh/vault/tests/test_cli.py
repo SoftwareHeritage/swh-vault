@@ -92,11 +92,12 @@ def test_cook_directory(obj_type, cooker_name_suffix, swhid_type, mocker):
         raise result.exception
 
     cooker_cls.assert_called_once_with(
-        f"{obj_type}_{cooker_name_suffix}" if cooker_name_suffix else obj_type,
-        b"\x00" * 20,
-        backend,
-        storage,
-        None,
+        obj_type=f"{obj_type}_{cooker_name_suffix}" if cooker_name_suffix else obj_type,
+        obj_id=b"\x00" * 20,
+        backend=backend,
+        storage=storage,
+        graph=None,
+        objstorage=None,
     )
     cooker.cook.assert_called_once_with()
 

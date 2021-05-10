@@ -67,6 +67,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         backend,
         storage,
         graph=None,
+        objstorage=None,
         max_bundle_size=MAX_BUNDLE_SIZE,
     ):
         """Initialize the cooker.
@@ -86,6 +87,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         self.obj_id = hashutil.hash_to_bytes(obj_id)
         self.backend = backend
         self.storage = storage
+        self.objstorage = objstorage
         self.graph = graph
         self.max_bundle_size = max_bundle_size
 

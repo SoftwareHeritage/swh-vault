@@ -200,14 +200,22 @@ def cook_extract_directory_gitfast(storage, obj_id, fsck=True):
 
 
 @contextlib.contextmanager
-def cook_extract_directory_git_bare(storage, obj_id, fsck=True):
+def cook_extract_directory_git_bare(
+    storage, obj_id, fsck=True, direct_objstorage=False
+):
     """Context manager that cooks a revision and extract it,
     using GitBareCooker"""
     backend = unittest.mock.MagicMock()
     backend.storage = storage
 
     # Cook the object
-    cooker = GitBareCooker("directory", obj_id, backend=backend, storage=storage)
+    cooker = GitBareCooker(
+        "directory",
+        obj_id,
+        backend=backend,
+        storage=storage,
+        objstorage=storage.objstorage if direct_objstorage else None,
+    )
     cooker.use_fsck = fsck  # Some tests try edge-cases that git-fsck rejects
     cooker.fileobj = io.BytesIO()
     assert cooker.check_exists()
@@ -338,7 +346,7 @@ class TestDirectoryCooker:
             assert (p / "file").read_text() == TEST_CONTENT
             assert (p / "executable").stat().st_mode == 0o100755
             assert (p / "executable").read_bytes() == TEST_EXECUTABLE
-            assert (p / "link").is_symlink
+            assert (p / "link").is_symlink()
             assert os.readlink(str(p / "link")) == "file"
             assert (p / "dir1/dir2/file").stat().st_mode == 0o100644
             assert (p / "dir1/dir2/file").read_text() == TEST_CONTENT
@@ -437,6 +445,57 @@ class TestDirectoryCooker:
             assert (p / "executable").stat().st_mode == 0o100755
             assert (p / "wat").stat().st_mode == 0o100644
 
+    @pytest.mark.parametrize("direct_objstorage", [True, False])
+    def test_directory_objstorage(
+        self, swh_storage, git_loader, mocker, direct_objstorage
+    ):
+        """Like test_directory_simple, but using swh_objstorage directly, without
+        going through swh_storage.content_get_data()"""
+        repo = TestRepo()
+        with repo as rp:
+            (rp / "file").write_text(TEST_CONTENT)
+            (rp / "executable").write_bytes(TEST_EXECUTABLE)
+            (rp / "executable").chmod(0o755)
+            (rp / "link").symlink_to("file")
+            (rp / "dir1/dir2").mkdir(parents=True)
+            (rp / "dir1/dir2/file").write_text(TEST_CONTENT)
+            c = repo.commit()
+            loader = git_loader(str(rp))
+            loader.load()
+
+            obj_id_hex = repo.repo[c].tree.decode()
+            obj_id = hashutil.hash_to_bytes(obj_id_hex)
+
+        # Set-up spies
+        storage_content_get_data = mocker.patch.object(
+            swh_storage, "content_get_data", wraps=swh_storage.content_get_data
+        )
+        objstorage_content_batch = mocker.patch.object(
+            swh_storage.objstorage, "get_batch", wraps=swh_storage.objstorage.get_batch
+        )
+
+        with cook_extract_directory_git_bare(
+            loader.storage, obj_id, direct_objstorage=direct_objstorage
+        ) as p:
+            assert (p / "file").stat().st_mode == 0o100644
+            assert (p / "file").read_text() == TEST_CONTENT
+            assert (p / "executable").stat().st_mode == 0o100755
+            assert (p / "executable").read_bytes() == TEST_EXECUTABLE
+            assert (p / "link").is_symlink()
+            assert os.readlink(str(p / "link")) == "file"
+            assert (p / "dir1/dir2/file").stat().st_mode == 0o100644
+            assert (p / "dir1/dir2/file").read_text() == TEST_CONTENT
+
+            directory = from_disk.Directory.from_disk(path=bytes(p))
+            assert obj_id_hex == hashutil.hash_to_hex(directory.hash)
+
+        if direct_objstorage:
+            storage_content_get_data.assert_not_called()
+            objstorage_content_batch.assert_called()
+        else:
+            storage_content_get_data.assert_called()
+            objstorage_content_batch.assert_not_called()
+
     def test_directory_revision_data(self, swh_storage):
         target_rev = "0e8a3ad980ec179856012b7eecf4327e99cd44cd"
 
@@ -489,7 +548,7 @@ class TestRevisionCooker:
             ert.checkout(b"HEAD")
             assert (p / "file1").stat().st_mode == 0o100644
             assert (p / "file1").read_text() == TEST_CONTENT
-            assert (p / "link1").is_symlink
+            assert (p / "link1").is_symlink()
             assert os.readlink(str(p / "link1")) == "file1"
             assert (p / "bin").stat().st_mode == 0o100755
             assert (p / "bin").read_bytes() == TEST_EXECUTABLE

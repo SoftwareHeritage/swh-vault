@@ -71,6 +71,7 @@ def cook(
     """
     from swh.core import config
     from swh.graph.client import RemoteGraphClient
+    from swh.objstorage.factory import get_objstorage
     from swh.storage import get_storage
 
     from .cookers import COOKER_TYPES, get_cooker_cls
@@ -102,9 +103,17 @@ def cook(
 
     backend = InMemoryVaultBackend()
     storage = get_storage(**conf["storage"])
+    objstorage = get_objstorage(**conf["objstorage"]) if "objstorage" in conf else None
     graph = RemoteGraphClient(**conf["graph"]) if "graph" in conf else None
     cooker_cls = get_cooker_cls(cooker_name)
-    cooker = cooker_cls(cooker_name, swhid.object_id, backend, storage, graph)
+    cooker = cooker_cls(
+        obj_type=cooker_name,
+        obj_id=swhid.object_id,
+        backend=backend,
+        storage=storage,
+        graph=graph,
+        objstorage=objstorage,
+    )
     cooker.cook()
 
     bundle = backend.fetch(cooker_name, swhid.object_id)

@@ -275,9 +275,15 @@ class GitBareCooker(BaseVaultCooker):
         # It's tricky, because, by definition, we can't write a git object with
         # the expected hash, so git-fsck *will* choke on it.
         contents = self.storage.content_get(obj_ids, "sha1_git")
-        for (obj_id, content) in zip(obj_ids, contents):
-            assert obj_id == content.sha1_git  # just to be sure
-            content = self.storage.content_get_data(content.sha1)
-            self.write_object(
-                obj_id, f"blob {len(content)}\0".encode("ascii") + content
-            )
+
+        if self.objstorage is None:
+            for content in contents:
+                data = self.storage.content_get_data(content.sha1)
+                self.write_content(content.sha1_git, data)
+        else:
+            content_data = self.objstorage.get_batch(c.sha1 for c in contents)
+            for (content, data) in zip(contents, content_data):
+                self.write_content(content.sha1_git, data)
+
+    def write_content(self, obj_id: Sha1Git, content: bytes) -> None:
+        self.write_object(obj_id, f"blob {len(content)}\0".encode("ascii") + content)

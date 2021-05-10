@@ -271,13 +271,13 @@ class GitBareCooker(BaseVaultCooker):
             self._push(stack, [entry["target"]])
 
     def load_contents(self, obj_ids: List[Sha1Git]) -> None:
-        for obj_id in obj_ids:
-            self.load_content(obj_id)
-
-    def load_content(self, obj_id: Sha1Git) -> None:
         # TODO: add support of filtered objects, somehow?
         # It's tricky, because, by definition, we can't write a git object with
         # the expected hash, so git-fsck *will* choke on it.
-        content_sha1 = self.storage.content_find({"sha1_git": obj_id})[0].sha1
-        content = self.storage.content_get_data(content_sha1)
-        self.write_object(obj_id, f"blob {len(content)}\0".encode("ascii") + content)
+        contents = self.storage.content_get(obj_ids, "sha1_git")
+        for (obj_id, content) in zip(obj_ids, contents):
+            assert obj_id == content.sha1_git  # just to be sure
+            content = self.storage.content_get_data(content.sha1)
+            self.write_object(
+                obj_id, f"blob {len(content)}\0".encode("ascii") + content
+            )

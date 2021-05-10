@@ -25,6 +25,7 @@ import tempfile
 from typing import Any, Dict, Iterable, List, Set
 import zlib
 
+from swh.core.api.classes import stream_results
 from swh.graph.client import GraphArgumentException
 from swh.model import identifiers
 from swh.model.hashutil import hash_to_bytehex, hash_to_hex
@@ -251,7 +252,10 @@ class GitBareCooker(BaseVaultCooker):
 
     def load_directory(self, obj_id: Sha1Git) -> None:
         # Load the directory
-        entries = list(self.storage.directory_ls(obj_id, recursive=False))
+        entries = [
+            entry.to_dict()
+            for entry in stream_results(self.storage.directory_get_entries, obj_id)
+        ]
         directory = {"id": obj_id, "entries": entries}
         git_object = identifiers.directory_git_object(directory)
         self.write_object(obj_id, git_object)

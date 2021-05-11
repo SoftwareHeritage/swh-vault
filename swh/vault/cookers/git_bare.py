@@ -286,4 +286,5 @@ class GitBareCooker(BaseVaultCooker):
                 self.write_content(content.sha1_git, data)
 
     def write_content(self, obj_id: Sha1Git, content: bytes) -> None:
-        self.write_object(obj_id, f"blob {len(content)}\0".encode("ascii") + content)
+        header = identifiers.git_object_header("blob", len(content))
+        self.write_object(obj_id, header + content)

@@ -44,10 +44,17 @@ class TestRepo:
     functions to perform basic git stuff.
     """
 
+    def __init__(self, repo_dir=None):
+        self.repo_dir = repo_dir
+
     def __enter__(self):
-        self.tmp_dir = tempfile.TemporaryDirectory(prefix="tmp-vault-repo-")
-        self.repo_dir = self.tmp_dir.__enter__()
-        self.repo = dulwich.repo.Repo.init(self.repo_dir)
+        if self.repo_dir:
+            self.tmp_dir = None
+            self.repo = dulwich.repo.Repo(self.repo_dir)
+        else:
+            self.tmp_dir = tempfile.TemporaryDirectory(prefix="tmp-vault-repo-")
+            self.repo_dir = self.tmp_dir.__enter__()
+            self.repo = dulwich.repo.Repo.init(self.repo_dir)
         self.author_name = b"Test Author"
         self.author_email = b"test@softwareheritage.org"
         self.author = b"%s <%s>" % (self.author_name, self.author_email)
@@ -56,7 +63,9 @@ class TestRepo:
         return pathlib.Path(self.repo_dir)
 
     def __exit__(self, exc, value, tb):
-        self.tmp_dir.__exit__(exc, value, tb)
+        if self.tmp_dir is not None:
+            self.tmp_dir.__exit__(exc, value, tb)
+            self.repo_dir = None
 
     def checkout(self, rev_sha):
         rev = self.repo[rev_sha]
@@ -228,13 +237,18 @@ def cook_extract_directory_git_bare(
             tar.extractall(td)
 
         # Clone it with Dulwich
-        test_repo = TestRepo()
-        with test_repo as p:
-            test_repo.git_shell(
-                "pull", os.path.join(td, f"swh:1:dir:{obj_id.hex()}.git")
+        with tempfile.TemporaryDirectory(prefix="tmp-vault-clone-") as clone_dir:
+            clone_dir = pathlib.Path(clone_dir)
+            subprocess.check_call(
+                [
+                    "git",
+                    "clone",
+                    os.path.join(td, f"swh:1:dir:{obj_id.hex()}.git"),
+                    clone_dir,
+                ]
             )
-            shutil.rmtree(p / ".git")
-            yield p
+            shutil.rmtree(clone_dir / ".git")
+            yield clone_dir
 
 
 @pytest.fixture(
@@ -300,12 +314,19 @@ def cook_extract_revision_git_bare(storage, obj_id, fsck=True):
             tar.extractall(td)
 
         # Clone it with Dulwich
-        test_repo = TestRepo()
-        with test_repo as p:
-            test_repo.git_shell(
-                "pull", os.path.join(td, f"swh:1:rev:{obj_id.hex()}.git")
+        with tempfile.TemporaryDirectory(prefix="tmp-vault-clone-") as clone_dir:
+            clone_dir = pathlib.Path(clone_dir)
+            subprocess.check_call(
+                [
+                    "git",
+                    "clone",
+                    os.path.join(td, f"swh:1:rev:{obj_id.hex()}.git"),
+                    clone_dir,
+                ]
             )
-            yield test_repo, p
+            test_repo = TestRepo(clone_dir)
+            with test_repo:
+                yield test_repo, clone_dir
 
 
 @pytest.fixture(
@@ -355,8 +376,6 @@ class TestDirectoryCooker:
             assert obj_id_hex == hashutil.hash_to_hex(directory.hash)
 
     def test_directory_filtered_objects(self, git_loader, cook_extract_directory):
-        if cook_extract_directory is cook_extract_directory_git_bare:
-            pytest.xfail("GitBareCooker does not support filtered objects (yet?)")
         repo = TestRepo()
         with repo as rp:
             file_1, id_1 = hash_content(b"test1")
@@ -387,11 +406,19 @@ class TestDirectoryCooker:
                            where sha1 = %s""",
                 (id_2,),
             )
+
             cur.execute(
-                """update content set status = 'absent'
-                           where sha1 = %s""",
+                """
+                insert into skipped_content
+                    (sha1, sha1_git, sha256, blake2s256, length, reason)
+                select sha1, sha1_git, sha256, blake2s256, length, 'no reason'
+                from content
+                where sha1 = %s
+                """,
                 (id_3,),
             )
+
+            cur.execute("delete from content where sha1 = %s", (id_3,))
 
         with cook_extract_directory(loader.storage, obj_id) as p:
             assert (p / "file").read_bytes() == b"test1"
@@ -643,8 +670,6 @@ class TestRevisionCooker:
             assert ert.repo.refs[b"HEAD"].decode() == obj_id_hex
 
     def test_revision_filtered_objects(self, git_loader, cook_extract_revision):
-        if cook_extract_revision is cook_extract_revision_git_bare:
-            pytest.xfail("GitBareCooker does not support filtered objects (yet?)")
         repo = TestRepo()
         with repo as rp:
             file_1, id_1 = hash_content(b"test1")
@@ -674,11 +699,19 @@ class TestRevisionCooker:
                            where sha1 = %s""",
                 (id_2,),
             )
+
             cur.execute(
-                """update content set status = 'absent'
-                           where sha1 = %s""",
+                """
+                insert into skipped_content
+                    (sha1, sha1_git, sha256, blake2s256, length, reason)
+                select sha1, sha1_git, sha256, blake2s256, length, 'no reason'
+                from content
+                where sha1 = %s
+                """,
                 (id_3,),
             )
+
+            cur.execute("delete from content where sha1 = %s", (id_3,))
 
         with cook_extract_revision(loader.storage, obj_id) as (ert, p):
             ert.checkout(b"HEAD")

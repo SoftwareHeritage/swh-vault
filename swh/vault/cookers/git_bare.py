@@ -19,6 +19,7 @@ to avoid downloading and writing the same objects twice.
 
 import datetime
 import os.path
+import re
 import subprocess
 import tarfile
 import tempfile
@@ -38,6 +39,7 @@ from swh.model.model import (
 )
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
 from swh.vault.cookers.base import BaseVaultCooker
+from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE
 
 REVISION_BATCH_SIZE = 10000
 DIRECTORY_BATCH_SIZE = 10000
@@ -45,7 +47,7 @@ CONTENT_BATCH_SIZE = 100
 
 
 class GitBareCooker(BaseVaultCooker):
-    use_fsck = False
+    use_fsck = True
 
     def cache_type_key(self) -> str:
         return self.obj_type
@@ -81,8 +83,12 @@ class GitBareCooker(BaseVaultCooker):
         self._rev_stack: List[Sha1Git] = []
         self._dir_stack: List[Sha1Git] = []
         self._cnt_stack: List[Sha1Git] = []
+
         # Set of objects already in any of the stacks:
         self._seen: Set[Sha1Git] = set()
+
+        # Set of errors we expect git-fsck to raise at the end:
+        self._expected_fsck_errors = set()
 
         with tempfile.TemporaryDirectory(prefix="swh-vault-gitbare-") as workdir:
             # Initialize a Git directory
@@ -114,13 +120,36 @@ class GitBareCooker(BaseVaultCooker):
 
     def repack(self) -> None:
         if self.use_fsck:
-            subprocess.run(["git", "-C", self.gitdir, "fsck"], check=True)
+            self.git_fsck()
 
         # Add objects we wrote in a pack
         subprocess.run(["git", "-C", self.gitdir, "repack"], check=True)
 
         # Remove their non-packed originals
         subprocess.run(["git", "-C", self.gitdir, "prune-packed"], check=True)
+
+    def git_fsck(self) -> None:
+        proc = subprocess.run(
+            ["git", "-C", self.gitdir, "fsck"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env={"LANG": "C.utf8"},
+        )
+        if not self._expected_fsck_errors:
+            # All went well, there should not be any error
+            proc.check_returncode()
+            return
+
+        # Split on newlines not followed by a space
+        errors = re.split("\n(?! )", proc.stdout.decode())
+
+        unexpected_errors = set(filter(bool, errors)) - self._expected_fsck_errors
+        if unexpected_errors:
+            raise Exception(
+                "\n".join(
+                    ["Unexpected errors from git-fsck:"] + sorted(unexpected_errors)
+                )
+            )
 
     def write_refs(self):
         obj_type = self.obj_type.split("_")[0]
@@ -157,10 +186,13 @@ class GitBareCooker(BaseVaultCooker):
             tf.add(self.gitdir, arcname=f"{self.obj_swhid()}.git", recursive=True)
 
     def _obj_path(self, obj_id: Sha1Git):
+        return os.path.join(self.gitdir, self._obj_relative_path(obj_id))
+
+    def _obj_relative_path(self, obj_id: Sha1Git):
         obj_id_hex = hash_to_hex(obj_id)
         directory = obj_id_hex[0:2]
         filename = obj_id_hex[2:]
-        return os.path.join(self.gitdir, "objects", directory, filename)
+        return os.path.join("objects", directory, filename)
 
     def object_exists(self, obj_id: Sha1Git) -> bool:
         return os.path.exists(self._obj_path(obj_id))
@@ -276,15 +308,43 @@ class GitBareCooker(BaseVaultCooker):
         # the expected hash, so git-fsck *will* choke on it.
         contents = self.storage.content_get(obj_ids, "sha1_git")
 
+        visible_contents = []
+        for (obj_id, content) in zip(obj_ids, contents):
+            if content is None:
+                # FIXME: this may also happen for missing content
+                self.write_content(obj_id, SKIPPED_MESSAGE)
+                self._expect_mismatched_object_error(obj_id)
+            elif content.status == "visible":
+                visible_contents.append(content)
+            elif content.status == "hidden":
+                self.write_content(obj_id, HIDDEN_MESSAGE)
+                self._expect_mismatched_object_error(obj_id)
+            else:
+                assert False, (
+                    f"unexpected status {content.status!r} "
+                    f"for content {hash_to_hex(content.sha1_git)}"
+                )
+
         if self.objstorage is None:
-            for content in contents:
+            for content in visible_contents:
                 data = self.storage.content_get_data(content.sha1)
                 self.write_content(content.sha1_git, data)
         else:
-            content_data = self.objstorage.get_batch(c.sha1 for c in contents)
+            content_data = self.objstorage.get_batch(c.sha1 for c in visible_contents)
             for (content, data) in zip(contents, content_data):
                 self.write_content(content.sha1_git, data)
 
     def write_content(self, obj_id: Sha1Git, content: bytes) -> None:
         header = identifiers.git_object_header("blob", len(content))
         self.write_object(obj_id, header + content)
+
+    def _expect_mismatched_object_error(self, obj_id):
+        obj_id_hex = hash_to_hex(obj_id)
+        obj_path = self._obj_relative_path(obj_id)
+        self._expected_fsck_errors.add(
+            f"error: sha1 mismatch for ./{obj_path} (expected {obj_id_hex})"
+        )
+        self._expected_fsck_errors.add(
+            f"error: {obj_id_hex}: object corrupt or missing: ./{obj_path}"
+        )
+        self._expected_fsck_errors.add(f"missing blob {obj_id_hex}")

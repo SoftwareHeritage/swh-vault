@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2020  The Software Heritage developers
+# Copyright (C) 2017-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,7 +10,6 @@ from typing import Any, Dict
 
 from swh.core.config import load_named_config
 from swh.core.config import read as read_config
-from swh.graph.client import RemoteGraphClient
 from swh.storage import get_storage
 from swh.vault import get_vault
 from swh.vault.cookers.base import DEFAULT_CONFIG, DEFAULT_CONFIG_PATH
@@ -90,7 +89,18 @@ def get_cooker(obj_type: str, obj_id: str):
 
     storage = get_storage(**vcfg.pop("storage"))
     backend = get_vault(**vcfg)
-    graph = RemoteGraphClient(**vcfg["graph"]) if "graph" in vcfg else None
+
+    try:
+        from swh.graph.client import RemoteGraphClient  # optional dependency
+
+        graph = RemoteGraphClient(**vcfg["graph"]) if vcfg.get("graph") else None
+    except ModuleNotFoundError:
+        if vcfg.get("graph"):
+            raise EnvironmentError(
+                "Graph configuration required but module is not installed."
+            )
+        else:
+            graph = None
 
     return cooker_cls(
         obj_type,

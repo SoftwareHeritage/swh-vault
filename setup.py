@@ -48,7 +48,10 @@ setup(
     install_requires=parse_requirements() + parse_requirements("swh"),
     setup_requires=["setuptools-scm"],
     use_scm_version=True,
-    extras_require={"testing": parse_requirements("test")},
+    extras_require={
+        "testing": parse_requirements("test"),
+        "graph": parse_requirements("swh-graph"),
+    },
     include_package_data=True,
     zip_safe=False,
     entry_points="""

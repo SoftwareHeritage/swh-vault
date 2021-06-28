@@ -1,3 +1,25 @@
+swh-vault (0.6.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.6.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2021-06-28 12:18:51
+    +0200)
+  * Upstream changes:     - v0.6.0     - git_bare: Add support for
+    skipped/missing/absent/hidden contents     - git_bare: Optionally
+    access the objstorage directly     - git_bare: Use batched
+    content_get() instead of content_find()     - git_bare: Use
+    directory_get_entries instead of directory_ls, it should be faster
+    - git_bare: Refactor the graph descent using explicit stacks instead
+    of the call stack.     - git_bare: When possible, use swh-graph
+    instead of swh-storage to query revision     - history     -
+    git_bare: Deduplicate object downloads and writes     - Add a naive
+    git bare cooker     - cli: Add 'cook' command, to run cookers
+    without Celery     - tests: Run all directory tests on the gitfast
+    cooker     - tests: Add in_memory_backend.py     - tests: Make
+    test_directory_bogus_perms/test_revision_bogus_perms/ actually test
+    the     - cookers
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 28 Jun 2021 10:25:48 +0000
+
 swh-vault (0.5.1-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.5.1     - (tagged by Antoine Lambert

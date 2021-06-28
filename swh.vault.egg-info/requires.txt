@@ -4,11 +4,12 @@ psycopg2
 python-dateutil
 fastimport
 typing-extensions
-swh.core[db,http]>=0.5
+swh.core[db,http]>=0.14.0
+swh.graph>=v0.3.2
 swh.model>=0.3
 swh.objstorage>=0.0.17
 swh.scheduler>=0.7.0
-swh.storage>=0.0.106
+swh.storage>=0.29.0
 
 [testing]
 pytest
@@ -17,3 +18,7 @@ swh.loader.core
 swh.loader.git>=0.8
 swh.storage[testing]
 pytest-mock
+types-click
+types-python-dateutil
+types-pyyaml
+types-requests

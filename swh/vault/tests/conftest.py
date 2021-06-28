@@ -33,10 +33,10 @@ VAULT_SQL_DIR = os.path.join(os.path.dirname(swh.vault.__file__), "sql")
 
 
 postgres_vault = postgresql_fact(
-    "postgresql_proc", db_name="vault", dump_files=f"{VAULT_SQL_DIR}/*.sql"
+    "postgresql_proc", dbname="vault", dump_files=f"{VAULT_SQL_DIR}/*.sql"
 )
 postgres_storage = postgresql_fact(
-    "postgresql_proc", db_name="storage", dump_files=f"{STORAGE_SQL_DIR}/*.sql"
+    "postgresql_proc", dbname="storage", dump_files=f"{STORAGE_SQL_DIR}/*.sql"
 )
 
 

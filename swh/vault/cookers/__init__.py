@@ -10,10 +10,12 @@ from typing import Any, Dict
 
 from swh.core.config import load_named_config
 from swh.core.config import read as read_config
+from swh.graph.client import RemoteGraphClient
 from swh.storage import get_storage
 from swh.vault import get_vault
 from swh.vault.cookers.base import DEFAULT_CONFIG, DEFAULT_CONFIG_PATH
 from swh.vault.cookers.directory import DirectoryCooker
+from swh.vault.cookers.git_bare import GitBareCooker
 from swh.vault.cookers.revision_flat import RevisionFlatCooker
 from swh.vault.cookers.revision_gitfast import RevisionGitfastCooker
 
@@ -21,6 +23,8 @@ COOKER_TYPES = {
     "directory": DirectoryCooker,
     "revision_flat": RevisionFlatCooker,
     "revision_gitfast": RevisionGitfastCooker,
+    "revision_git_bare": GitBareCooker,
+    "directory_git_bare": GitBareCooker,
 }
 
 
@@ -86,11 +90,13 @@ def get_cooker(obj_type: str, obj_id: str):
 
     storage = get_storage(**vcfg.pop("storage"))
     backend = get_vault(**vcfg)
+    graph = RemoteGraphClient(**vcfg["graph"]) if "graph" in vcfg else None
 
     return cooker_cls(
         obj_type,
         obj_id,
         backend=backend,
         storage=storage,
+        graph=graph,
         max_bundle_size=cfg["max_bundle_size"],
     )

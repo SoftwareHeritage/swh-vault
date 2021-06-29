@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: swh.vault
-Version: 0.6.0
+Version: 0.6.1
 Summary: Software Heritage vault
 Home-page: https://forge.softwareheritage.org/diffusion/DVAU/
 Author: Software Heritage developers
@@ -19,6 +19,7 @@ Classifier: Development Status :: 5 - Production/Stable
 Requires-Python: >=3.7
 Description-Content-Type: text/markdown
 Provides-Extra: testing
+Provides-Extra: graph
 License-File: LICENSE
 License-File: AUTHORS
 

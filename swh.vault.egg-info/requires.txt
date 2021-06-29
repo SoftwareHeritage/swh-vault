@@ -5,11 +5,13 @@ python-dateutil
 fastimport
 typing-extensions
 swh.core[db,http]>=0.14.0
-swh.graph>=v0.3.2
 swh.model>=0.3
 swh.objstorage>=0.0.17
 swh.scheduler>=0.7.0
 swh.storage>=0.29.0
+
+[graph]
+swh.graph>=v0.3.2
 
 [testing]
 pytest

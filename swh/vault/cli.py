@@ -70,7 +70,6 @@ def cook(
     and outputs it to the given file.
     """
     from swh.core import config
-    from swh.graph.client import RemoteGraphClient
     from swh.objstorage.factory import get_objstorage
     from swh.storage import get_storage
 
@@ -101,10 +100,21 @@ def cook(
                 f"an explicit --cooker-type."
             )
 
+    try:
+        from swh.graph.client import RemoteGraphClient  # optional dependency
+
+        graph = RemoteGraphClient(**conf["graph"]) if conf.get("graph") else None
+    except ModuleNotFoundError:
+        if conf.get("graph"):
+            raise EnvironmentError(
+                "Graph configuration required but module is not installed."
+            )
+        else:
+            graph = None
+
     backend = InMemoryVaultBackend()
     storage = get_storage(**conf["storage"])
     objstorage = get_objstorage(**conf["objstorage"]) if "objstorage" in conf else None
-    graph = RemoteGraphClient(**conf["graph"]) if "graph" in conf else None
     cooker_cls = get_cooker_cls(cooker_name)
     cooker = cooker_cls(
         obj_type=cooker_name,

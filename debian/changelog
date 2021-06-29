@@ -1,8 +1,13 @@
-swh-vault (0.6.3-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-vault (0.6.4-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.6.4     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2021-06-29 13:18:27
+    +0200)
+  * Upstream changes:     - v0.6.4     - Fix tests when the umask is not
+    022     - tests: Fix support of Dulwich < 0.20     - conftest: Use
+    postgresql keyword for the configuration
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 29 Jun 2021 10:01:07 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 29 Jun 2021 11:20:54 +0000
 
 swh-vault (0.6.3-1~swh1) unstable-swh; urgency=medium
 

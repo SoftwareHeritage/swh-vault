@@ -1,3 +1,13 @@
+swh-vault (0.6.3-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.6.3     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2021-06-29 11:55:43
+    +0200)
+  * Upstream changes:     - v0.6.3     - git_bare: Add support for
+    filtered content with Git >= 2.21
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 29 Jun 2021 09:59:47 +0000
+
 swh-vault (0.6.2-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.6.2     - (tagged by Antoine R. Dumont

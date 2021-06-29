@@ -27,7 +27,6 @@ from typing import Any, Dict, Iterable, List, Set
 import zlib
 
 from swh.core.api.classes import stream_results
-from swh.graph.client import GraphArgumentException
 from swh.model import identifiers
 from swh.model.hashutil import hash_to_bytehex, hash_to_hex
 from swh.model.model import (
@@ -235,6 +234,8 @@ class GitBareCooker(BaseVaultCooker):
         loaded_from_graph = False
 
         if self.graph:
+            from swh.graph.client import GraphArgumentException
+
             # First, try to cook using swh-graph, as it is more efficient than
             # swh-storage for querying the history
             obj_swhid = identifiers.CoreSWHID(

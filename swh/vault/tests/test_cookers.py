@@ -70,7 +70,7 @@ class TestRepo:
     def checkout(self, rev_sha):
         rev = self.repo[rev_sha]
         dulwich.index.build_index_from_tree(
-            self.repo_dir, self.repo.index_path(), self.repo.object_store, rev.tree
+            str(self.repo_dir), self.repo.index_path(), self.repo.object_store, rev.tree
         )
 
     def git_shell(self, *cmd, stdout=subprocess.DEVNULL, **kwargs):

@@ -17,6 +17,11 @@ from swh.vault import get_vault
 
 os.environ["LC_ALL"] = "C.UTF-8"
 
+# needed for directory tests on git-cloned repositories
+# 022 is usually the default value, but some environments (eg. Debian builds) have
+# a different one.
+os.umask(0o022)
+
 pytest_v = pkg_resources.get_distribution("pytest").parsed_version
 if pytest_v < pkg_resources.extern.packaging.version.parse("3.9"):
 

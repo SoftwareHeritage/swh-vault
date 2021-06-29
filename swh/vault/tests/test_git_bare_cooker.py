@@ -18,7 +18,6 @@ import unittest.mock
 
 import pytest
 
-from swh.graph.naive_client import NaiveClient as GraphClient
 from swh.model.from_disk import DentryPerms
 from swh.model.model import (
     Content,
@@ -122,8 +121,11 @@ def get_objects(last_revision_in_graph):
     return (cnt1, cnt2, dir1, dir2, rev1, rev2, nodes, edges)
 
 
+@pytest.mark.graph
 @pytest.mark.parametrize("last_revision_in_graph", [True, False])
 def test_graph_revisions(swh_storage, last_revision_in_graph):
+    from swh.graph.naive_client import NaiveClient as GraphClient
+
     (cnt1, cnt2, dir1, dir2, rev1, rev2, nodes, edges) = get_objects(
         last_revision_in_graph
     )

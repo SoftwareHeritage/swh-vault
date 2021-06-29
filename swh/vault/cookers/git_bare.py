@@ -342,9 +342,16 @@ class GitBareCooker(BaseVaultCooker):
     def _expect_mismatched_object_error(self, obj_id):
         obj_id_hex = hash_to_hex(obj_id)
         obj_path = self._obj_relative_path(obj_id)
+
+        # For Git < 2.21:
         self._expected_fsck_errors.add(
             f"error: sha1 mismatch for ./{obj_path} (expected {obj_id_hex})"
         )
+        # For Git >= 2.21:
+        self._expected_fsck_errors.add(
+            f"error: hash mismatch for ./{obj_path} (expected {obj_id_hex})"
+        )
+
         self._expected_fsck_errors.add(
             f"error: {obj_id_hex}: object corrupt or missing: ./{obj_path}"
         )

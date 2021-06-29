@@ -4,3 +4,7 @@ swh.loader.core
 swh.loader.git >= 0.8
 swh.storage[testing]
 pytest-mock
+types-click
+types-python-dateutil
+types-pyyaml
+types-requests

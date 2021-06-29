@@ -11,6 +11,7 @@ conftest.py
 mypy.ini
 pyproject.toml
 pytest.ini
+requirements-swh-graph.txt
 requirements-swh.txt
 requirements-test.txt
 requirements.txt
@@ -42,6 +43,7 @@ swh/vault/cache.py
 swh/vault/cli.py
 swh/vault/cooking_tasks.py
 swh/vault/exc.py
+swh/vault/in_memory_backend.py
 swh/vault/interface.py
 swh/vault/py.typed
 swh/vault/to_disk.py
@@ -51,6 +53,7 @@ swh/vault/api/server.py
 swh/vault/cookers/__init__.py
 swh/vault/cookers/base.py
 swh/vault/cookers/directory.py
+swh/vault/cookers/git_bare.py
 swh/vault/cookers/revision_flat.py
 swh/vault/cookers/revision_gitfast.py
 swh/vault/cookers/utils.py
@@ -59,8 +62,10 @@ swh/vault/tests/__init__.py
 swh/vault/tests/conftest.py
 swh/vault/tests/test_backend.py
 swh/vault/tests/test_cache.py
+swh/vault/tests/test_cli.py
 swh/vault/tests/test_cookers.py
 swh/vault/tests/test_cookers_base.py
+swh/vault/tests/test_git_bare_cooker.py
 swh/vault/tests/test_init.py
 swh/vault/tests/test_init_cookers.py
 swh/vault/tests/test_server.py

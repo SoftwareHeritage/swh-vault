@@ -61,7 +61,14 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     CACHE_TYPE_KEY = None  # type: Optional[str]
 
     def __init__(
-        self, obj_type, obj_id, backend, storage, max_bundle_size=MAX_BUNDLE_SIZE
+        self,
+        obj_type,
+        obj_id,
+        backend,
+        storage,
+        graph=None,
+        objstorage=None,
+        max_bundle_size=MAX_BUNDLE_SIZE,
     ):
         """Initialize the cooker.
 
@@ -80,6 +87,8 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         self.obj_id = hashutil.hash_to_bytes(obj_id)
         self.backend = backend
         self.storage = storage
+        self.objstorage = objstorage
+        self.graph = graph
         self.max_bundle_size = max_bundle_size
 
     @abc.abstractmethod
@@ -97,6 +106,10 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         Override this with the cooker implementation.
         """
         raise NotImplementedError
+
+    def cache_type_key(self) -> str:
+        assert self.CACHE_TYPE_KEY
+        return self.CACHE_TYPE_KEY
 
     def write(self, chunk):
         self.fileobj.write(chunk)
@@ -117,7 +130,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
                 )
             bundle = self.fileobj.getvalue()
             # TODO: use proper content streaming instead of put_bundle()
-            self.backend.put_bundle(self.CACHE_TYPE_KEY, self.obj_id, bundle)
+            self.backend.put_bundle(self.cache_type_key(), self.obj_id, bundle)
         except PolicyError as e:
             self.backend.set_status(self.obj_type, self.obj_id, "failed")
             self.backend.set_progress(self.obj_type, self.obj_id, str(e))

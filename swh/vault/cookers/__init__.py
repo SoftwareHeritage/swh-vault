@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2020  The Software Heritage developers
+# Copyright (C) 2017-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -14,6 +14,7 @@ from swh.storage import get_storage
 from swh.vault import get_vault
 from swh.vault.cookers.base import DEFAULT_CONFIG, DEFAULT_CONFIG_PATH
 from swh.vault.cookers.directory import DirectoryCooker
+from swh.vault.cookers.git_bare import GitBareCooker
 from swh.vault.cookers.revision_flat import RevisionFlatCooker
 from swh.vault.cookers.revision_gitfast import RevisionGitfastCooker
 
@@ -21,6 +22,8 @@ COOKER_TYPES = {
     "directory": DirectoryCooker,
     "revision_flat": RevisionFlatCooker,
     "revision_gitfast": RevisionGitfastCooker,
+    "revision_git_bare": GitBareCooker,
+    "directory_git_bare": GitBareCooker,
 }
 
 
@@ -87,10 +90,23 @@ def get_cooker(obj_type: str, obj_id: str):
     storage = get_storage(**vcfg.pop("storage"))
     backend = get_vault(**vcfg)
 
+    try:
+        from swh.graph.client import RemoteGraphClient  # optional dependency
+
+        graph = RemoteGraphClient(**vcfg["graph"]) if vcfg.get("graph") else None
+    except ModuleNotFoundError:
+        if vcfg.get("graph"):
+            raise EnvironmentError(
+                "Graph configuration required but module is not installed."
+            )
+        else:
+            graph = None
+
     return cooker_cls(
         obj_type,
         obj_id,
         backend=backend,
         storage=storage,
+        graph=graph,
         max_bundle_size=cfg["max_bundle_size"],
     )

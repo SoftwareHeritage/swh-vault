@@ -19,7 +19,7 @@ class VaultInterface(Protocol):
     """
 
     @remote_api_endpoint("fetch")
-    def fetch(self, obj_type: str, obj_id: ObjectId) -> Dict[str, Any]:
+    def fetch(self, obj_type: str, obj_id: ObjectId) -> Optional[bytes]:
         """Fetch information from a bundle"""
         ...
 
@@ -43,7 +43,7 @@ class VaultInterface(Protocol):
         ...
 
     @remote_api_endpoint("set_status")
-    def set_status(self, obj_type: str, obj_id: ObjectId, status: str) -> None:
+    def set_status(self, obj_type: str, obj_id: ObjectId, status: str) -> bool:
         """Set the cooking status of a bundle"""
         ...
 

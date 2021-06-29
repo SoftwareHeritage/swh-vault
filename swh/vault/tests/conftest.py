@@ -46,7 +46,7 @@ def swh_vault_config(postgres_vault, postgres_storage, tmp_path) -> Dict[str, An
     return {
         "db": postgres_vault.dsn,
         "storage": {
-            "cls": "local",
+            "cls": "postgresql",
             "db": postgres_storage.dsn,
             "objstorage": {
                 "cls": "pathslicing",

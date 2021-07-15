@@ -23,7 +23,7 @@ import re
 import subprocess
 import tarfile
 import tempfile
-from typing import Any, Dict, Iterable, List, Set
+from typing import Any, Dict, Iterable, List, Optional, Set
 import zlib
 
 from swh.core.api.classes import stream_results
@@ -34,9 +34,11 @@ from swh.model.model import (
     Revision,
     RevisionType,
     Sha1Git,
+    TargetType,
     TimestampWithTimezone,
 )
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
+from swh.storage.algos.snapshot import snapshot_get_all_branches
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE
 
@@ -57,6 +59,8 @@ class GitBareCooker(BaseVaultCooker):
             return not list(self.storage.revision_missing([self.obj_id]))
         elif obj_type == "directory":
             return not list(self.storage.directory_missing([self.obj_id]))
+        if obj_type == "snapshot":
+            return not list(self.storage.snapshot_missing([self.obj_id]))
         else:
             raise NotImplementedError(f"GitBareCooker for {obj_type}")
 
@@ -85,6 +89,7 @@ class GitBareCooker(BaseVaultCooker):
 
         # Set of objects already in any of the stacks:
         self._seen: Set[Sha1Git] = set()
+        self._walker_state: Optional[Any] = None
 
         # Set of errors we expect git-fsck to raise at the end:
         self._expected_fsck_errors = set()
@@ -102,7 +107,7 @@ class GitBareCooker(BaseVaultCooker):
             # Load and write all the objects to disk
             self.load_objects()
 
-            # Write the root object as a ref.
+            # Write the root object as a ref (this step is skipped if it's a snapshot)
             # This must be done before repacking; git-repack ignores orphan objects.
             self.write_refs()
 
@@ -150,7 +155,8 @@ class GitBareCooker(BaseVaultCooker):
                 )
             )
 
-    def write_refs(self):
+    def write_refs(self, snapshot=None):
+        refs: Dict[bytes, bytes]  # ref name -> target
         obj_type = self.obj_type.split("_")[0]
         if obj_type == "directory":
             # We need a synthetic revision pointing to the directory
@@ -171,14 +177,29 @@ class GitBareCooker(BaseVaultCooker):
                 synthetic=True,
             )
             self.write_revision_node(revision.to_dict())
-            head = revision.id
+            refs = {b"refs/heads/master": hash_to_bytehex(revision.id)}
         elif obj_type == "revision":
-            head = self.obj_id
+            refs = {b"refs/heads/master": hash_to_bytehex(self.obj_id)}
+        elif obj_type == "snapshot":
+            if snapshot is None:
+                # refs were already written in a previous step
+                return
+            refs = {
+                branch_name: (
+                    b"ref: " + branch.target
+                    if branch.target_type == TargetType.ALIAS
+                    else hash_to_bytehex(branch.target)
+                )
+                for (branch_name, branch) in snapshot.branches.items()
+            }
         else:
             assert False, obj_type
 
-        with open(os.path.join(self.gitdir, "refs", "heads", "master"), "wb") as fd:
-            fd.write(hash_to_bytehex(head))
+        for (ref_name, ref_target) in refs.items():
+            path = os.path.join(self.gitdir.encode(), ref_name)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as fd:
+                fd.write(ref_target)
 
     def write_archive(self):
         with tarfile.TarFile(mode="w", fileobj=self.fileobj) as tf:
@@ -213,6 +234,8 @@ class GitBareCooker(BaseVaultCooker):
             self.push_revision_subgraph(obj_id)
         elif obj_type == "directory":
             self._push(self._dir_stack, [obj_id])
+        elif obj_type == "snapshot":
+            self.push_snapshot_subgraph(obj_id)
         else:
             raise NotImplementedError(
                 f"GitBareCooker.queue_subgraph({obj_type!r}, ...)"
@@ -261,10 +284,37 @@ class GitBareCooker(BaseVaultCooker):
             # swh-graph, fall back to self.storage.revision_log.
             # self.storage.revision_log also gives us the full revisions,
             # so we load them right now instead of just pushing them on the stack.
-            walker = DFSRevisionsWalker(self.storage, obj_id)
+            walker = DFSRevisionsWalker(self.storage, obj_id, state=self._walker_state)
             for revision in walker:
                 self.write_revision_node(revision)
                 self._push(self._dir_stack, [revision["directory"]])
+            # Save the state, so the next call to the walker won't return the same
+            # revisions
+            self._walker_state = walker.export_state()
+
+    def push_snapshot_subgraph(self, obj_id: Sha1Git) -> None:
+        """Fetches a snapshot and all its children, and writes them to disk"""
+        loaded_from_graph = False
+
+        if self.graph:
+            pass  # TODO
+
+        # TODO: when self.graph is available and supports edge labels, use it
+        # directly to get branch names.
+        snapshot = snapshot_get_all_branches(self.storage, obj_id)
+        assert snapshot, "Unknown snapshot"  # should have been caught by check_exists()
+        for branch in snapshot.branches.values():
+            if not loaded_from_graph:
+                if branch.target_type == TargetType.REVISION:
+                    self.push_revision_subgraph(branch.target)
+                elif branch.target_type == TargetType.ALIAS:
+                    # Nothing to do, this for loop also iterates on the target branch
+                    # (if it exists)
+                    pass
+                else:
+                    raise NotImplementedError(f"{branch.target_type} branches")
+
+        self.write_refs(snapshot=snapshot)
 
     def load_revisions(self, obj_ids: List[Sha1Git]) -> None:
         """Given a list of revision ids, loads these revisions and their directories;

@@ -22,6 +22,7 @@ COOKER_TYPES = {
     "directory": DirectoryCooker,
     "revision_flat": RevisionFlatCooker,
     "revision_gitfast": RevisionGitfastCooker,
+    "snapshot_git_bare": GitBareCooker,
     "revision_git_bare": GitBareCooker,
     "directory_git_bare": GitBareCooker,
 }

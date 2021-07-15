@@ -543,7 +543,10 @@ class TestDirectoryCooker:
             assert os.readlink(str(p / "submodule")) == target_rev
 
 
-class TestRevisionCooker:
+class RepoFixtures:
+    """Shared loading and checking methods that can be reused by different types
+    of tests."""
+
     def load_repo_simple(self, git_loader):
         #
         #     1--2--3--4--5--6--7
@@ -584,11 +587,6 @@ class TestRevisionCooker:
         assert (p / "dir1/dir2/file").stat().st_mode == 0o100644
         assert ert.repo.refs[b"HEAD"].decode() == obj_id.hex()
 
-    def test_revision_simple(self, git_loader, cook_extract_revision):
-        (loader, obj_id) = self.load_repo_simple(git_loader)
-        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
-            self.check_revision_simple(ert, p, obj_id)
-
     def load_repo_two_roots(self, git_loader):
         #
         #    1----3---4
@@ -613,11 +611,6 @@ class TestRevisionCooker:
 
     def check_revision_two_roots(self, ert, p, obj_id):
         assert ert.repo.refs[b"HEAD"].decode() == obj_id.hex()
-
-    def test_revision_two_roots(self, git_loader, cook_extract_revision):
-        (loader, obj_id) = self.load_repo_two_roots(git_loader)
-        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
-            self.check_revision_two_roots(ert, p, obj_id)
 
     def load_repo_two_double_fork_merge(self, git_loader):
         #
@@ -654,11 +647,6 @@ class TestRevisionCooker:
     def check_revision_two_double_fork_merge(self, ert, p, obj_id):
         assert ert.repo.refs[b"HEAD"].decode() == obj_id.hex()
 
-    def test_revision_two_double_fork_merge(self, git_loader, cook_extract_revision):
-        (loader, obj_id) = self.load_repo_two_double_fork_merge(git_loader)
-        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
-            self.check_revision_two_double_fork_merge(ert, p, obj_id)
-
     def load_repo_triple_merge(self, git_loader):
         #
         #       .---.---5
@@ -687,11 +675,6 @@ class TestRevisionCooker:
 
     def check_revision_triple_merge(self, ert, p, obj_id):
         assert ert.repo.refs[b"HEAD"].decode() == obj_id.hex()
-
-    def test_revision_triple_merge(self, git_loader, cook_extract_revision):
-        (loader, obj_id) = self.load_repo_triple_merge(git_loader)
-        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
-            self.check_revision_triple_merge(ert, p, obj_id)
 
     def load_repo_filtered_objects(self, git_loader):
         repo = TestRepo()
@@ -744,11 +727,6 @@ class TestRevisionCooker:
         assert (p / "hidden_file").read_bytes() == HIDDEN_MESSAGE
         assert (p / "absent_file").read_bytes() == SKIPPED_MESSAGE
 
-    def test_revision_filtered_objects(self, git_loader, cook_extract_revision):
-        (loader, obj_id) = self.load_repo_filtered_objects(git_loader)
-        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
-            self.check_revision_filtered_objects(ert, p, obj_id)
-
     def load_repo_null_fields(self, git_loader):
         # Our schema doesn't enforce a lot of non-null revision fields. We need
         # to check these cases don't break the cooker.
@@ -782,6 +760,33 @@ class TestRevisionCooker:
     def check_revision_null_fields(self, ert, p, obj_id):
         ert.checkout(b"HEAD")
         assert (p / "file").stat().st_mode == 0o100644
+
+
+class TestRevisionCooker(RepoFixtures):
+    def test_revision_simple(self, git_loader, cook_extract_revision):
+        (loader, obj_id) = self.load_repo_simple(git_loader)
+        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
+            self.check_revision_simple(ert, p, obj_id)
+
+    def test_revision_two_roots(self, git_loader, cook_extract_revision):
+        (loader, obj_id) = self.load_repo_two_roots(git_loader)
+        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
+            self.check_revision_two_roots(ert, p, obj_id)
+
+    def test_revision_two_double_fork_merge(self, git_loader, cook_extract_revision):
+        (loader, obj_id) = self.load_repo_two_double_fork_merge(git_loader)
+        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
+            self.check_revision_two_double_fork_merge(ert, p, obj_id)
+
+    def test_revision_triple_merge(self, git_loader, cook_extract_revision):
+        (loader, obj_id) = self.load_repo_triple_merge(git_loader)
+        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
+            self.check_revision_triple_merge(ert, p, obj_id)
+
+    def test_revision_filtered_objects(self, git_loader, cook_extract_revision):
+        (loader, obj_id) = self.load_repo_filtered_objects(git_loader)
+        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
+            self.check_revision_filtered_objects(ert, p, obj_id)
 
     def test_revision_null_fields(self, git_loader, cook_extract_revision):
         (loader, obj_id) = self.load_repo_null_fields(git_loader)

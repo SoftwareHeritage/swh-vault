@@ -127,6 +127,15 @@ class TestRepo:
             self.git_shell("reset", "--hard", "HEAD")
         return ret
 
+    def tag(self, name, target=b"HEAD", message=None):
+        dulwich.porcelain.tag_create(
+            self.repo,
+            name,
+            message=message,
+            annotated=message is not None,
+            objectish=target,
+        )
+
     def merge(self, parent_sha_list, message="Merge branches."):
         self.git_shell(
             "merge",
@@ -875,6 +884,72 @@ class RepoFixtures:
         ert.checkout(b"HEAD")
         assert (p / "file").stat().st_mode == 0o100644
 
+    def load_repo_tags(self, git_loader):
+        #        v-- t2
+        #
+        #    1---2----5      <-- master, t5, and t5a (annotated)
+        #         \
+        #          ----3----4     <-- t4a (annotated)
+        #
+        repo = TestRepo()
+        with repo as rp:
+            (rp / "file1").write_text(TEST_CONTENT)
+            repo.commit("Add file1")
+
+            (rp / "file2").write_text(TEST_CONTENT)
+            repo.commit("Add file2")  # create c2
+
+            repo.tag(b"t2")
+
+            (rp / "file3").write_text(TEST_CONTENT)
+            repo.commit("add file3")
+
+            (rp / "file4").write_text(TEST_CONTENT)
+            repo.commit("add file4")
+
+            repo.tag(b"t4a", message=b"tag 4")
+
+            # Go back to c2
+            repo.git_shell("reset", "--hard", "HEAD^^")
+
+            (rp / "file5").write_text(TEST_CONTENT)
+            repo.commit("add file5")  # create c5
+
+            repo.tag(b"t5")
+            repo.tag(b"t5a", message=b"tag 5")
+
+            obj_id_hex = repo.repo.refs[b"HEAD"].decode()
+            obj_id = hashutil.hash_to_bytes(obj_id_hex)
+            loader = git_loader(str(rp))
+            loader.load()
+        return (loader, obj_id)
+
+    def check_snapshot_tags(self, ert, p, obj_id):
+        assert (
+            hashutil.hash_to_bytehex(obj_id)
+            == ert.repo.refs[b"HEAD"]
+            == ert.repo.refs[b"refs/heads/master"]
+            == ert.repo.refs[b"refs/remotes/origin/HEAD"]
+            == ert.repo.refs[b"refs/remotes/origin/master"]
+            == ert.repo.refs[b"refs/tags/t5"]
+        )
+
+        c2_id = ert.repo.refs[b"refs/tags/t2"]
+        c5_id = hashutil.hash_to_bytehex(obj_id)
+
+        assert ert.repo[c5_id].parents == [c2_id]
+
+        t5a = ert.repo[ert.repo.refs[b"refs/tags/t5a"]]
+        assert t5a.message == b"tag 5\n"  # TODO: investigate why new dulwich adds \n
+        assert t5a.object == (dulwich.objects.Commit, c5_id)
+
+        t4a = ert.repo[ert.repo.refs[b"refs/tags/t4a"]]
+        (_, c4_id) = t4a.object
+        assert ert.repo[c4_id].message == b"add file4\n"  # TODO: ditto
+        (c3_id,) = ert.repo[c4_id].parents
+        assert ert.repo[c3_id].message == b"add file3\n"  # TODO: ditto
+        assert ert.repo[c3_id].parents == [c2_id]
+
 
 class TestRevisionCooker(RepoFixtures):
     def test_revision_simple(self, git_loader, cook_extract_revision):
@@ -979,3 +1054,9 @@ class TestSnapshotCooker(RepoFixtures):
         snp_id = loader.loaded_snapshot_id
         with cook_extract_snapshot(loader.storage, snp_id) as (ert, p):
             self.check_revision_filtered_objects(ert, p, main_rev_id)
+
+    def test_snapshot_tags(self, git_loader, cook_extract_snapshot):
+        (loader, main_rev_id) = self.load_repo_tags(git_loader)
+        snp_id = loader.loaded_snapshot_id
+        with cook_extract_snapshot(loader.storage, snp_id) as (ert, p):
+            self.check_snapshot_tags(ert, p, main_rev_id)

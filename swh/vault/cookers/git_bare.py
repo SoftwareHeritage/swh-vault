@@ -30,6 +30,7 @@ from swh.core.api.classes import stream_results
 from swh.model import identifiers
 from swh.model.hashutil import hash_to_bytehex, hash_to_hex
 from swh.model.model import (
+    ObjectType,
     Person,
     Revision,
     RevisionType,
@@ -42,6 +43,7 @@ from swh.storage.algos.snapshot import snapshot_get_all_branches
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE
 
+RELEASE_BATCH_SIZE = 10000
 REVISION_BATCH_SIZE = 10000
 DIRECTORY_BATCH_SIZE = 10000
 CONTENT_BATCH_SIZE = 100
@@ -83,6 +85,7 @@ class GitBareCooker(BaseVaultCooker):
 
     def prepare_bundle(self):
         # Objects we will visit soon:
+        self._rel_stack: List[Sha1Git] = []
         self._rev_stack: List[Sha1Git] = []
         self._dir_stack: List[Sha1Git] = []
         self._cnt_stack: List[Sha1Git] = []
@@ -242,7 +245,10 @@ class GitBareCooker(BaseVaultCooker):
             )
 
     def load_objects(self) -> None:
-        while self._rev_stack or self._dir_stack or self._cnt_stack:
+        while self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack:
+            release_ids = self._pop(self._rel_stack, RELEASE_BATCH_SIZE)
+            self.push_releases_subgraphs(release_ids)
+
             revision_ids = self._pop(self._rev_stack, REVISION_BATCH_SIZE)
             self.load_revisions(revision_ids)
 
@@ -307,6 +313,8 @@ class GitBareCooker(BaseVaultCooker):
             if not loaded_from_graph:
                 if branch.target_type == TargetType.REVISION:
                     self.push_revision_subgraph(branch.target)
+                elif branch.target_type == TargetType.RELEASE:
+                    self.push_releases_subgraphs([branch.target])
                 elif branch.target_type == TargetType.ALIAS:
                     # Nothing to do, this for loop also iterates on the target branch
                     # (if it exists)
@@ -328,6 +336,24 @@ class GitBareCooker(BaseVaultCooker):
         """Writes a revision object to disk"""
         git_object = identifiers.revision_git_object(revision)
         return self.write_object(revision["id"], git_object)
+
+    def push_releases_subgraphs(self, obj_ids: List[Sha1Git]) -> None:
+        """Given a list of release ids, loads these releases and adds their
+        target to the list of objects to visit"""
+        releases = self.storage.release_get(obj_ids)
+        revision_ids: List[Sha1Git] = []
+        for release in releases:
+            self.write_release_node(release.to_dict())
+            if release.target_type == ObjectType.REVISION:
+                self.push_revision_subgraph(release.target)
+            else:
+                raise NotImplementedError(f"{release.target_type} release targets")
+        self._push(self._rev_stack, revision_ids)
+
+    def write_release_node(self, release: Dict[str, Any]) -> bool:
+        """Writes a release object to disk"""
+        git_object = identifiers.release_git_object(release)
+        return self.write_object(release["id"], git_object)
 
     def load_directories(self, obj_ids: List[Sha1Git]) -> None:
         for obj_id in obj_ids:

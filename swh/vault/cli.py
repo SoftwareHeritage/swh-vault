@@ -70,6 +70,7 @@ def cook(
     and outputs it to the given file.
     """
     from swh.core import config
+    from swh.objstorage.exc import ObjNotFoundError
     from swh.objstorage.factory import get_objstorage
     from swh.storage import get_storage
 
@@ -126,8 +127,12 @@ def cook(
     )
     cooker.cook()
 
-    bundle = backend.fetch(cooker_name, swhid.object_id)
-    assert bundle, "Cooker did not write a bundle to the backend."
+    try:
+        bundle = backend.fetch(cooker_name, swhid.object_id)
+    except ObjNotFoundError:
+        bundle = None
+    if bundle is None:
+        raise click.ClickException("Cooker did not write a bundle to the backend.")
     outfile.write(bundle)
 
 

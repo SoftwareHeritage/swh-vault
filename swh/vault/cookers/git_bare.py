@@ -303,7 +303,41 @@ class GitBareCooker(BaseVaultCooker):
         loaded_from_graph = False
 
         if self.graph:
-            pass  # TODO
+            revision_ids = []
+            release_ids = []
+
+            from swh.graph.client import GraphArgumentException
+
+            # First, try to cook using swh-graph, as it is more efficient than
+            # swh-storage for querying the history
+            obj_swhid = identifiers.CoreSWHID(
+                object_type=identifiers.ObjectType.SNAPSHOT, object_id=obj_id,
+            )
+            try:
+                swhids = map(
+                    identifiers.CoreSWHID.from_string,
+                    self.graph.visit_nodes(str(obj_swhid), edges="snp:*,rel:*,rev:rev"),
+                )
+                for swhid in swhids:
+                    if swhid.object_type == identifiers.ObjectType.REVISION:
+                        revision_ids.append(swhid.object_id)
+                    elif swhid.object_type == identifiers.ObjectType.RELEASE:
+                        release_ids.append(swhid.object_id)
+                    elif swhid.object_type == identifiers.ObjectType.SNAPSHOT:
+                        assert (
+                            swhid.object_id == obj_id
+                        ), f"Snapshot {obj_id.hex()} references a different snapshot"
+                    else:
+                        raise NotImplementedError(
+                            f"{swhid.object_type} objects in snapshot subgraphs."
+                        )
+            except GraphArgumentException:
+                # Revision not found in the graph
+                pass
+            else:
+                self._push(self._rev_stack, revision_ids)
+                self._push(self._rel_stack, release_ids)
+                loaded_from_graph = True
 
         # TODO: when self.graph is available and supports edge labels, use it
         # directly to get branch names.

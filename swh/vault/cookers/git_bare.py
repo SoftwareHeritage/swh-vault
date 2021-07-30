@@ -142,15 +142,15 @@ class GitBareCooker(BaseVaultCooker):
             stderr=subprocess.STDOUT,
             env={"LANG": "C.utf8"},
         )
-        if not self._expected_fsck_errors:
-            # All went well, there should not be any error
-            proc.check_returncode()
-            return
 
         # Split on newlines not followed by a space
         errors = re.split("\n(?! )", proc.stdout.decode())
 
-        unexpected_errors = set(filter(bool, errors)) - self._expected_fsck_errors
+        errors = [
+            error for error in errors if error and not error.startswith("warning ")
+        ]
+
+        unexpected_errors = set(errors) - self._expected_fsck_errors
         if unexpected_errors:
             raise Exception(
                 "\n".join(

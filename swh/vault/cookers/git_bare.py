@@ -18,18 +18,21 @@ to avoid downloading and writing the same objects twice.
 """
 
 import datetime
+import logging
 import os.path
 import re
 import subprocess
 import tarfile
 import tempfile
-from typing import Any, Dict, Iterable, List, Optional, Set
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Tuple
 import zlib
 
-from swh.core.api.classes import stream_results
+from swh.core.api.classes import stream_results_optional
 from swh.model import identifiers
 from swh.model.hashutil import hash_to_bytehex, hash_to_hex
 from swh.model.model import (
+    Content,
+    DirectoryEntry,
     ObjectType,
     Person,
     Revision,
@@ -47,6 +50,9 @@ RELEASE_BATCH_SIZE = 10000
 REVISION_BATCH_SIZE = 10000
 DIRECTORY_BATCH_SIZE = 10000
 CONTENT_BATCH_SIZE = 100
+
+
+logger = logging.getLogger(__name__)
 
 
 class GitBareCooker(BaseVaultCooker):
@@ -361,7 +367,12 @@ class GitBareCooker(BaseVaultCooker):
     def load_revisions(self, obj_ids: List[Sha1Git]) -> None:
         """Given a list of revision ids, loads these revisions and their directories;
         but not their parent revisions."""
-        revisions = self.storage.revision_get(obj_ids)
+        ret: List[Optional[Revision]] = self.storage.revision_get(obj_ids)
+
+        revisions: List[Revision] = list(filter(None, ret))
+        if len(ret) != len(revisions):
+            logger.error("Missing revision(s), ignoring them.")
+
         for revision in revisions:
             self.write_revision_node(revision.to_dict())
         self._push(self._dir_stack, (rev.directory for rev in revisions))
@@ -374,11 +385,17 @@ class GitBareCooker(BaseVaultCooker):
     def push_releases_subgraphs(self, obj_ids: List[Sha1Git]) -> None:
         """Given a list of release ids, loads these releases and adds their
         target to the list of objects to visit"""
-        releases = self.storage.release_get(obj_ids)
+        ret = self.storage.release_get(obj_ids)
+
+        releases = list(filter(None, ret))
+        if len(ret) != len(releases):
+            logger.error("Missing release(s), ignoring them.")
+
         revision_ids: List[Sha1Git] = []
         for release in releases:
             self.write_release_node(release.to_dict())
             if release.target_type == ObjectType.REVISION:
+                assert release.target, "{release.swhid(}) has no target"
                 self.push_revision_subgraph(release.target)
             else:
                 raise NotImplementedError(f"{release.target_type} release targets")
@@ -395,10 +412,15 @@ class GitBareCooker(BaseVaultCooker):
 
     def load_directory(self, obj_id: Sha1Git) -> None:
         # Load the directory
-        entries = [
-            entry.to_dict()
-            for entry in stream_results(self.storage.directory_get_entries, obj_id)
-        ]
+        entries_it: Optional[Iterable[DirectoryEntry]] = stream_results_optional(
+            self.storage.directory_get_entries, obj_id
+        )
+
+        if entries_it is None:
+            logger.error("Missing swh:1:dir:%s, ignoring.", hash_to_hex(obj_id))
+            return
+
+        entries = [entry.to_dict() for entry in entries_it]
         directory = {"id": obj_id, "entries": entries}
         git_object = identifiers.directory_git_object(directory)
         self.write_object(obj_id, git_object)
@@ -436,14 +458,25 @@ class GitBareCooker(BaseVaultCooker):
                     f"for content {hash_to_hex(content.sha1_git)}"
                 )
 
+        contents_and_data: Iterator[Tuple[Content, Optional[bytes]]]
         if self.objstorage is None:
-            for content in visible_contents:
-                data = self.storage.content_get_data(content.sha1)
-                self.write_content(content.sha1_git, data)
+            contents_and_data = (
+                (content, self.storage.content_get_data(content.sha1))
+                for content in visible_contents
+            )
         else:
-            content_data = self.objstorage.get_batch(c.sha1 for c in visible_contents)
-            for (content, data) in zip(contents, content_data):
-                self.write_content(content.sha1_git, data)
+            contents_and_data = zip(
+                visible_contents,
+                self.objstorage.get_batch(c.sha1 for c in visible_contents),
+            )
+
+        for (content, datum) in contents_and_data:
+            if datum is None:
+                logger.error(
+                    "{content.swhid()} is visible, but is missing data. Skipping."
+                )
+                continue
+            self.write_content(content.sha1_git, datum)
 
     def write_content(self, obj_id: Sha1Git, content: bytes) -> None:
         header = identifiers.git_object_header("blob", len(content))

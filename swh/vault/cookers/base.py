@@ -11,6 +11,8 @@ from typing import Optional
 from psycopg2.extensions import QueryCanceledError
 
 from swh.model import hashutil
+from swh.model.model import Sha1Git
+from swh.storage.interface import StorageInterface
 
 MAX_BUNDLE_SIZE = 2 ** 29  # 512 MiB
 DEFAULT_CONFIG_PATH = "vault/cooker"
@@ -62,13 +64,13 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
 
     def __init__(
         self,
-        obj_type,
-        obj_id,
+        obj_type: str,
+        obj_id: Sha1Git,
         backend,
-        storage,
+        storage: StorageInterface,
         graph=None,
         objstorage=None,
-        max_bundle_size=MAX_BUNDLE_SIZE,
+        max_bundle_size: int = MAX_BUNDLE_SIZE,
     ):
         """Initialize the cooker.
 

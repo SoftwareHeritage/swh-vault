@@ -285,9 +285,13 @@ class GitBareCooker(BaseVaultCooker):
                     )
                 )
                 self._push(self._rev_stack, revision_ids)
-            except GraphArgumentException:
-                # Revision not found in the graph
-                pass
+            except GraphArgumentException as e:
+                logger.info(
+                    "Revision %s not found in swh-graph, falling back to fetching "
+                    "history using swh-storage. %s",
+                    hash_to_hex(obj_id),
+                    e.args[0],
+                )
             else:
                 loaded_from_graph = True
 
@@ -337,9 +341,13 @@ class GitBareCooker(BaseVaultCooker):
                         raise NotImplementedError(
                             f"{swhid.object_type} objects in snapshot subgraphs."
                         )
-            except GraphArgumentException:
-                # Revision not found in the graph
-                pass
+            except GraphArgumentException as e:
+                logger.info(
+                    "Snapshot %s not found in swh-graph, falling back to fetching "
+                    "history for each branch. %s",
+                    hash_to_hex(obj_id),
+                    e.args[0],
+                )
             else:
                 self._push(self._rev_stack, revision_ids)
                 self._push(self._rel_stack, release_ids)

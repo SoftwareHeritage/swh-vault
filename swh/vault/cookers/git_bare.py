@@ -262,16 +262,20 @@ class GitBareCooker(BaseVaultCooker):
     def load_objects(self) -> None:
         while self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack:
             release_ids = self._pop(self._rel_stack, RELEASE_BATCH_SIZE)
-            self.load_releases(release_ids)
+            if release_ids:
+                self.load_releases(release_ids)
 
             revision_ids = self._pop(self._rev_stack, REVISION_BATCH_SIZE)
-            self.load_revisions(revision_ids)
+            if revision_ids:
+                self.load_revisions(revision_ids)
 
             directory_ids = self._pop(self._dir_stack, DIRECTORY_BATCH_SIZE)
-            self.load_directories(directory_ids)
+            if directory_ids:
+                self.load_directories(directory_ids)
 
             content_ids = self._pop(self._cnt_stack, CONTENT_BATCH_SIZE)
-            self.load_contents(content_ids)
+            if content_ids:
+                self.load_contents(content_ids)
 
     def push_revision_subgraph(self, obj_id: Sha1Git) -> None:
         """Fetches a revision and all its children, and writes them to disk"""

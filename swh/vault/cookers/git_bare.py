@@ -121,23 +121,29 @@ class GitBareCooker(BaseVaultCooker):
             # This must be done before repacking; git-repack ignores orphan objects.
             self.write_refs()
 
+            if self.use_fsck:
+                self.git_fsck()
+
             self.repack()
+
             self.write_archive()
 
     def init_git(self) -> None:
         subprocess.run(["git", "-C", self.gitdir, "init", "--bare"], check=True)
+        self.create_object_dirs()
 
+    def create_object_dirs(self) -> None:
         # Create all possible dirs ahead of time, so we don't have to check for
         # existence every time.
         for byte in range(256):
-            os.mkdir(os.path.join(self.gitdir, "objects", f"{byte:02x}"))
+            try:
+                os.mkdir(os.path.join(self.gitdir, "objects", f"{byte:02x}"))
+            except FileExistsError:
+                pass
 
     def repack(self) -> None:
-        if self.use_fsck:
-            self.git_fsck()
-
         # Add objects we wrote in a pack
-        subprocess.run(["git", "-C", self.gitdir, "repack"], check=True)
+        subprocess.run(["git", "-C", self.gitdir, "repack", "-d"], check=True)
 
         # Remove their non-packed originals
         subprocess.run(["git", "-C", self.gitdir, "prune-packed"], check=True)

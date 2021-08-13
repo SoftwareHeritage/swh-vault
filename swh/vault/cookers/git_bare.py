@@ -193,13 +193,21 @@ class GitBareCooker(BaseVaultCooker):
             if snapshot is None:
                 # refs were already written in a previous step
                 return
+            branches = []
+            for (branch_name, branch) in snapshot.branches.items():
+                if branch is None:
+                    logging.error(
+                        "%s has dangling branch: %r", snapshot.swhid(), branch_name
+                    )
+                else:
+                    branches.append((branch_name, branch))
             refs = {
                 branch_name: (
                     b"ref: " + branch.target
                     if branch.target_type == TargetType.ALIAS
                     else hash_to_bytehex(branch.target)
                 )
-                for (branch_name, branch) in snapshot.branches.items()
+                for (branch_name, branch) in branches
             }
         else:
             assert False, obj_type

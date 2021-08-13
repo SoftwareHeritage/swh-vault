@@ -328,6 +328,7 @@ class GitBareCooker(BaseVaultCooker):
         if self.graph:
             revision_ids = []
             release_ids = []
+            directory_ids = []
 
             from swh.graph.client import GraphArgumentException
 
@@ -346,6 +347,8 @@ class GitBareCooker(BaseVaultCooker):
                         revision_ids.append(swhid.object_id)
                     elif swhid.object_type == identifiers.ObjectType.RELEASE:
                         release_ids.append(swhid.object_id)
+                    elif swhid.object_type == identifiers.ObjectType.DIRECTORY:
+                        directory_ids.append(swhid.object_id)
                     elif swhid.object_type == identifiers.ObjectType.SNAPSHOT:
                         assert (
                             swhid.object_id == obj_id
@@ -364,6 +367,7 @@ class GitBareCooker(BaseVaultCooker):
             else:
                 self._push(self._rev_stack, revision_ids)
                 self._push(self._rel_stack, release_ids)
+                self._push(self._dir_stack, directory_ids)
                 loaded_from_graph = True
 
         # TODO: when self.graph is available and supports edge labels, use it
@@ -382,6 +386,8 @@ class GitBareCooker(BaseVaultCooker):
                     # Nothing to do, this for loop also iterates on the target branch
                     # (if it exists)
                     pass
+                elif branch.target_type == TargetType.DIRECTORY:
+                    self._push(self._dir_stack, [branch.target])
                 else:
                     raise NotImplementedError(f"{branch.target_type} branches")
 

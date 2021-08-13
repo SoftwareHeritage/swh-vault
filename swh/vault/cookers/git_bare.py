@@ -35,6 +35,7 @@ from swh.model.model import (
     DirectoryEntry,
     ObjectType,
     Person,
+    Release,
     Revision,
     RevisionType,
     Sha1Git,
@@ -261,7 +262,7 @@ class GitBareCooker(BaseVaultCooker):
     def load_objects(self) -> None:
         while self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack:
             release_ids = self._pop(self._rel_stack, RELEASE_BATCH_SIZE)
-            self.push_releases_subgraphs(release_ids)
+            self.load_releases(release_ids)
 
             revision_ids = self._pop(self._rev_stack, REVISION_BATCH_SIZE)
             self.load_revisions(revision_ids)
@@ -367,7 +368,9 @@ class GitBareCooker(BaseVaultCooker):
         assert snapshot, "Unknown snapshot"  # should have been caught by check_exists()
         for branch in snapshot.branches.values():
             if not loaded_from_graph:
-                if branch.target_type == TargetType.REVISION:
+                if branch is None:
+                    logging.warning("Dangling branch: %r", branch)
+                elif branch.target_type == TargetType.REVISION:
                     self.push_revision_subgraph(branch.target)
                 elif branch.target_type == TargetType.RELEASE:
                     self.push_releases_subgraphs([branch.target])
@@ -398,24 +401,33 @@ class GitBareCooker(BaseVaultCooker):
         git_object = identifiers.revision_git_object(revision)
         return self.write_object(revision["id"], git_object)
 
-    def push_releases_subgraphs(self, obj_ids: List[Sha1Git]) -> None:
-        """Given a list of release ids, loads these releases and adds their
-        target to the list of objects to visit"""
+    def load_releases(self, obj_ids: List[Sha1Git]) -> List[Release]:
+        """Loads release objects, and returns them."""
         ret = self.storage.release_get(obj_ids)
 
         releases = list(filter(None, ret))
         if len(ret) != len(releases):
             logger.error("Missing release(s), ignoring them.")
 
-        revision_ids: List[Sha1Git] = []
         for release in releases:
             self.write_release_node(release.to_dict())
+
+        return releases
+
+    def push_releases_subgraphs(self, obj_ids: List[Sha1Git]) -> None:
+        """Given a list of release ids, loads these releases and adds their
+        target to the list of objects to visit"""
+        for release in self.load_releases(obj_ids):
             if release.target_type == ObjectType.REVISION:
                 assert release.target, "{release.swhid(}) has no target"
                 self.push_revision_subgraph(release.target)
+            elif release.target_type == ObjectType.DIRECTORY:
+                assert release.target, "{release.swhid(}) has no target"
+                self._push(self._dir_stack, [release.target])
             else:
-                raise NotImplementedError(f"{release.target_type} release targets")
-        self._push(self._rev_stack, revision_ids)
+                raise NotImplementedError(
+                    f"{release.swhid()} targets {release.target_type}"
+                )
 
     def write_release_node(self, release: Dict[str, Any]) -> bool:
         """Writes a release object to disk"""

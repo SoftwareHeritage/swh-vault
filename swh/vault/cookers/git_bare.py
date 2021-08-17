@@ -18,6 +18,7 @@ to avoid downloading and writing the same objects twice.
 """
 
 import datetime
+import enum
 import logging
 import os.path
 import re
@@ -56,27 +57,36 @@ CONTENT_BATCH_SIZE = 100
 logger = logging.getLogger(__name__)
 
 
+class RootObjectType(enum.Enum):
+    DIRECTORY = "directory"
+    REVISION = "revision"
+    SNAPSHOT = "snapshot"
+
+
 class GitBareCooker(BaseVaultCooker):
     use_fsck = True
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.obj_type = RootObjectType(self.bundle_type.split("_")[0])
 
     def cache_type_key(self) -> str:
         return self.bundle_type
 
     def check_exists(self):
-        obj_type = self.bundle_type.split("_")[0]
-        if obj_type == "revision":
+        if self.obj_type == RootObjectType.REVISION:
             return not list(self.storage.revision_missing([self.obj_id]))
-        elif obj_type == "directory":
+        elif self.obj_type == RootObjectType.DIRECTORY:
             return not list(self.storage.directory_missing([self.obj_id]))
-        if obj_type == "snapshot":
+        elif self.obj_type == RootObjectType.SNAPSHOT:
             return not list(self.storage.snapshot_missing([self.obj_id]))
         else:
-            raise NotImplementedError(f"GitBareCooker for {obj_type}")
+            assert False, f"Unexpected root object type: {self.obj_type}"
 
     def obj_swhid(self) -> identifiers.CoreSWHID:
-        obj_type = self.bundle_type.split("_")[0]
         return identifiers.CoreSWHID(
-            object_type=identifiers.ObjectType[obj_type.upper()], object_id=self.obj_id,
+            object_type=identifiers.ObjectType[self.obj_type.name],
+            object_id=self.obj_id,
         )
 
     def _push(self, stack: List[Sha1Git], obj_ids: Iterable[Sha1Git]) -> None:
@@ -112,7 +122,7 @@ class GitBareCooker(BaseVaultCooker):
             self.init_git()
 
             # Add the root object to the stack of objects to visit
-            self.push_subgraph(self.bundle_type.split("_")[0], self.obj_id)
+            self.push_subgraph(self.obj_type, self.obj_id)
 
             # Load and write all the objects to disk
             self.load_objects()
@@ -173,8 +183,7 @@ class GitBareCooker(BaseVaultCooker):
 
     def write_refs(self, snapshot=None):
         refs: Dict[bytes, bytes]  # ref name -> target
-        obj_type = self.bundle_type.split("_")[0]
-        if obj_type == "directory":
+        if self.obj_type == RootObjectType.DIRECTORY:
             # We need a synthetic revision pointing to the directory
             author = Person.from_fullname(
                 b"swh-vault, git-bare cooker <robot@softwareheritage.org>"
@@ -194,9 +203,9 @@ class GitBareCooker(BaseVaultCooker):
             )
             self.write_revision_node(revision.to_dict())
             refs = {b"refs/heads/master": hash_to_bytehex(revision.id)}
-        elif obj_type == "revision":
+        elif self.obj_type == RootObjectType.REVISION:
             refs = {b"refs/heads/master": hash_to_bytehex(self.obj_id)}
-        elif obj_type == "snapshot":
+        elif self.obj_type == RootObjectType.SNAPSHOT:
             if snapshot is None:
                 # refs were already written in a previous step
                 return
@@ -217,7 +226,7 @@ class GitBareCooker(BaseVaultCooker):
                 for (branch_name, branch) in branches
             }
         else:
-            assert False, obj_type
+            assert False, f"Unexpected root object type: {self.obj_type}"
 
         for (ref_name, ref_target) in refs.items():
             path = os.path.join(self.gitdir.encode(), ref_name)
@@ -253,17 +262,15 @@ class GitBareCooker(BaseVaultCooker):
             fd.write(data)
         return True
 
-    def push_subgraph(self, obj_type, obj_id) -> None:
-        if obj_type == "revision":
+    def push_subgraph(self, obj_type: RootObjectType, obj_id) -> None:
+        if self.obj_type == RootObjectType.REVISION:
             self.push_revision_subgraph(obj_id)
-        elif obj_type == "directory":
+        elif self.obj_type == RootObjectType.DIRECTORY:
             self._push(self._dir_stack, [obj_id])
-        elif obj_type == "snapshot":
+        elif self.obj_type == RootObjectType.SNAPSHOT:
             self.push_snapshot_subgraph(obj_id)
         else:
-            raise NotImplementedError(
-                f"GitBareCooker.queue_subgraph({obj_type!r}, ...)"
-            )
+            assert False, f"Unexpected root object type: {self.obj_type}"
 
     def load_objects(self) -> None:
         while self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack:

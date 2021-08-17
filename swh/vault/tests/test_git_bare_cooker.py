@@ -43,10 +43,10 @@ def get_objects(up_to_date_graph, release):
     """
     Build objects::
 
-                        rel2
-                         |
-                         v
-          rev1  <------ rev2
+                        rel2 <------ snp
+                         |          /
+                         v         /
+          rev1  <------ rev2 <----°
            |             |
            v             v
           dir1          dir2

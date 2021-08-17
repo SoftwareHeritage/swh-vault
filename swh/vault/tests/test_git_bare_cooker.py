@@ -39,31 +39,58 @@ from swh.vault.cookers.git_bare import GitBareCooker
 from swh.vault.in_memory_backend import InMemoryVaultBackend
 
 
-def get_objects(up_to_date_graph, release, tree_ref):
-    """
+@pytest.mark.parametrize(
+    "snapshot,up_to_date_graph,tag,weird_branches",
+    [
+        # 'no snp' implies no tag or tree, because there can only be one root object
+        param(
+            False, False, False, False, id="no snp, outdated graph, no tag/tree/blob"
+        ),
+        param(False, True, False, False, id="no snp, updated graph, no tag/tree/blob"),
+        param(True, False, False, False, id="snp, outdated graph, no tag/tree/blob"),
+        param(True, True, False, False, id="snp, updated graph, no tag/tree/blob"),
+        param(True, False, True, False, id="snp, outdated graph, w/ tag, no tree/blob"),
+        param(True, True, True, False, id="snp, updated graph, w/ tag, no tree/blob"),
+        param(
+            True, False, True, True, id="snp, outdated graph, w/ tag, tree, and blob"
+        ),
+        param(True, True, True, True, id="snp, updated graph, w/ tag, tree, and blob"),
+    ],
+)
+def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_branches):
+    r"""
     Build objects::
 
                         rel2 <------ snp
-                         |          /  |
-                         v         /   v
-          rev1  <------ rev2 <----°   dir4
-           |             |             |
-           v             v             v
-          dir1          dir2          dir3
-           |           /   |           |
-           v          /    v           v
-          cnt1  <----°    cnt2        cnt3
+                         |          / | \
+                         v         /  v  \
+          rev1  <------ rev2 <----°  dir4 \
+           |             |            |    \
+           v             v            v     \
+          dir1          dir2         dir3    \
+           |           /   |          |      |
+           v          /    v          v      v
+          cnt1  <----°    cnt2       cnt3   cnt4
 
     If up_to_date_graph is true, then swh-graph contains all objects.
-    Else, dir4, rev2, rel2, and snp are missing from the graph.
+    Else, cnt4, dir4, rev2, rel2, and snp are missing from the graph.
+
+    If tag is False, rel2 is excluded.
+
+    If weird_branches is False, dir4 and cnt4 are excluded.
     """
+    from swh.graph.naive_client import NaiveClient as GraphClient
+
+    # Create objects:
+
     date = TimestampWithTimezone.from_datetime(
         datetime.datetime(2021, 5, 7, 8, 43, 59, tzinfo=datetime.timezone.utc)
     )
     author = Person.from_fullname(b"Foo <foo@example.org>")
-    cnt1 = Content.from_data(b"hello")
-    cnt2 = Content.from_data(b"world")
-    cnt3 = Content.from_data(b"!")
+    cnt1 = Content.from_data(b"correct")
+    cnt2 = Content.from_data(b"horse")
+    cnt3 = Content.from_data(b"battery")
+    cnt4 = Content.from_data(b"staple")
     dir1 = Directory(
         entries=(
             DirectoryEntry(
@@ -140,20 +167,27 @@ def get_objects(up_to_date_graph, release, tree_ref):
         synthetic=True,
     )
 
+    # Create snapshot:
+
     branches = {
         b"refs/heads/master": SnapshotBranch(
             target=rev2.id, target_type=TargetType.REVISION
         ),
     }
-    if release:
+    if tag:
         branches[b"refs/tags/1.0.0"] = SnapshotBranch(
             target=rel2.id, target_type=TargetType.RELEASE
         )
-    if tree_ref:
+    if weird_branches:
         branches[b"refs/heads/tree-ref"] = SnapshotBranch(
             target=dir4.id, target_type=TargetType.DIRECTORY
         )
+        branches[b"refs/heads/blob-ref"] = SnapshotBranch(
+            target=cnt4.sha1_git, target_type=TargetType.CONTENT
+        )
     snp = Snapshot(branches=branches)
+
+    # "Fill" swh-graph
 
     if up_to_date_graph:
         nodes = [cnt1, cnt2, dir1, dir2, rev1, rev2, snp]
@@ -166,15 +200,13 @@ def get_objects(up_to_date_graph, release, tree_ref):
             (rev2, rev1),
             (snp, rev2),
         ]
-        if release:
+        if tag:
             nodes.append(rel2)
             edges.append((rel2, rev2))
             edges.append((snp, rel2))
-        if tree_ref:
-            nodes.extend([cnt3, dir3, dir4])
-            edges.extend(
-                [(dir3, cnt3), (dir4, dir3), (snp, dir4),]
-            )
+        if weird_branches:
+            nodes.extend([cnt3, cnt4, dir3, dir4])
+            edges.extend([(dir3, cnt3), (dir4, dir3), (snp, dir4), (snp, cnt4)])
     else:
         nodes = [cnt1, cnt2, cnt3, dir1, dir2, dir3, rev1]
         edges = [
@@ -184,42 +216,17 @@ def get_objects(up_to_date_graph, release, tree_ref):
             (dir3, cnt3),
             (rev1, dir1),
         ]
-        if release:
+        if tag:
             nodes.append(rel2)
-        if tree_ref:
+        if weird_branches:
             nodes.extend([cnt3, dir3])
             edges.extend([(dir3, cnt3)])
 
     nodes = [str(n.swhid()) for n in nodes]
     edges = [(str(s.swhid()), str(d.swhid())) for (s, d) in edges]
 
-    r = (cnt1, cnt2, cnt3, dir1, dir2, dir3, dir4, rev1, rev2, rel2, snp, nodes, edges)
-    return r
-
-
-@pytest.mark.graph
-@pytest.mark.parametrize(
-    "snapshot,up_to_date_graph,release,tree_ref",
-    [
-        # 'no snp' implies no release or tree, because there can only be one root object
-        param(False, False, False, False, id="no snp, outdated graph, no release/tree"),
-        param(False, True, False, False, id="no snp, updated graph, no release/tree"),
-        param(True, False, False, False, id="snp, outdated graph, no release/tree"),
-        param(True, True, False, False, id="snp, updated graph, no release/tree"),
-        param(True, False, True, False, id="snp, outdated graph, w/ release, no tree"),
-        param(True, True, True, False, id="snp, updated graph, w/ release, no tree"),
-        param(True, False, True, True, id="snp, outdated graph, w/ release and tree"),
-        param(True, True, True, True, id="snp, updated graph, w/ release and tree"),
-    ],
-)
-def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, release, tree_ref):
-    from swh.graph.naive_client import NaiveClient as GraphClient
-
-    r = get_objects(up_to_date_graph, release=release, tree_ref=tree_ref)
-    (cnt1, cnt2, cnt3, dir1, dir2, dir3, dir4, rev1, rev2, rel2, snp, nodes, edges) = r
-
     # Add all objects to storage
-    swh_storage.content_add([cnt1, cnt2, cnt3])
+    swh_storage.content_add([cnt1, cnt2, cnt3, cnt4])
     swh_storage.directory_add([dir1, dir2, dir3, dir4])
     swh_storage.revision_add([rev1, rev2])
     swh_storage.release_add([rel2])
@@ -244,8 +251,9 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, release, tree_
         cooker_name, cooked_id, backend=backend, storage=swh_storage, graph=swh_graph,
     )
 
-    if tree_ref:
-        # git-fsck now rejects refs pointing to trees, but some old git repos have them.
+    if weird_branches:
+        # git-fsck now rejects refs pointing to trees and blobs,
+        # but some old git repos have them.
         cooker.use_fsck = False
 
     cooker.cook()

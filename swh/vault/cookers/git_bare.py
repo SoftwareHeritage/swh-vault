@@ -342,6 +342,7 @@ class GitBareCooker(BaseVaultCooker):
             revision_ids = []
             release_ids = []
             directory_ids = []
+            content_ids = []
 
             from swh.graph.client import GraphArgumentException
 
@@ -362,14 +363,14 @@ class GitBareCooker(BaseVaultCooker):
                         release_ids.append(swhid.object_id)
                     elif swhid.object_type == identifiers.ObjectType.DIRECTORY:
                         directory_ids.append(swhid.object_id)
+                    elif swhid.object_type == identifiers.ObjectType.CONTENT:
+                        content_ids.append(swhid.object_id)
                     elif swhid.object_type == identifiers.ObjectType.SNAPSHOT:
                         assert (
                             swhid.object_id == obj_id
                         ), f"Snapshot {obj_id.hex()} references a different snapshot"
                     else:
-                        raise NotImplementedError(
-                            f"{swhid.object_type} objects in snapshot subgraphs."
-                        )
+                        assert False, f"Unexpected SWHID object type: {swhid}"
             except GraphArgumentException as e:
                 logger.info(
                     "Snapshot %s not found in swh-graph, falling back to fetching "
@@ -381,6 +382,7 @@ class GitBareCooker(BaseVaultCooker):
                 self._push(self._rev_stack, revision_ids)
                 self._push(self._rel_stack, release_ids)
                 self._push(self._dir_stack, directory_ids)
+                self._push(self._cnt_stack, content_ids)
                 loaded_from_graph = True
 
         # TODO: when self.graph is available and supports edge labels, use it
@@ -401,6 +403,8 @@ class GitBareCooker(BaseVaultCooker):
                     pass
                 elif branch.target_type == TargetType.DIRECTORY:
                     self._push(self._dir_stack, [branch.target])
+                elif branch.target_type == TargetType.CONTENT:
+                    self._push(self._cnt_stack, [branch.target])
                 else:
                     raise NotImplementedError(f"{branch.target_type} branches")
 

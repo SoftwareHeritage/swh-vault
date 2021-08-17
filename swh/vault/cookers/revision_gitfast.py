@@ -58,7 +58,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
             if last_progress_report is None or last_progress_report + 2 <= ct:
                 last_progress_report = ct
                 pg = "Computing revision {}/{}".format(i, len(self.log))
-                self.backend.set_progress(self.obj_type, self.obj_id, pg)
+                self.backend.set_progress(self.bundle_type, self.obj_id, pg)
 
             # Compute the current commit
             self._compute_commit_command(rev)

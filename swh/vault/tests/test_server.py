@@ -78,7 +78,7 @@ async def test_client_index(cli):
 async def test_client_cook_notfound(cli):
     resp = await cli.post(
         "/cook",
-        data=json_dumps({"obj_type": "directory", "obj_id": TEST_HEX_ID}),
+        data=json_dumps({"bundle_type": "directory", "obj_id": TEST_HEX_ID}),
         headers=[("Content-Type", "application/json")],
     )
     assert resp.status == 400
@@ -90,7 +90,7 @@ async def test_client_cook_notfound(cli):
 async def test_client_progress_notfound(cli):
     resp = await cli.post(
         "/progress",
-        data=json_dumps({"obj_type": "directory", "obj_id": TEST_HEX_ID}),
+        data=json_dumps({"bundle_type": "directory", "obj_id": TEST_HEX_ID}),
         headers=[("Content-Type", "application/json")],
     )
     assert resp.status == 400

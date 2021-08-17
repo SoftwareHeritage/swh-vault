@@ -60,10 +60,10 @@ class GitBareCooker(BaseVaultCooker):
     use_fsck = True
 
     def cache_type_key(self) -> str:
-        return self.obj_type
+        return self.bundle_type
 
     def check_exists(self):
-        obj_type = self.obj_type.split("_")[0]
+        obj_type = self.bundle_type.split("_")[0]
         if obj_type == "revision":
             return not list(self.storage.revision_missing([self.obj_id]))
         elif obj_type == "directory":
@@ -74,7 +74,7 @@ class GitBareCooker(BaseVaultCooker):
             raise NotImplementedError(f"GitBareCooker for {obj_type}")
 
     def obj_swhid(self) -> identifiers.CoreSWHID:
-        obj_type = self.obj_type.split("_")[0]
+        obj_type = self.bundle_type.split("_")[0]
         return identifiers.CoreSWHID(
             object_type=identifiers.ObjectType[obj_type.upper()], object_id=self.obj_id,
         )
@@ -112,7 +112,7 @@ class GitBareCooker(BaseVaultCooker):
             self.init_git()
 
             # Add the root object to the stack of objects to visit
-            self.push_subgraph(self.obj_type.split("_")[0], self.obj_id)
+            self.push_subgraph(self.bundle_type.split("_")[0], self.obj_id)
 
             # Load and write all the objects to disk
             self.load_objects()
@@ -173,7 +173,7 @@ class GitBareCooker(BaseVaultCooker):
 
     def write_refs(self, snapshot=None):
         refs: Dict[bytes, bytes]  # ref name -> target
-        obj_type = self.obj_type.split("_")[0]
+        obj_type = self.bundle_type.split("_")[0]
         if obj_type == "directory":
             # We need a synthetic revision pointing to the directory
             author = Person.from_fullname(

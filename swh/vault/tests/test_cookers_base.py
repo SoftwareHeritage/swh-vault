@@ -24,7 +24,7 @@ class BaseVaultCookerMock(BaseVaultCooker):
         self.config = {}
         self.storage = MagicMock()
         self.backend = MagicMock()
-        self.obj_type = self.CACHE_TYPE_KEY
+        self.bundle_type = self.CACHE_TYPE_KEY
         self.obj_id = hashutil.hash_to_bytes(TEST_OBJ_ID)
         self.max_bundle_size = 1024
 

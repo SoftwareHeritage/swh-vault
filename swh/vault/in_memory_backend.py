@@ -18,30 +18,30 @@ class InMemoryVaultBackend:
     def __init__(self):
         self._cache = VaultCache(cls="memory")
 
-    def fetch(self, obj_type: str, obj_id: ObjectId) -> Optional[bytes]:
-        return self._cache.get(obj_type, hash_to_bytes(obj_id))
+    def fetch(self, bundle_type: str, obj_id: ObjectId) -> Optional[bytes]:
+        return self._cache.get(bundle_type, hash_to_bytes(obj_id))
 
     def cook(
-        self, obj_type: str, obj_id: ObjectId, email: Optional[str] = None
+        self, bundle_type: str, obj_id: ObjectId, email: Optional[str] = None
     ) -> Dict[str, Any]:
         raise NotImplementedError("InMemoryVaultBackend.cook()")
 
-    def progress(self, obj_type: str, obj_id: ObjectId):
+    def progress(self, bundle_type: str, obj_id: ObjectId):
         raise NotImplementedError("InMemoryVaultBackend.progress()")
 
     # Cookers endpoints
 
-    def set_progress(self, obj_type: str, obj_id: ObjectId, progress: str) -> None:
+    def set_progress(self, bundle_type: str, obj_id: ObjectId, progress: str) -> None:
         pass
 
-    def set_status(self, obj_type: str, obj_id: ObjectId, status: str) -> None:
+    def set_status(self, bundle_type: str, obj_id: ObjectId, status: str) -> None:
         pass
 
-    def put_bundle(self, obj_type: str, obj_id: ObjectId, bundle) -> bool:
-        self._cache.add(obj_type, hash_to_bytes(obj_id), bundle)
+    def put_bundle(self, bundle_type: str, obj_id: ObjectId, bundle) -> bool:
+        self._cache.add(bundle_type, hash_to_bytes(obj_id), bundle)
         return True
 
-    def send_notif(self, obj_type: str, obj_id: ObjectId):
+    def send_notif(self, bundle_type: str, obj_id: ObjectId):
         pass
 
     # Batch endpoints

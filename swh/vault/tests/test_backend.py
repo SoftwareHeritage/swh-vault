@@ -41,20 +41,20 @@ def assertTimestampAlmostNow(ts, tolerance_secs=1.0):  # noqa
     assert creation_delta_secs < tolerance_secs
 
 
-def fake_cook(backend, obj_type, result_content, sticky=False):
+def fake_cook(backend, bundle_type, result_content, sticky=False):
     content, obj_id = hash_content(result_content)
     with mock_cooking(backend):
-        backend.create_task(obj_type, obj_id, sticky)
-    backend.cache.add(obj_type, obj_id, b"content")
-    backend.set_status(obj_type, obj_id, "done")
+        backend.create_task(bundle_type, obj_id, sticky)
+    backend.cache.add(bundle_type, obj_id, b"content")
+    backend.set_status(bundle_type, obj_id, "done")
     return obj_id, content
 
 
-def fail_cook(backend, obj_type, obj_id, failure_reason):
+def fail_cook(backend, bundle_type, obj_id, failure_reason):
     with mock_cooking(backend):
-        backend.create_task(obj_type, obj_id)
-    backend.set_status(obj_type, obj_id, "failed")
-    backend.set_progress(obj_type, obj_id, failure_reason)
+        backend.create_task(bundle_type, obj_id)
+    backend.set_status(bundle_type, obj_id, "failed")
+    backend.set_progress(bundle_type, obj_id, failure_reason)
 
 
 TEST_TYPE = "revision_gitfast"

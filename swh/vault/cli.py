@@ -118,7 +118,7 @@ def cook(
     objstorage = get_objstorage(**conf["objstorage"]) if "objstorage" in conf else None
     cooker_cls = get_cooker_cls(cooker_name)
     cooker = cooker_cls(
-        obj_type=cooker_name,
+        bundle_type=cooker_name,
         obj_id=swhid.object_id,
         backend=backend,
         storage=storage,
@@ -133,6 +133,9 @@ def cook(
     except ObjNotFoundError:
         bundle = None
     if bundle is None:
+        import pdb
+
+        pdb.set_trace()
         raise click.ClickException("Cooker did not write a bundle to the backend.")
     outfile.write(bundle)
 

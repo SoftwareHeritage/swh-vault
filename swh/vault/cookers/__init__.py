@@ -28,8 +28,8 @@ COOKER_TYPES = {
 }
 
 
-def get_cooker_cls(obj_type):
-    return COOKER_TYPES[obj_type]
+def get_cooker_cls(bundle_type):
+    return COOKER_TYPES[bundle_type]
 
 
 def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -67,11 +67,11 @@ def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     return cfg
 
 
-def get_cooker(obj_type: str, obj_id: str):
-    """Instantiate a cooker class of type obj_type.
+def get_cooker(bundle_type: str, obj_id: str):
+    """Instantiate a cooker class of type bundle_type.
 
     Returns:
-        Cooker class in charge of cooking the obj_type with id obj_id.
+        Cooker class in charge of cooking the bundle_type with id obj_id.
 
     Raises:
         ValueError in case of a missing top-level vault key configuration or a storage
@@ -83,7 +83,7 @@ def get_cooker(obj_type: str, obj_id: str):
         cfg = read_config(os.environ["SWH_CONFIG_FILENAME"], DEFAULT_CONFIG)
     else:
         cfg = load_named_config(DEFAULT_CONFIG_PATH, DEFAULT_CONFIG)
-    cooker_cls = get_cooker_cls(obj_type)
+    cooker_cls = get_cooker_cls(bundle_type)
 
     cfg = check_config(cfg)
     vcfg = cfg["vault"]
@@ -104,7 +104,7 @@ def get_cooker(obj_type: str, obj_id: str):
             graph = None
 
     return cooker_cls(
-        obj_type,
+        bundle_type,
         obj_id,
         backend=backend,
         storage=storage,

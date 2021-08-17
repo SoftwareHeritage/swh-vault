@@ -25,14 +25,14 @@ from swh.vault.interface import ObjectId
 cooking_task_name = "swh.vault.cooking_tasks.SWHCookingTask"
 
 NOTIF_EMAIL_FROM = '"Software Heritage Vault" ' "<bot@softwareheritage.org>"
-NOTIF_EMAIL_SUBJECT_SUCCESS = "Bundle ready: {obj_type} {short_id}"
-NOTIF_EMAIL_SUBJECT_FAILURE = "Bundle failed: {obj_type} {short_id}"
+NOTIF_EMAIL_SUBJECT_SUCCESS = "Bundle ready: {bundle_type} {short_id}"
+NOTIF_EMAIL_SUBJECT_FAILURE = "Bundle failed: {bundle_type} {short_id}"
 
 NOTIF_EMAIL_BODY_SUCCESS = """
 You have requested the following bundle from the Software Heritage
 Vault:
 
-Object Type: {obj_type}
+Bundle Type: {bundle_type}
 Object ID: {hex_id}
 
 This bundle is now available for download at the following address:
@@ -50,7 +50,7 @@ NOTIF_EMAIL_BODY_FAILURE = """
 You have requested the following bundle from the Software Heritage
 Vault:
 
-Object Type: {obj_type}
+Bundle Type: {bundle_type}
 Object ID: {hex_id}
 
 This bundle could not be cooked for the following reason:
@@ -65,7 +65,9 @@ The Software Heritage Developers
 
 
 def batch_to_bytes(batch: List[Tuple[str, str]]) -> List[Tuple[str, bytes]]:
-    return [(obj_type, hashutil.hash_to_bytes(hex_id)) for obj_type, hex_id in batch]
+    return [
+        (bundle_type, hashutil.hash_to_bytes(hex_id)) for bundle_type, hex_id in batch
+    ]
 
 
 class VaultBackend:
@@ -109,7 +111,7 @@ class VaultBackend:
     @db_transaction()
     def progress(
         self,
-        obj_type: str,
+        bundle_type: str,
         obj_id: ObjectId,
         raise_notfound: bool = True,
         db=None,
@@ -122,57 +124,57 @@ class VaultBackend:
                    ts_created, ts_done, ts_last_access, progress_msg
             FROM vault_bundle
             WHERE type = %s AND object_id = %s""",
-            (obj_type, obj_id),
+            (bundle_type, obj_id),
         )
         res = cur.fetchone()
         if not res:
             if raise_notfound:
-                raise NotFoundExc(f"{obj_type} {hex_id} was not found.")
+                raise NotFoundExc(f"{bundle_type} {hex_id} was not found.")
             return None
 
         res["object_id"] = hashutil.hash_to_hex(res["object_id"])
         return res
 
-    def _send_task(self, obj_type: str, hex_id: ObjectId):
+    def _send_task(self, bundle_type: str, hex_id: ObjectId):
         """Send a cooking task to the celery scheduler"""
-        task = create_oneshot_task_dict("cook-vault-bundle", obj_type, hex_id)
+        task = create_oneshot_task_dict("cook-vault-bundle", bundle_type, hex_id)
         added_tasks = self.scheduler.create_tasks([task])
         return added_tasks[0]["id"]
 
     @db_transaction()
     def create_task(
-        self, obj_type: str, obj_id: bytes, sticky: bool = False, db=None, cur=None
+        self, bundle_type: str, obj_id: bytes, sticky: bool = False, db=None, cur=None
     ):
         """Create and send a cooking task"""
         hex_id, obj_id = self._compute_ids(obj_id)
 
-        cooker_class = get_cooker_cls(obj_type)
-        cooker = cooker_class(obj_type, hex_id, backend=self, storage=self.storage)
+        cooker_class = get_cooker_cls(bundle_type)
+        cooker = cooker_class(bundle_type, hex_id, backend=self, storage=self.storage)
 
         if not cooker.check_exists():
-            raise NotFoundExc(f"{obj_type} {hex_id} was not found.")
+            raise NotFoundExc(f"{bundle_type} {hex_id} was not found.")
 
         cur.execute(
             """
             INSERT INTO vault_bundle (type, object_id, sticky)
             VALUES (%s, %s, %s)""",
-            (obj_type, obj_id, sticky),
+            (bundle_type, obj_id, sticky),
         )
         db.conn.commit()
 
-        task_id = self._send_task(obj_type, hex_id)
+        task_id = self._send_task(bundle_type, hex_id)
 
         cur.execute(
             """
             UPDATE vault_bundle
             SET task_id = %s
             WHERE type = %s AND object_id = %s""",
-            (task_id, obj_type, obj_id),
+            (task_id, bundle_type, obj_id),
         )
 
     @db_transaction()
     def add_notif_email(
-        self, obj_type: str, obj_id: bytes, email: str, db=None, cur=None
+        self, bundle_type: str, obj_id: bytes, email: str, db=None, cur=None
     ):
         """Add an e-mail address to notify when a given bundle is ready"""
         cur.execute(
@@ -180,18 +182,18 @@ class VaultBackend:
             INSERT INTO vault_notif_email (email, bundle_id)
             VALUES (%s, (SELECT id FROM vault_bundle
                          WHERE type = %s AND object_id = %s))""",
-            (email, obj_type, obj_id),
+            (email, bundle_type, obj_id),
         )
 
-    def put_bundle(self, obj_type: str, obj_id: ObjectId, bundle) -> bool:
+    def put_bundle(self, bundle_type: str, obj_id: ObjectId, bundle) -> bool:
         _, obj_id = self._compute_ids(obj_id)
-        self.cache.add(obj_type, obj_id, bundle)
+        self.cache.add(bundle_type, obj_id, bundle)
         return True
 
     @db_transaction()
     def cook(
         self,
-        obj_type: str,
+        bundle_type: str,
         obj_id: ObjectId,
         *,
         sticky: bool = False,
@@ -200,36 +202,36 @@ class VaultBackend:
         cur=None,
     ) -> Dict[str, Any]:
         hex_id, obj_id = self._compute_ids(obj_id)
-        info = self.progress(obj_type, obj_id, raise_notfound=False)
+        info = self.progress(bundle_type, obj_id, raise_notfound=False)
 
-        if obj_type not in COOKER_TYPES:
-            raise NotFoundExc(f"{obj_type} is an unknown type.")
+        if bundle_type not in COOKER_TYPES:
+            raise NotFoundExc(f"{bundle_type} is an unknown type.")
 
         # If there's a failed bundle entry, delete it first.
         if info is not None and info["task_status"] == "failed":
             obj_id = hashutil.hash_to_bytes(obj_id)
             cur.execute(
                 "DELETE FROM vault_bundle WHERE type = %s AND object_id = %s",
-                (obj_type, obj_id),
+                (bundle_type, obj_id),
             )
             db.conn.commit()
             info = None
 
         # If there's no bundle entry, create the task.
         if info is None:
-            self.create_task(obj_type, obj_id, sticky)
+            self.create_task(bundle_type, obj_id, sticky)
 
         if email is not None:
             # If the task is already done, send the email directly
             if info is not None and info["task_status"] == "done":
                 self.send_notification(
-                    None, email, obj_type, hex_id, info["task_status"]
+                    None, email, bundle_type, hex_id, info["task_status"]
                 )
             # Else, add it to the notification queue
             else:
-                self.add_notif_email(obj_type, obj_id, email)
+                self.add_notif_email(bundle_type, obj_id, email)
 
-        return self.progress(obj_type, obj_id)
+        return self.progress(bundle_type, obj_id)
 
     @db_transaction()
     def batch_cook(
@@ -239,9 +241,9 @@ class VaultBackend:
         # psycopg2 >= 2.7 (only available on postgresql servers)
         from psycopg2.extras import execute_values
 
-        for obj_type, _ in batch:
-            if obj_type not in COOKER_TYPES:
-                raise NotFoundExc(f"{obj_type} is an unknown type.")
+        for bundle_type, _ in batch:
+            if bundle_type not in COOKER_TYPES:
+                raise NotFoundExc(f"{bundle_type} is an unknown type.")
 
         cur.execute(
             """
@@ -299,7 +301,8 @@ class VaultBackend:
 
         # Send the tasks
         args_batch = [
-            (obj_type, hashutil.hash_to_hex(obj_id)) for obj_type, obj_id in batch_new
+            (bundle_type, hashutil.hash_to_hex(obj_id))
+            for bundle_type, obj_id in batch_new
         ]
         # TODO: change once the scheduler handles priority tasks
         tasks = [
@@ -309,8 +312,8 @@ class VaultBackend:
 
         added_tasks = self.scheduler.create_tasks(tasks)
         tasks_ids_bundle_ids = [
-            (task_id, obj_type, obj_id)
-            for task_id, (obj_type, obj_id) in zip(
+            (task_id, bundle_type, obj_id)
+            for task_id, (bundle_type, obj_id) in zip(
                 [task["id"] for task in added_tasks], batch_new
             )
         ]
@@ -357,44 +360,44 @@ class VaultBackend:
         return res
 
     @db_transaction()
-    def is_available(self, obj_type: str, obj_id: ObjectId, db=None, cur=None):
+    def is_available(self, bundle_type: str, obj_id: ObjectId, db=None, cur=None):
         """Check whether a bundle is available for retrieval"""
-        info = self.progress(obj_type, obj_id, raise_notfound=False, cur=cur)
+        info = self.progress(bundle_type, obj_id, raise_notfound=False, cur=cur)
         obj_id = hashutil.hash_to_bytes(obj_id)
         return (
             info is not None
             and info["task_status"] == "done"
-            and self.cache.is_cached(obj_type, obj_id)
+            and self.cache.is_cached(bundle_type, obj_id)
         )
 
     @db_transaction()
     def fetch(
-        self, obj_type: str, obj_id: ObjectId, raise_notfound=True, db=None, cur=None
+        self, bundle_type: str, obj_id: ObjectId, raise_notfound=True, db=None, cur=None
     ) -> Optional[bytes]:
         """Retrieve a bundle from the cache"""
         hex_id, obj_id = self._compute_ids(obj_id)
-        available = self.is_available(obj_type, obj_id, cur=cur)
+        available = self.is_available(bundle_type, obj_id, cur=cur)
         if not available:
             if raise_notfound:
-                raise NotFoundExc(f"{obj_type} {hex_id} is not available.")
+                raise NotFoundExc(f"{bundle_type} {hex_id} is not available.")
             return None
-        self.update_access_ts(obj_type, obj_id, cur=cur)
-        return self.cache.get(obj_type, obj_id)
+        self.update_access_ts(bundle_type, obj_id, cur=cur)
+        return self.cache.get(bundle_type, obj_id)
 
     @db_transaction()
-    def update_access_ts(self, obj_type: str, obj_id: bytes, db=None, cur=None):
+    def update_access_ts(self, bundle_type: str, obj_id: bytes, db=None, cur=None):
         """Update the last access timestamp of a bundle"""
         cur.execute(
             """
             UPDATE vault_bundle
             SET ts_last_access = NOW()
             WHERE type = %s AND object_id = %s""",
-            (obj_type, obj_id),
+            (bundle_type, obj_id),
         )
 
     @db_transaction()
     def set_status(
-        self, obj_type: str, obj_id: ObjectId, status: str, db=None, cur=None
+        self, bundle_type: str, obj_id: ObjectId, status: str, db=None, cur=None
     ) -> bool:
         obj_id = hashutil.hash_to_bytes(obj_id)
         req = (
@@ -404,12 +407,12 @@ class VaultBackend:
             + (""", ts_done = NOW() """ if status == "done" else "")
             + """WHERE type = %s AND object_id = %s"""
         )
-        cur.execute(req, (status, obj_type, obj_id))
+        cur.execute(req, (status, bundle_type, obj_id))
         return True
 
     @db_transaction()
     def set_progress(
-        self, obj_type: str, obj_id: ObjectId, progress: str, db=None, cur=None
+        self, bundle_type: str, obj_id: ObjectId, progress: str, db=None, cur=None
     ) -> bool:
         obj_id = hashutil.hash_to_bytes(obj_id)
         cur.execute(
@@ -417,12 +420,12 @@ class VaultBackend:
             UPDATE vault_bundle
             SET progress_msg = %s
             WHERE type = %s AND object_id = %s""",
-            (progress, obj_type, obj_id),
+            (progress, bundle_type, obj_id),
         )
         return True
 
     @db_transaction()
-    def send_notif(self, obj_type: str, obj_id: ObjectId, db=None, cur=None) -> bool:
+    def send_notif(self, bundle_type: str, obj_id: ObjectId, db=None, cur=None) -> bool:
         hex_id, obj_id = self._compute_ids(obj_id)
         cur.execute(
             """
@@ -430,13 +433,13 @@ class VaultBackend:
             FROM vault_notif_email
             INNER JOIN vault_bundle ON bundle_id = vault_bundle.id
             WHERE vault_bundle.type = %s AND vault_bundle.object_id = %s""",
-            (obj_type, obj_id),
+            (bundle_type, obj_id),
         )
         for d in cur:
             self.send_notification(
                 d["id"],
                 d["email"],
-                obj_type,
+                bundle_type,
                 hex_id,
                 status=d["task_status"],
                 progress_msg=d["progress_msg"],
@@ -448,7 +451,7 @@ class VaultBackend:
         self,
         n_id: Optional[int],
         email: str,
-        obj_type: str,
+        bundle_type: str,
         hex_id: str,
         status: str,
         progress_msg: Optional[str] = None,
@@ -465,24 +468,24 @@ class VaultBackend:
         #   the table
         # * use this url for the notification e-mail
         url = "https://archive.softwareheritage.org/api/1/vault/{}/{}/" "raw".format(
-            obj_type, hex_id
+            bundle_type, hex_id
         )
 
         if status == "done":
             text = NOTIF_EMAIL_BODY_SUCCESS.strip()
-            text = text.format(obj_type=obj_type, hex_id=hex_id, url=url)
+            text = text.format(bundle_type=bundle_type, hex_id=hex_id, url=url)
             msg = MIMEText(text)
             msg["Subject"] = NOTIF_EMAIL_SUBJECT_SUCCESS.format(
-                obj_type=obj_type, short_id=short_id
+                bundle_type=bundle_type, short_id=short_id
             )
         elif status == "failed":
             text = NOTIF_EMAIL_BODY_FAILURE.strip()
             text = text.format(
-                obj_type=obj_type, hex_id=hex_id, progress_msg=progress_msg
+                bundle_type=bundle_type, hex_id=hex_id, progress_msg=progress_msg
             )
             msg = MIMEText(text)
             msg["Subject"] = NOTIF_EMAIL_SUBJECT_FAILURE.format(
-                obj_type=obj_type, short_id=short_id
+                bundle_type=bundle_type, short_id=short_id
             )
         else:
             raise RuntimeError(

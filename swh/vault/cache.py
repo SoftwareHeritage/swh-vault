@@ -18,30 +18,30 @@ class VaultCache:
     def __init__(self, **objstorage):
         self.objstorage = get_objstorage(**objstorage)
 
-    def add(self, obj_type, obj_id, content):
-        sid = self._get_internal_id(obj_type, obj_id)
+    def add(self, bundle_type, obj_id, content):
+        sid = self._get_internal_id(bundle_type, obj_id)
         return self.objstorage.add(content, sid)
 
-    def get(self, obj_type, obj_id):
-        sid = self._get_internal_id(obj_type, obj_id)
+    def get(self, bundle_type, obj_id):
+        sid = self._get_internal_id(bundle_type, obj_id)
         return self.objstorage.get(hashutil.hash_to_bytes(sid))
 
-    def delete(self, obj_type, obj_id):
-        sid = self._get_internal_id(obj_type, obj_id)
+    def delete(self, bundle_type, obj_id):
+        sid = self._get_internal_id(bundle_type, obj_id)
         return self.objstorage.delete(hashutil.hash_to_bytes(sid))
 
-    def add_stream(self, obj_type, obj_id, content_iter):
-        sid = self._get_internal_id(obj_type, obj_id)
+    def add_stream(self, bundle_type, obj_id, content_iter):
+        sid = self._get_internal_id(bundle_type, obj_id)
         return self.objstorage.add_stream(content_iter, sid)
 
-    def get_stream(self, obj_type, obj_id):
-        sid = self._get_internal_id(obj_type, obj_id)
+    def get_stream(self, bundle_type, obj_id):
+        sid = self._get_internal_id(bundle_type, obj_id)
         return self.objstorage.get_stream(hashutil.hash_to_bytes(sid))
 
-    def is_cached(self, obj_type, obj_id):
-        sid = self._get_internal_id(obj_type, obj_id)
+    def is_cached(self, bundle_type, obj_id):
+        sid = self._get_internal_id(bundle_type, obj_id)
         return hashutil.hash_to_bytes(sid) in self.objstorage
 
-    def _get_internal_id(self, obj_type, obj_id):
+    def _get_internal_id(self, bundle_type, obj_id):
         obj_id = hashutil.hash_to_hex(obj_id)
-        return compute_hash("{}:{}".format(obj_type, obj_id).encode())
+        return compute_hash("{}:{}".format(bundle_type, obj_id).encode())

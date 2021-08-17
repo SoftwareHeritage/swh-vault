@@ -47,10 +47,10 @@ def test_cook_unknown_cooker():
 
 
 @pytest.mark.parametrize(
-    "obj_type,cooker_name_suffix,swhid_type",
+    "bundle_type,cooker_name_suffix,swhid_type",
     [("directory", "", "dir"), ("revision", "gitfast", "rev"),],
 )
-def test_cook_directory(obj_type, cooker_name_suffix, swhid_type, mocker):
+def test_cook_directory(bundle_type, cooker_name_suffix, swhid_type, mocker):
     storage = object()
     mocker.patch("swh.storage.get_storage", return_value=storage)
 
@@ -92,7 +92,9 @@ def test_cook_directory(obj_type, cooker_name_suffix, swhid_type, mocker):
         raise result.exception
 
     cooker_cls.assert_called_once_with(
-        obj_type=f"{obj_type}_{cooker_name_suffix}" if cooker_name_suffix else obj_type,
+        bundle_type=f"{bundle_type}_{cooker_name_suffix}"
+        if cooker_name_suffix
+        else bundle_type,
         obj_id=b"\x00" * 20,
         backend=backend,
         storage=storage,

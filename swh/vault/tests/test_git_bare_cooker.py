@@ -201,7 +201,7 @@ def get_objects(up_to_date_graph, release, tree_ref):
 @pytest.mark.parametrize(
     "snapshot,up_to_date_graph,release,tree_ref",
     [
-        # 'no snp' imples no release or tree, because there can only be one root object.
+        # 'no snp' implies no release or tree, because there can only be one root object
         param(False, False, False, False, id="no snp, outdated graph, no release/tree"),
         param(False, True, False, False, id="no snp, updated graph, no release/tree"),
         param(True, False, False, False, id="snp, outdated graph, no release/tree"),

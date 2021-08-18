@@ -61,23 +61,26 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
     r"""
     Build objects::
 
-                        rel2 <------ snp
-                         |          / | \
-                         v         /  v  \
-          rev1  <------ rev2 <----°  dir4 \
-           |             |            |    \
-           v             v            v     \
-          dir1          dir2         dir3    \
-           |           /   |          |      |
-           v          /    v          v      v
-          cnt1  <----°    cnt2       cnt3   cnt4
+                                     snp
+                                    /|||\
+                                   / ||| \
+                        rel2 <----°  /|\  \----> rel4
+                         |          / | \         |
+                         v         /  v  \        v
+          rev1  <------ rev2 <----°  dir4 \      rel3
+           |             |            |    \      |
+           v             v            v     \     |
+          dir1          dir2         dir3   |     |
+           |           /   |          |     |     |
+           v          /    v          v     v     v
+          cnt1  <----°    cnt2       cnt3  cnt4  cnt5
 
     If up_to_date_graph is true, then swh-graph contains all objects.
-    Else, cnt4, dir4, rev2, rel2, and snp are missing from the graph.
+    Else, cnt4, cnt5, dir4, rev2, rel2, rel3, and snp are missing from the graph.
 
     If tag is False, rel2 is excluded.
 
-    If weird_branches is False, dir4 and cnt4 are excluded.
+    If weird_branches is False, dir4, cnt4, rel3, rel4, and cnt5 are excluded.
     """
     from swh.graph.naive_client import NaiveClient as GraphClient
 
@@ -91,6 +94,7 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
     cnt2 = Content.from_data(b"horse")
     cnt3 = Content.from_data(b"battery")
     cnt4 = Content.from_data(b"staple")
+    cnt5 = Content.from_data(b"Tr0ub4dor&3")
     dir1 = Directory(
         entries=(
             DirectoryEntry(
@@ -166,6 +170,20 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
         target=rev2.id,
         synthetic=True,
     )
+    rel3 = Release(
+        name=b"1.0.0-blob",
+        message=b"tagged-blob",
+        target_type=ObjectType.CONTENT,
+        target=cnt5.sha1_git,
+        synthetic=True,
+    )
+    rel4 = Release(
+        name=b"1.0.0-weird",
+        message=b"weird release",
+        target_type=ObjectType.RELEASE,
+        target=rel3.id,
+        synthetic=True,
+    )
 
     # Create snapshot:
 
@@ -184,6 +202,9 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
         )
         branches[b"refs/heads/blob-ref"] = SnapshotBranch(
             target=cnt4.sha1_git, target_type=TargetType.CONTENT
+        )
+        branches[b"refs/tags/1.0.0-weird"] = SnapshotBranch(
+            target=rel4.id, target_type=TargetType.RELEASE
         )
     snp = Snapshot(branches=branches)
 
@@ -205,8 +226,18 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
             edges.append((rel2, rev2))
             edges.append((snp, rel2))
         if weird_branches:
-            nodes.extend([cnt3, cnt4, dir3, dir4])
-            edges.extend([(dir3, cnt3), (dir4, dir3), (snp, dir4), (snp, cnt4)])
+            nodes.extend([cnt3, cnt4, cnt5, dir3, dir4, rel3, rel4])
+            edges.extend(
+                [
+                    (dir3, cnt3),
+                    (dir4, dir3),
+                    (snp, dir4),
+                    (snp, cnt4),
+                    (snp, rel4),
+                    (rel4, rel3),
+                    (rel3, cnt5),
+                ]
+            )
     else:
         nodes = [cnt1, cnt2, cnt3, dir1, dir2, dir3, rev1]
         edges = [
@@ -226,10 +257,10 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
     edges = [(str(s.swhid()), str(d.swhid())) for (s, d) in edges]
 
     # Add all objects to storage
-    swh_storage.content_add([cnt1, cnt2, cnt3, cnt4])
+    swh_storage.content_add([cnt1, cnt2, cnt3, cnt4, cnt5])
     swh_storage.directory_add([dir1, dir2, dir3, dir4])
     swh_storage.revision_add([rev1, rev2])
-    swh_storage.release_add([rel2])
+    swh_storage.release_add([rel2, rel3, rel4])
     swh_storage.snapshot_add([snp])
 
     # Add spy on swh_storage, to make sure revision_log is not called

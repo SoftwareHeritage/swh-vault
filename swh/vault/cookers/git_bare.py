@@ -470,20 +470,15 @@ class GitBareCooker(BaseVaultCooker):
         """Given a list of release ids, loads these releases and adds their
         target to the list of objects to visit"""
         for release in self.load_releases(obj_ids):
+            assert release.target, "{release.swhid(}) has no target"
             if release.target_type is ObjectType.REVISION:
-                assert release.target, "{release.swhid(}) has no target"
                 self.push_revision_subgraph(release.target)
             elif release.target_type is ObjectType.DIRECTORY:
-                assert release.target, "{release.swhid(}) has no target"
                 self._push(self._dir_stack, [release.target])
             elif release.target_type is ObjectType.CONTENT:
-                raise NotImplementedError(
-                    f"{release.swhid()} targets a content: {release.target!r}"
-                )
+                self._push(self._cnt_stack, [release.target])
             elif release.target_type is ObjectType.RELEASE:
-                raise NotImplementedError(
-                    f"{release.swhid()} targets another release: {release.target!r}"
-                )
+                self.push_releases_subgraphs([release.target])
             elif release.target_type is ObjectType.SNAPSHOT:
                 raise NotImplementedError(
                     f"{release.swhid()} targets a snapshot: {release.target!r}"

@@ -76,16 +76,18 @@ def assert_never(value: NoReturn, msg) -> NoReturn:
 
 
 class GitBareCooker(BaseVaultCooker):
+    BUNDLE_TYPE = "git_bare"
+    SUPPORTED_OBJECT_TYPES = {
+        identifiers.ObjectType[obj_type.name] for obj_type in RootObjectType
+    }
+
     use_fsck = True
 
     obj_type: RootObjectType
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.obj_type = RootObjectType(self.bundle_type.split("_")[0])
-
-    def cache_type_key(self) -> str:
-        return self.bundle_type
+        self.obj_type = RootObjectType[self.swhid.object_type.name]
 
     def check_exists(self) -> bool:
         if self.obj_type is RootObjectType.REVISION:
@@ -96,12 +98,6 @@ class GitBareCooker(BaseVaultCooker):
             return not list(self.storage.snapshot_missing([self.obj_id]))
         else:
             assert_never(self.obj_type, f"Unexpected root object type: {self.obj_type}")
-
-    def obj_swhid(self) -> identifiers.CoreSWHID:
-        return identifiers.CoreSWHID(
-            object_type=identifiers.ObjectType[self.obj_type.name],
-            object_id=self.obj_id,
-        )
 
     def _push(self, stack: List[Sha1Git], obj_ids: Iterable[Sha1Git]) -> None:
         assert not isinstance(obj_ids, bytes)
@@ -250,7 +246,7 @@ class GitBareCooker(BaseVaultCooker):
 
     def write_archive(self):
         with tarfile.TarFile(mode="w", fileobj=self.fileobj) as tf:
-            tf.add(self.gitdir, arcname=f"{self.obj_swhid()}.git", recursive=True)
+            tf.add(self.gitdir, arcname=f"{self.swhid}.git", recursive=True)
 
     def _obj_path(self, obj_id: Sha1Git):
         return os.path.join(self.gitdir, self._obj_relative_path(obj_id))

@@ -3,13 +3,12 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from typing_extensions import Protocol, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
-
-ObjectId = Union[str, bytes]
+from swh.model.identifiers import CoreSWHID
 
 
 @runtime_checkable
@@ -19,41 +18,41 @@ class VaultInterface(Protocol):
     """
 
     @remote_api_endpoint("fetch")
-    def fetch(self, bundle_type: str, obj_id: ObjectId) -> Optional[bytes]:
+    def fetch(self, bundle_type: str, swhid: CoreSWHID) -> Optional[bytes]:
         """Fetch information from a bundle"""
         ...
 
     @remote_api_endpoint("cook")
     def cook(
-        self, bundle_type: str, obj_id: ObjectId, email: Optional[str] = None
+        self, bundle_type: str, swhid: CoreSWHID, email: Optional[str] = None
     ) -> Dict[str, Any]:
         """Main entry point for cooking requests. This starts a cooking task if
             needed, and add the given e-mail to the notify list"""
         ...
 
     @remote_api_endpoint("progress")
-    def progress(self, bundle_type: str, obj_id: ObjectId):
+    def progress(self, bundle_type: str, swhid: CoreSWHID):
         ...
 
     # Cookers endpoints
 
     @remote_api_endpoint("set_progress")
-    def set_progress(self, bundle_type: str, obj_id: ObjectId, progress: str) -> None:
+    def set_progress(self, bundle_type: str, swhid: CoreSWHID, progress: str) -> None:
         """Set the cooking progress of a bundle"""
         ...
 
     @remote_api_endpoint("set_status")
-    def set_status(self, bundle_type: str, obj_id: ObjectId, status: str) -> bool:
+    def set_status(self, bundle_type: str, swhid: CoreSWHID, status: str) -> bool:
         """Set the cooking status of a bundle"""
         ...
 
     @remote_api_endpoint("put_bundle")
-    def put_bundle(self, bundle_type: str, obj_id: ObjectId, bundle):
+    def put_bundle(self, bundle_type: str, swhid: CoreSWHID, bundle):
         """Store bundle in vault cache"""
         ...
 
     @remote_api_endpoint("send_notif")
-    def send_notif(self, bundle_type: str, obj_id: ObjectId):
+    def send_notif(self, bundle_type: str, swhid: CoreSWHID):
         """Send all the e-mails in the notification list of a bundle"""
         ...
 

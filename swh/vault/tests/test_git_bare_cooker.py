@@ -10,7 +10,6 @@ run on the bare cooker.
 """
 
 import datetime
-import glob
 import io
 import subprocess
 import tarfile
@@ -273,13 +272,11 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
     # Cook
     backend = InMemoryVaultBackend()
     if snapshot:
-        cooker_name = "snapshot_gitbare"
-        cooked_id = snp.id
+        cooked_swhid = snp.swhid()
     else:
-        cooker_name = "revision_gitbare"
-        cooked_id = rev2.id
+        cooked_swhid = rev2.swhid()
     cooker = GitBareCooker(
-        cooker_name, cooked_id, backend=backend, storage=swh_storage, graph=swh_graph,
+        cooked_swhid, backend=backend, storage=swh_storage, graph=swh_graph,
     )
 
     if weird_branches:
@@ -290,7 +287,7 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
     cooker.cook()
 
     # Get bundle
-    bundle = backend.fetch(cooker_name, cooked_id)
+    bundle = backend.fetch("git_bare", cooked_swhid)
 
     # Extract bundle and make sure both revisions are in it
     with tempfile.TemporaryDirectory("swh-vault-test-bare") as tempdir:
@@ -301,7 +298,7 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
             [
                 "git",
                 "-C",
-                glob.glob(f"{tempdir}/*{cooked_id.hex()}.git")[0],
+                f"{tempdir}/{cooked_swhid}.git",
                 "log",
                 "--format=oneline",
                 "--decorate=",

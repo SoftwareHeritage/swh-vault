@@ -10,6 +10,7 @@ import click
 import click.testing
 import pytest
 
+from swh.model.identifiers import CoreSWHID
 from swh.vault.cli import vault as vault_cli_group
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.in_memory_backend import InMemoryVaultBackend
@@ -26,24 +27,20 @@ def test_cook_unsupported_swhid():
     assert isinstance(result.exception, SystemExit)
     assert "expected core SWHID" in result.stdout
 
-    result = runner.invoke(vault_cli_group, ["cook", "swh:1:cnt:" + "0" * 40, "-"])
-    assert isinstance(result.exception, SystemExit)
-    assert "No cooker available for CONTENT" in result.stdout
-
 
 def test_cook_unknown_cooker():
     runner = click.testing.CliRunner()
 
     result = runner.invoke(
         vault_cli_group,
-        ["cook", "swh:1:dir:" + "0" * 40, "-", "--cooker-type", "gitfast"],
+        ["cook", "swh:1:dir:" + "0" * 40, "-", "--bundle-type", "gitfast"],
     )
     assert isinstance(result.exception, SystemExit)
     assert "do not have a gitfast cooker" in result.stdout
 
     result = runner.invoke(vault_cli_group, ["cook", "swh:1:rev:" + "0" * 40, "-"])
     assert isinstance(result.exception, SystemExit)
-    assert "explicit --cooker-type" in result.stdout
+    assert "use --bundle-type" in result.stdout
 
 
 @pytest.mark.parametrize(
@@ -66,6 +63,8 @@ def test_cook_directory(bundle_type, cooker_name_suffix, swhid_type, mocker):
 
     runner = click.testing.CliRunner()
 
+    swhid = CoreSWHID.from_string(f"swh:1:{swhid_type}:{'0'*40}")
+
     with tempfile.NamedTemporaryFile("a", suffix=".yml") as config_fd:
         config_fd.write('{"storage": {}}')
         config_fd.seek(0)
@@ -78,24 +77,20 @@ def test_cook_directory(bundle_type, cooker_name_suffix, swhid_type, mocker):
                     "-",
                     "-C",
                     config_fd.name,
-                    "--cooker-type",
+                    "--bundle-type",
                     cooker_name_suffix,
                 ],
             )
         else:
             result = runner.invoke(
-                vault_cli_group,
-                ["cook", f"swh:1:{swhid_type}:{'0'*40}", "-", "-C", config_fd.name],
+                vault_cli_group, ["cook", str(swhid), "-", "-C", config_fd.name],
             )
 
     if result.exception is not None:
         raise result.exception
 
     cooker_cls.assert_called_once_with(
-        bundle_type=f"{bundle_type}_{cooker_name_suffix}"
-        if cooker_name_suffix
-        else bundle_type,
-        obj_id=b"\x00" * 20,
+        swhid=swhid,
         backend=backend,
         storage=storage,
         graph=None,

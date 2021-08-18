@@ -6,7 +6,7 @@
 import tarfile
 import tempfile
 
-from swh.model import hashutil
+from swh.model.identifiers import ObjectType
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.to_disk import DirectoryBuilder
 
@@ -14,7 +14,8 @@ from swh.vault.to_disk import DirectoryBuilder
 class DirectoryCooker(BaseVaultCooker):
     """Cooker to create a directory bundle """
 
-    CACHE_TYPE_KEY = "directory"
+    BUNDLE_TYPE = "flat"
+    SUPPORTED_OBJECT_TYPES = {ObjectType.DIRECTORY}
 
     def check_exists(self):
         return not list(self.storage.directory_missing([self.obj_id]))
@@ -24,4 +25,4 @@ class DirectoryCooker(BaseVaultCooker):
             directory_builder = DirectoryBuilder(self.storage, td.encode(), self.obj_id)
             directory_builder.build()
             with tarfile.open(fileobj=self.fileobj, mode="w:gz") as tar:
-                tar.add(td, arcname=hashutil.hash_to_hex(self.obj_id))
+                tar.add(td, arcname=str(self.swhid))

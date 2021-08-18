@@ -52,7 +52,7 @@ def vault(ctx):
 @click.argument("swhid", type=SwhidParamType())
 @click.argument("outfile", type=click.File("wb"))
 @click.option(
-    "--cooker-type",
+    "--bundle-type",
     type=click.Choice(["flat", "gitfast", "git_bare"]),
     help="Selects which cooker to use, when there is more than one available "
     "for the given object type.",
@@ -63,43 +63,22 @@ def cook(
     config_file: str,
     swhid: CoreSWHID,
     outfile: io.RawIOBase,
-    cooker_type: Optional[str],
+    bundle_type: Optional[str],
 ):
     """
     Runs a vault cooker for a single object (identified by a SWHID),
     and outputs it to the given file.
     """
     from swh.core import config
+    from swh.model.identifiers import ObjectType
     from swh.objstorage.exc import ObjNotFoundError
     from swh.objstorage.factory import get_objstorage
     from swh.storage import get_storage
 
-    from .cookers import COOKER_TYPES, get_cooker_cls
+    from .cookers import get_cooker_cls
     from .in_memory_backend import InMemoryVaultBackend
 
     conf = config.read(config_file)
-
-    supported_object_types = {name.split("_")[0] for name in COOKER_TYPES}
-    if swhid.object_type.name.lower() not in supported_object_types:
-        raise click.ClickException(
-            f"No cooker available for {swhid.object_type.name} objects."
-        )
-
-    cooker_name = swhid.object_type.name.lower()
-
-    if cooker_type:
-        cooker_name = f"{cooker_name}_{cooker_type}"
-        if cooker_name not in COOKER_TYPES:
-            raise click.ClickException(
-                f"{swhid.object_type.name.lower()} objects do not have "
-                f"a {cooker_type} cooker."
-            )
-    else:
-        if cooker_name not in COOKER_TYPES:
-            raise click.ClickException(
-                f"{swhid.object_type.name.lower()} objects need "
-                f"an explicit --cooker-type."
-            )
 
     try:
         from swh.graph.client import RemoteGraphClient  # optional dependency
@@ -114,12 +93,27 @@ def cook(
             graph = None
 
     backend = InMemoryVaultBackend()
+
+    if bundle_type is None:
+        if swhid.object_type in (ObjectType.RELEASE, ObjectType.SNAPSHOT,):
+            bundle_type = "git_bare"
+        elif swhid.object_type in (ObjectType.DIRECTORY,):
+            bundle_type = "flat"
+        else:
+            raise click.ClickException(
+                "No default bundle type for this kind of object, "
+                "use --bundle-type to choose one"
+            )
+
+    try:
+        cooker_cls = get_cooker_cls(bundle_type, swhid.object_type)
+    except ValueError as e:
+        raise click.ClickException(*e.args)
+
     storage = get_storage(**conf["storage"])
     objstorage = get_objstorage(**conf["objstorage"]) if "objstorage" in conf else None
-    cooker_cls = get_cooker_cls(cooker_name)
     cooker = cooker_cls(
-        bundle_type=cooker_name,
-        obj_id=swhid.object_id,
+        swhid=swhid,
         backend=backend,
         storage=storage,
         graph=graph,
@@ -129,7 +123,7 @@ def cook(
     cooker.cook()
 
     try:
-        bundle = backend.fetch(cooker_name, swhid.object_id)
+        bundle = backend.fetch(cooker_cls.BUNDLE_TYPE, swhid)
     except ObjNotFoundError:
         bundle = None
     if bundle is None:

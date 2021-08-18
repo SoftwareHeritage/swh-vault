@@ -25,7 +25,8 @@ import dulwich.repo
 import pytest
 
 from swh.loader.git.from_disk import GitLoaderFromDisk
-from swh.model import from_disk, hashutil, identifiers
+from swh.model import from_disk, hashutil
+from swh.model.identifiers import CoreSWHID, ObjectType
 from swh.model.model import (
     Directory,
     DirectoryEntry,
@@ -172,11 +173,11 @@ def git_loader(swh_storage,):
 
 
 @contextlib.contextmanager
-def cook_extract_directory_dircooker(storage, obj_id, fsck=True):
+def cook_extract_directory_dircooker(storage, swhid, fsck=True):
     """Context manager that cooks a directory and extract it."""
     backend = unittest.mock.MagicMock()
     backend.storage = storage
-    cooker = DirectoryCooker("directory", obj_id, backend=backend, storage=storage)
+    cooker = DirectoryCooker(swhid, backend=backend, storage=storage)
     cooker.fileobj = io.BytesIO()
     assert cooker.check_exists()
     cooker.prepare_bundle()
@@ -184,12 +185,12 @@ def cook_extract_directory_dircooker(storage, obj_id, fsck=True):
     with tempfile.TemporaryDirectory(prefix="tmp-vault-extract-") as td:
         with tarfile.open(fileobj=cooker.fileobj, mode="r") as tar:
             tar.extractall(td)
-        yield pathlib.Path(td) / hashutil.hash_to_hex(obj_id)
+        yield pathlib.Path(td) / str(swhid)
     cooker.storage = None
 
 
 @contextlib.contextmanager
-def cook_extract_directory_gitfast(storage, obj_id, fsck=True):
+def cook_extract_directory_gitfast(storage, swhid, fsck=True):
     """Context manager that cooks a revision containing a directory and extract it,
     using RevisionGitfastCooker"""
     test_repo = TestRepo()
@@ -198,7 +199,7 @@ def cook_extract_directory_gitfast(storage, obj_id, fsck=True):
             datetime.datetime.now(datetime.timezone.utc)
         )
         revision = Revision(
-            directory=obj_id,
+            directory=swhid.object_id,
             message=b"dummy message",
             author=Person.from_fullname(b"someone"),
             committer=Person.from_fullname(b"someone"),
@@ -209,7 +210,9 @@ def cook_extract_directory_gitfast(storage, obj_id, fsck=True):
         )
         storage.revision_add([revision])
 
-    with cook_stream_revision_gitfast(storage, revision.id) as stream, test_repo as p:
+    with cook_stream_revision_gitfast(
+        storage, revision.swhid()
+    ) as stream, test_repo as p:
         processor = dulwich.fastexport.GitImportProcessor(test_repo.repo)
         processor.import_stream(stream)
         test_repo.checkout(b"HEAD")
@@ -218,9 +221,7 @@ def cook_extract_directory_gitfast(storage, obj_id, fsck=True):
 
 
 @contextlib.contextmanager
-def cook_extract_directory_git_bare(
-    storage, obj_id, fsck=True, direct_objstorage=False
-):
+def cook_extract_directory_git_bare(storage, swhid, fsck=True, direct_objstorage=False):
     """Context manager that cooks a revision and extract it,
     using GitBareCooker"""
     backend = unittest.mock.MagicMock()
@@ -228,8 +229,7 @@ def cook_extract_directory_git_bare(
 
     # Cook the object
     cooker = GitBareCooker(
-        "directory",
-        obj_id,
+        swhid,
         backend=backend,
         storage=storage,
         objstorage=storage.objstorage if direct_objstorage else None,
@@ -249,12 +249,7 @@ def cook_extract_directory_git_bare(
         with tempfile.TemporaryDirectory(prefix="tmp-vault-clone-") as clone_dir:
             clone_dir = pathlib.Path(clone_dir)
             subprocess.check_call(
-                [
-                    "git",
-                    "clone",
-                    os.path.join(td, f"swh:1:dir:{obj_id.hex()}.git"),
-                    clone_dir,
-                ]
+                ["git", "clone", os.path.join(td, f"{swhid}.git"), clone_dir,]
             )
             shutil.rmtree(clone_dir / ".git")
             yield clone_dir
@@ -275,13 +270,11 @@ def cook_extract_directory(request):
 
 
 @contextlib.contextmanager
-def cook_stream_revision_gitfast(storage, obj_id):
+def cook_stream_revision_gitfast(storage, swhid):
     """Context manager that cooks a revision and stream its fastexport."""
     backend = unittest.mock.MagicMock()
     backend.storage = storage
-    cooker = RevisionGitfastCooker(
-        "revision_gitfast", obj_id, backend=backend, storage=storage
-    )
+    cooker = RevisionGitfastCooker(swhid, backend=backend, storage=storage)
     cooker.fileobj = io.BytesIO()
     assert cooker.check_exists()
     cooker.prepare_bundle()
@@ -292,11 +285,11 @@ def cook_stream_revision_gitfast(storage, obj_id):
 
 
 @contextlib.contextmanager
-def cook_extract_revision_gitfast(storage, obj_id, fsck=True):
+def cook_extract_revision_gitfast(storage, swhid, fsck=True):
     """Context manager that cooks a revision and extract it,
     using RevisionGitfastCooker"""
     test_repo = TestRepo()
-    with cook_stream_revision_gitfast(storage, obj_id) as stream, test_repo as p:
+    with cook_stream_revision_gitfast(storage, swhid) as stream, test_repo as p:
         processor = dulwich.fastexport.GitImportProcessor(test_repo.repo)
         processor.import_stream(stream)
         yield test_repo, p
@@ -310,12 +303,7 @@ def cook_extract_git_bare(storage, swhid, fsck=True):
     backend.storage = storage
 
     # Cook the object
-    cooker = GitBareCooker(
-        swhid.object_type.name.lower(),
-        swhid.object_id,
-        backend=backend,
-        storage=storage,
-    )
+    cooker = GitBareCooker(swhid, backend=backend, storage=storage)
     cooker.use_fsck = fsck  # Some tests try edge-cases that git-fsck rejects
     cooker.fileobj = io.BytesIO()
     assert cooker.check_exists()
@@ -339,14 +327,8 @@ def cook_extract_git_bare(storage, swhid, fsck=True):
 
 
 @contextlib.contextmanager
-def cook_extract_revision_git_bare(storage, obj_id, fsck=True):
-    with cook_extract_git_bare(
-        storage,
-        identifiers.CoreSWHID(
-            object_type=identifiers.ObjectType.REVISION, object_id=obj_id
-        ),
-        fsck=fsck,
-    ) as res:
+def cook_extract_revision_git_bare(storage, swhid, fsck=True):
+    with cook_extract_git_bare(storage, swhid, fsck=fsck,) as res:
         yield res
 
 
@@ -361,14 +343,8 @@ def cook_extract_revision(request):
 
 
 @contextlib.contextmanager
-def cook_extract_snapshot_git_bare(storage, obj_id, fsck=True):
-    with cook_extract_git_bare(
-        storage,
-        identifiers.CoreSWHID(
-            object_type=identifiers.ObjectType.SNAPSHOT, object_id=obj_id
-        ),
-        fsck=fsck,
-    ) as res:
+def cook_extract_snapshot_git_bare(storage, swhid, fsck=True):
+    with cook_extract_git_bare(storage, swhid, fsck=fsck,) as res:
         yield res
 
 
@@ -403,8 +379,9 @@ class TestDirectoryCooker:
 
             obj_id_hex = repo.repo[c].tree.decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
+            swhid = CoreSWHID(object_type=ObjectType.DIRECTORY, object_id=obj_id)
 
-        with cook_extract_directory(loader.storage, obj_id) as p:
+        with cook_extract_directory(loader.storage, swhid) as p:
             assert (p / "file").stat().st_mode == 0o100644
             assert (p / "file").read_text() == TEST_CONTENT
             assert (p / "executable").stat().st_mode == 0o100755
@@ -434,6 +411,7 @@ class TestDirectoryCooker:
 
             obj_id_hex = repo.repo[c].tree.decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
+            swhid = CoreSWHID(object_type=ObjectType.DIRECTORY, object_id=obj_id)
 
         # FIXME: storage.content_update() should be changed to allow things
         # like that
@@ -462,7 +440,7 @@ class TestDirectoryCooker:
 
             cur.execute("delete from content where sha1 = %s", (id_3,))
 
-        with cook_extract_directory(loader.storage, obj_id) as p:
+        with cook_extract_directory(loader.storage, swhid) as p:
             assert (p / "file").read_bytes() == b"test1"
             assert (p / "hidden_file").read_bytes() == HIDDEN_MESSAGE
             assert (p / "absent_file").read_bytes() == SKIPPED_MESSAGE
@@ -508,8 +486,9 @@ class TestDirectoryCooker:
 
             obj_id_hex = repo.repo[c].tree.decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
+            swhid = CoreSWHID(object_type=ObjectType.DIRECTORY, object_id=obj_id)
 
-        with cook_extract_directory(loader.storage, obj_id) as p:
+        with cook_extract_directory(loader.storage, swhid) as p:
             assert (p / "file").stat().st_mode == 0o100644
             assert (p / "executable").stat().st_mode == 0o100755
             assert (p / "wat").stat().st_mode == 0o100644
@@ -534,6 +513,7 @@ class TestDirectoryCooker:
 
             obj_id_hex = repo.repo[c].tree.decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
+            swhid = CoreSWHID(object_type=ObjectType.DIRECTORY, object_id=obj_id)
 
         # Set-up spies
         storage_content_get_data = mocker.patch.object(
@@ -544,7 +524,7 @@ class TestDirectoryCooker:
         )
 
         with cook_extract_directory_git_bare(
-            loader.storage, obj_id, direct_objstorage=direct_objstorage
+            loader.storage, swhid, direct_objstorage=direct_objstorage
         ) as p:
             assert (p / "file").stat().st_mode == 0o100644
             assert (p / "file").read_text() == TEST_CONTENT
@@ -580,7 +560,9 @@ class TestDirectoryCooker:
         )
         swh_storage.directory_add([dir])
 
-        with cook_extract_directory_dircooker(swh_storage, dir.id, fsck=False) as p:
+        with cook_extract_directory_dircooker(
+            swh_storage, dir.swhid(), fsck=False
+        ) as p:
             assert (p / "submodule").is_symlink()
             assert os.readlink(str(p / "submodule")) == target_rev
 
@@ -601,7 +583,7 @@ class RepoFixtures:
             repo.commit("add file2")
             (rp / "dir1/dir2").mkdir(parents=True)
             (rp / "dir1/dir2/file").write_text(TEST_CONTENT)
-            repo.commit("add dir1/dir2/file")
+
             (rp / "bin1").write_bytes(TEST_EXECUTABLE)
             (rp / "bin1").chmod(0o755)
             repo.commit("add bin1")
@@ -615,9 +597,10 @@ class RepoFixtures:
             loader.load()
             obj_id_hex = repo.repo.refs[b"HEAD"].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
-        return (loader, obj_id)
+            swhid = CoreSWHID(object_type=ObjectType.REVISION, object_id=obj_id)
+        return (loader, swhid)
 
-    def check_revision_simple(self, ert, p, obj_id):
+    def check_revision_simple(self, ert, p, swhid):
         ert.checkout(b"HEAD")
         assert (p / "file1").stat().st_mode == 0o100644
         assert (p / "file1").read_text() == TEST_CONTENT
@@ -627,7 +610,7 @@ class RepoFixtures:
         assert (p / "bin").read_bytes() == TEST_EXECUTABLE
         assert (p / "dir1/dir2/file").read_text() == TEST_CONTENT
         assert (p / "dir1/dir2/file").stat().st_mode == 0o100644
-        assert ert.repo.refs[b"HEAD"].decode() == obj_id.hex()
+        assert ert.repo.refs[b"HEAD"].decode() == swhid.object_id.hex()
 
     def load_repo_two_roots(self, git_loader):
         #
@@ -647,14 +630,15 @@ class RepoFixtures:
             repo.commit("add file3")
             obj_id_hex = repo.repo.refs[b"HEAD"].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
+            swhid = CoreSWHID(object_type=ObjectType.REVISION, object_id=obj_id)
             loader = git_loader(str(rp))
             loader.load()
-        return (loader, obj_id)
+        return (loader, swhid)
 
-    def check_revision_two_roots(self, ert, p, obj_id):
-        assert ert.repo.refs[b"HEAD"].decode() == obj_id.hex()
+    def check_revision_two_roots(self, ert, p, swhid):
+        assert ert.repo.refs[b"HEAD"].decode() == swhid.object_id.hex()
 
-        (c3,) = ert.repo[hashutil.hash_to_bytehex(obj_id)].parents
+        (c3,) = ert.repo[hashutil.hash_to_bytehex(swhid.object_id)].parents
         assert len(ert.repo[c3].parents) == 2
 
     def load_repo_two_heads(self, git_loader):
@@ -682,13 +666,14 @@ class RepoFixtures:
 
             obj_id_hex = repo.repo.refs[b"HEAD"].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
+            swhid = CoreSWHID(object_type=ObjectType.REVISION, object_id=obj_id)
             loader = git_loader(str(rp))
             loader.load()
-        return (loader, obj_id)
+        return (loader, swhid)
 
-    def check_snapshot_two_heads(self, ert, p, obj_id):
+    def check_snapshot_two_heads(self, ert, p, swhid):
         assert (
-            hashutil.hash_to_bytehex(obj_id)
+            hashutil.hash_to_bytehex(swhid.object_id)
             == ert.repo.refs[b"HEAD"]
             == ert.repo.refs[b"refs/heads/master"]
             == ert.repo.refs[b"refs/remotes/origin/HEAD"]
@@ -696,7 +681,7 @@ class RepoFixtures:
             == ert.repo.refs[b"refs/remotes/origin/b1"]
         )
 
-        c4_id = hashutil.hash_to_bytehex(obj_id)
+        c4_id = hashutil.hash_to_bytehex(swhid.object_id)
         c3_id = ert.repo.refs[b"refs/remotes/origin/b2"]
 
         assert ert.repo[c3_id].parents == ert.repo[c4_id].parents
@@ -729,23 +714,24 @@ class RepoFixtures:
 
             obj_id_hex = repo.repo.refs[b"HEAD"].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
+            swhid = CoreSWHID(object_type=ObjectType.REVISION, object_id=obj_id)
             loader = git_loader(str(rp))
             loader.load()
-        return (loader, obj_id)
+        return (loader, swhid)
 
-    def check_revision_two_double_fork_merge(self, ert, p, obj_id):
-        assert ert.repo.refs[b"HEAD"].decode() == obj_id.hex()
+    def check_revision_two_double_fork_merge(self, ert, p, swhid):
+        assert ert.repo.refs[b"HEAD"].decode() == swhid.object_id.hex()
 
-    def check_snapshot_two_double_fork_merge(self, ert, p, obj_id):
+    def check_snapshot_two_double_fork_merge(self, ert, p, swhid):
         assert (
-            hashutil.hash_to_bytehex(obj_id)
+            hashutil.hash_to_bytehex(swhid.object_id)
             == ert.repo.refs[b"HEAD"]
             == ert.repo.refs[b"refs/heads/master"]
             == ert.repo.refs[b"refs/remotes/origin/HEAD"]
             == ert.repo.refs[b"refs/remotes/origin/master"]
         )
 
-        (c4_id, c5_id) = ert.repo[obj_id.hex().encode()].parents
+        (c4_id, c5_id) = ert.repo[swhid.object_id.hex().encode()].parents
         assert c5_id == ert.repo.refs[b"refs/remotes/origin/c3"]
 
         (c2_id, c3_id) = ert.repo[c4_id].parents
@@ -773,23 +759,24 @@ class RepoFixtures:
 
             obj_id_hex = repo.repo.refs[b"HEAD"].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
+            swhid = CoreSWHID(object_type=ObjectType.REVISION, object_id=obj_id)
             loader = git_loader(str(rp))
             loader.load()
-        return (loader, obj_id)
+        return (loader, swhid)
 
-    def check_revision_triple_merge(self, ert, p, obj_id):
-        assert ert.repo.refs[b"HEAD"].decode() == obj_id.hex()
+    def check_revision_triple_merge(self, ert, p, swhid):
+        assert ert.repo.refs[b"HEAD"].decode() == swhid.object_id.hex()
 
-    def check_snapshot_triple_merge(self, ert, p, obj_id):
+    def check_snapshot_triple_merge(self, ert, p, swhid):
         assert (
-            hashutil.hash_to_bytehex(obj_id)
+            hashutil.hash_to_bytehex(swhid.object_id)
             == ert.repo.refs[b"HEAD"]
             == ert.repo.refs[b"refs/heads/master"]
             == ert.repo.refs[b"refs/remotes/origin/HEAD"]
             == ert.repo.refs[b"refs/remotes/origin/master"]
         )
 
-        (c2_id, c3_id, c4_id) = ert.repo[obj_id.hex().encode()].parents
+        (c2_id, c3_id, c4_id) = ert.repo[swhid.object_id.hex().encode()].parents
         assert c3_id == ert.repo.refs[b"refs/remotes/origin/b1"]
         assert c4_id == ert.repo.refs[b"refs/remotes/origin/b2"]
 
@@ -813,6 +800,7 @@ class RepoFixtures:
             repo.commit()
             obj_id_hex = repo.repo.refs[b"HEAD"].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
+            swhid = CoreSWHID(object_type=ObjectType.REVISION, object_id=obj_id)
             loader = git_loader(str(rp))
             loader.load()
 
@@ -842,9 +830,9 @@ class RepoFixtures:
             )
 
             cur.execute("delete from content where sha1 = %s", (id_3,))
-        return (loader, obj_id)
+        return (loader, swhid)
 
-    def check_revision_filtered_objects(self, ert, p, obj_id):
+    def check_revision_filtered_objects(self, ert, p, swhid):
         ert.checkout(b"HEAD")
         assert (p / "file").read_bytes() == b"test1"
         assert (p / "hidden_file").read_bytes() == HIDDEN_MESSAGE
@@ -878,9 +866,9 @@ class RepoFixtures:
 
         storage = loader.storage
         storage.revision_add([test_revision])
-        return (loader, test_revision.id)
+        return (loader, test_revision.swhid())
 
-    def check_revision_null_fields(self, ert, p, obj_id):
+    def check_revision_null_fields(self, ert, p, swhid):
         ert.checkout(b"HEAD")
         assert (p / "file").stat().st_mode == 0o100644
 
@@ -920,13 +908,14 @@ class RepoFixtures:
 
             obj_id_hex = repo.repo.refs[b"HEAD"].decode()
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
+            swhid = CoreSWHID(object_type=ObjectType.REVISION, object_id=obj_id)
             loader = git_loader(str(rp))
             loader.load()
-        return (loader, obj_id)
+        return (loader, swhid)
 
-    def check_snapshot_tags(self, ert, p, obj_id):
+    def check_snapshot_tags(self, ert, p, swhid):
         assert (
-            hashutil.hash_to_bytehex(obj_id)
+            hashutil.hash_to_bytehex(swhid.object_id)
             == ert.repo.refs[b"HEAD"]
             == ert.repo.refs[b"refs/heads/master"]
             == ert.repo.refs[b"refs/remotes/origin/HEAD"]
@@ -935,7 +924,7 @@ class RepoFixtures:
         )
 
         c2_id = ert.repo.refs[b"refs/tags/t2"]
-        c5_id = hashutil.hash_to_bytehex(obj_id)
+        c5_id = hashutil.hash_to_bytehex(swhid.object_id)
 
         assert ert.repo[c5_id].parents == [c2_id]
 
@@ -953,34 +942,34 @@ class RepoFixtures:
 
 class TestRevisionCooker(RepoFixtures):
     def test_revision_simple(self, git_loader, cook_extract_revision):
-        (loader, obj_id) = self.load_repo_simple(git_loader)
-        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
-            self.check_revision_simple(ert, p, obj_id)
+        (loader, swhid) = self.load_repo_simple(git_loader)
+        with cook_extract_revision(loader.storage, swhid) as (ert, p):
+            self.check_revision_simple(ert, p, swhid)
 
     def test_revision_two_roots(self, git_loader, cook_extract_revision):
-        (loader, obj_id) = self.load_repo_two_roots(git_loader)
-        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
-            self.check_revision_two_roots(ert, p, obj_id)
+        (loader, swhid) = self.load_repo_two_roots(git_loader)
+        with cook_extract_revision(loader.storage, swhid) as (ert, p):
+            self.check_revision_two_roots(ert, p, swhid)
 
     def test_revision_two_double_fork_merge(self, git_loader, cook_extract_revision):
-        (loader, obj_id) = self.load_repo_two_double_fork_merge(git_loader)
-        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
-            self.check_revision_two_double_fork_merge(ert, p, obj_id)
+        (loader, swhid) = self.load_repo_two_double_fork_merge(git_loader)
+        with cook_extract_revision(loader.storage, swhid) as (ert, p):
+            self.check_revision_two_double_fork_merge(ert, p, swhid)
 
     def test_revision_triple_merge(self, git_loader, cook_extract_revision):
-        (loader, obj_id) = self.load_repo_triple_merge(git_loader)
-        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
-            self.check_revision_triple_merge(ert, p, obj_id)
+        (loader, swhid) = self.load_repo_triple_merge(git_loader)
+        with cook_extract_revision(loader.storage, swhid) as (ert, p):
+            self.check_revision_triple_merge(ert, p, swhid)
 
     def test_revision_filtered_objects(self, git_loader, cook_extract_revision):
-        (loader, obj_id) = self.load_repo_filtered_objects(git_loader)
-        with cook_extract_revision(loader.storage, obj_id) as (ert, p):
-            self.check_revision_filtered_objects(ert, p, obj_id)
+        (loader, swhid) = self.load_repo_filtered_objects(git_loader)
+        with cook_extract_revision(loader.storage, swhid) as (ert, p):
+            self.check_revision_filtered_objects(ert, p, swhid)
 
     def test_revision_null_fields(self, git_loader, cook_extract_revision):
-        (loader, obj_id) = self.load_repo_null_fields(git_loader)
-        with cook_extract_revision(loader.storage, obj_id, fsck=False) as (ert, p):
-            self.check_revision_null_fields(ert, p, obj_id)
+        (loader, swhid) = self.load_repo_null_fields(git_loader)
+        with cook_extract_revision(loader.storage, swhid, fsck=False) as (ert, p):
+            self.check_revision_null_fields(ert, p, swhid)
 
     def test_revision_revision_data(self, swh_storage):
         target_rev = "0e8a3ad980ec179856012b7eecf4327e99cd44cd"
@@ -1011,7 +1000,7 @@ class TestRevisionCooker(RepoFixtures):
         )
         swh_storage.revision_add([rev])
 
-        with cook_stream_revision_gitfast(swh_storage, rev.id) as stream:
+        with cook_stream_revision_gitfast(swh_storage, rev.swhid()) as stream:
             pattern = "M 160000 {} submodule".format(target_rev).encode()
             assert pattern in stream.read()
 
@@ -1020,43 +1009,50 @@ class TestSnapshotCooker(RepoFixtures):
     def test_snapshot_simple(self, git_loader, cook_extract_snapshot):
         (loader, main_rev_id) = self.load_repo_simple(git_loader)
         snp_id = loader.loaded_snapshot_id
-        with cook_extract_snapshot(loader.storage, snp_id) as (ert, p):
+        swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
+        with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
             self.check_revision_simple(ert, p, main_rev_id)
 
     def test_snapshot_two_roots(self, git_loader, cook_extract_snapshot):
         (loader, main_rev_id) = self.load_repo_two_roots(git_loader)
         snp_id = loader.loaded_snapshot_id
-        with cook_extract_snapshot(loader.storage, snp_id) as (ert, p):
+        swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
+        with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
             self.check_revision_two_roots(ert, p, main_rev_id)
 
     def test_snapshot_two_heads(self, git_loader, cook_extract_snapshot):
         (loader, main_rev_id) = self.load_repo_two_heads(git_loader)
         snp_id = loader.loaded_snapshot_id
-        with cook_extract_snapshot(loader.storage, snp_id) as (ert, p):
+        swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
+        with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
             self.check_snapshot_two_heads(ert, p, main_rev_id)
 
     def test_snapshot_two_double_fork_merge(self, git_loader, cook_extract_snapshot):
         (loader, main_rev_id) = self.load_repo_two_double_fork_merge(git_loader)
         snp_id = loader.loaded_snapshot_id
-        with cook_extract_snapshot(loader.storage, snp_id) as (ert, p):
+        swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
+        with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
             self.check_revision_two_double_fork_merge(ert, p, main_rev_id)
             self.check_snapshot_two_double_fork_merge(ert, p, main_rev_id)
 
     def test_snapshot_triple_merge(self, git_loader, cook_extract_snapshot):
         (loader, main_rev_id) = self.load_repo_triple_merge(git_loader)
         snp_id = loader.loaded_snapshot_id
-        with cook_extract_snapshot(loader.storage, snp_id) as (ert, p):
+        swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
+        with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
             self.check_revision_triple_merge(ert, p, main_rev_id)
             self.check_snapshot_triple_merge(ert, p, main_rev_id)
 
     def test_snapshot_filtered_objects(self, git_loader, cook_extract_snapshot):
         (loader, main_rev_id) = self.load_repo_filtered_objects(git_loader)
         snp_id = loader.loaded_snapshot_id
-        with cook_extract_snapshot(loader.storage, snp_id) as (ert, p):
+        swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
+        with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
             self.check_revision_filtered_objects(ert, p, main_rev_id)
 
     def test_snapshot_tags(self, git_loader, cook_extract_snapshot):
         (loader, main_rev_id) = self.load_repo_tags(git_loader)
         snp_id = loader.loaded_snapshot_id
-        with cook_extract_snapshot(loader.storage, snp_id) as (ert, p):
+        swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
+        with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
             self.check_snapshot_tags(ert, p, main_rev_id)

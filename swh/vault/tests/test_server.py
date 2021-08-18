@@ -11,13 +11,14 @@ import pytest
 import yaml
 
 from swh.core.api.serializers import json_dumps, msgpack_dumps, msgpack_loads
+from swh.vault.api.serializers import ENCODERS
 from swh.vault.api.server import (
     VaultServerApp,
     check_config,
     make_app,
     make_app_from_configfile,
 )
-from swh.vault.tests.test_backend import TEST_HEX_ID
+from swh.vault.tests.test_backend import TEST_SWHID
 
 
 def test_make_app_from_file_missing():
@@ -78,25 +79,29 @@ async def test_client_index(cli):
 async def test_client_cook_notfound(cli):
     resp = await cli.post(
         "/cook",
-        data=json_dumps({"bundle_type": "directory", "obj_id": TEST_HEX_ID}),
+        data=json_dumps(
+            {"bundle_type": "flat", "swhid": TEST_SWHID}, extra_encoders=ENCODERS
+        ),
         headers=[("Content-Type", "application/json")],
     )
     assert resp.status == 400
     content = msgpack_loads(await resp.content.read())
     assert content["type"] == "NotFoundExc"
-    assert content["args"] == [f"directory {TEST_HEX_ID} was not found."]
+    assert content["args"] == [f"flat {TEST_SWHID} was not found."]
 
 
 async def test_client_progress_notfound(cli):
     resp = await cli.post(
         "/progress",
-        data=json_dumps({"bundle_type": "directory", "obj_id": TEST_HEX_ID}),
+        data=json_dumps(
+            {"bundle_type": "flat", "swhid": TEST_SWHID}, extra_encoders=ENCODERS
+        ),
         headers=[("Content-Type", "application/json")],
     )
     assert resp.status == 400
     content = msgpack_loads(await resp.content.read())
     assert content["type"] == "NotFoundExc"
-    assert content["args"] == [f"directory {TEST_HEX_ID} was not found."]
+    assert content["args"] == [f"flat {TEST_SWHID} was not found."]
 
 
 async def test_client_batch_cook_invalid_type(cli):

@@ -929,7 +929,8 @@ class RepoFixtures:
         assert ert.repo[c5_id].parents == [c2_id]
 
         t5a = ert.repo[ert.repo.refs[b"refs/tags/t5a"]]
-        assert t5a.message == b"tag 5\n"  # TODO: investigate why new dulwich adds \n
+        # TODO: investigate why new dulwich adds \n
+        assert t5a.message in (b"tag 5", b"tag 5\n")
         assert t5a.object == (dulwich.objects.Commit, c5_id)
 
         t4a = ert.repo[ert.repo.refs[b"refs/tags/t4a"]]

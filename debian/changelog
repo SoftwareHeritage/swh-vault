@@ -1,3 +1,12 @@
+swh-vault (1.0.2-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.0.2     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2021-08-26 14:23:53 +0200)
+  * Upstream changes:     - v1.0.2     - * Fix compatibility with
+    dulwich 0.19.11     - (needed for builds on debian 10)
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 26 Aug 2021 12:27:30 +0000
+
 swh-vault (1.0.1-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.0.1     - (tagged by Valentin Lorentz

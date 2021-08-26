@@ -8,6 +8,7 @@ import tarfile
 import tempfile
 
 from swh.model import hashutil
+from swh.model.identifiers import ObjectType
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.cookers.utils import revision_log
 from swh.vault.to_disk import DirectoryBuilder
@@ -16,15 +17,16 @@ from swh.vault.to_disk import DirectoryBuilder
 class RevisionFlatCooker(BaseVaultCooker):
     """Cooker to create a revision_flat bundle """
 
-    CACHE_TYPE_KEY = "revision_flat"
+    BUNDLE_TYPE = "flat"
+    SUPPORTED_OBJECT_TYPES = {ObjectType.REVISION}
 
     def check_exists(self):
-        return not list(self.storage.revision_missing([self.obj_id]))
+        return not list(self.storage.revision_missing([self.swhid.object_id]))
 
     def prepare_bundle(self):
         with tempfile.TemporaryDirectory(prefix="tmp-vault-revision-") as td:
             root = Path(td)
-            for revision in revision_log(self.storage, self.obj_id):
+            for revision in revision_log(self.storage, self.swhid.object_id):
                 revdir = root / hashutil.hash_to_hex(revision["id"])
                 revdir.mkdir()
                 directory_builder = DirectoryBuilder(
@@ -32,4 +34,4 @@ class RevisionFlatCooker(BaseVaultCooker):
                 )
                 directory_builder.build()
             with tarfile.open(fileobj=self.fileobj, mode="w:gz") as tar:
-                tar.add(td, arcname=hashutil.hash_to_hex(self.obj_id))
+                tar.add(td, arcname=self.swhid)

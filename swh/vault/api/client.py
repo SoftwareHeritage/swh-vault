@@ -7,9 +7,13 @@ from swh.core.api import RPCClient
 from swh.vault.exc import NotFoundExc
 from swh.vault.interface import VaultInterface
 
+from .serializers import DECODERS, ENCODERS
+
 
 class RemoteVaultClient(RPCClient):
     """Client to the Software Heritage vault cache."""
 
     backend_class = VaultInterface
     reraise_exceptions = [NotFoundExc]
+    extra_type_decoders = DECODERS
+    extra_type_encoders = ENCODERS

@@ -6,12 +6,12 @@ create table if not exists dbversion
 );
 comment on table dbversion is 'Schema update tracking';
 insert into dbversion (version, release, description)
-       values (1, now(), 'Initial version');
+       values (4, now(), 'Initial version');
 
 create domain obj_hash as bytea;
 
-create type cook_type as enum ('directory', 'revision_gitfast');
-comment on type cook_type is 'Type of the requested bundle';
+create type bundle_type as enum ('flat', 'gitfast', 'git_bare');
+comment on type bundle_type is 'Type of the requested bundle';
 
 create type cook_status as enum ('new', 'pending', 'done', 'failed');
 comment on type cook_status is 'Status of the cooking';
@@ -19,8 +19,8 @@ comment on type cook_status is 'Status of the cooking';
 create table vault_bundle (
   id bigserial primary key,
 
-  type cook_type not null,  -- requested cooking type
-  object_id obj_hash not null,  -- requested object ID
+  type bundle_type not null,
+  swhid text not null,  -- requested object ID
 
   task_id integer,  -- scheduler task id
   task_status cook_status not null default 'new',  -- status of the task
@@ -32,8 +32,8 @@ create table vault_bundle (
 
   progress_msg text -- progress message
 );
-create unique index concurrently vault_bundle_type_object
-  on vault_bundle (type, object_id);
+create unique index concurrently vault_bundle_type_swhid
+  on vault_bundle (type, swhid);
 create index concurrently vault_bundle_task_id
   on vault_bundle (task_id);
 

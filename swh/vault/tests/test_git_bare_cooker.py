@@ -38,6 +38,7 @@ from swh.vault.cookers.git_bare import GitBareCooker
 from swh.vault.in_memory_backend import InMemoryVaultBackend
 
 
+@pytest.mark.graph
 @pytest.mark.parametrize(
     "snapshot,up_to_date_graph,tag,weird_branches",
     [

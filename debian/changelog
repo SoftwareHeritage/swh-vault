@@ -1,3 +1,13 @@
+swh-vault (1.0.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.0.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2021-08-26 11:54:21 +0200)
+  * Upstream changes:     - v1.0.0     - * Feature-complete git-bare
+    cooker     - * Rename bundle types and use SWHIDs everywhere instead
+    of raw sha1_git
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 26 Aug 2021 09:57:07 +0000
+
 swh-vault (0.6.4-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.6.4     - (tagged by Antoine R. Dumont

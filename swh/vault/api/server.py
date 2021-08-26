@@ -17,11 +17,12 @@ from swh.vault import get_vault as get_swhvault
 from swh.vault.backend import NotFoundExc
 from swh.vault.interface import VaultInterface
 
+from .serializers import DECODERS, ENCODERS
+
 # do not define default services here
 DEFAULT_CONFIG = {
     "client_max_size": 1024 ** 3,
 }
-
 
 vault = None
 app = None
@@ -37,6 +38,8 @@ def get_vault(config: Optional[Dict[str, Any]] = None) -> VaultInterface:
 
 class VaultServerApp(RPCServerApp):
     client_exception_classes = (NotFoundExc,)
+    extra_type_decoders = DECODERS
+    extra_type_encoders = ENCODERS
 
 
 @asyncio.coroutine

@@ -10,7 +10,7 @@ import pytest
 import yaml
 
 from swh.vault.cookers import COOKER_TYPES, get_cooker
-from swh.vault.tests.test_backend import TEST_HEX_ID
+from swh.vault.tests.test_backend import TEST_SWHID
 
 
 @pytest.fixture
@@ -74,7 +74,7 @@ def test_get_cooker_config_ko(
     write_config_to_env(config_ko, tmp_path, monkeypatch)
 
     with pytest.raises(exception_class, match=exception_msg):
-        get_cooker("directory", TEST_HEX_ID)
+        get_cooker("flat", TEST_SWHID)
 
 
 @pytest.mark.parametrize(
@@ -106,7 +106,7 @@ def test_get_cooker_nominal(config_ok, tmp_path, monkeypatch):
     for cooker_type in COOKER_TYPES.keys():
         write_config_to_env(config_ok, tmp_path, monkeypatch)
 
-        cooker = get_cooker(cooker_type, TEST_HEX_ID)
+        cooker = get_cooker(cooker_type, TEST_SWHID)
 
         assert cooker is not None
-        assert isinstance(cooker, COOKER_TYPES[cooker_type])
+        assert isinstance(cooker, tuple(COOKER_TYPES[cooker_type]))

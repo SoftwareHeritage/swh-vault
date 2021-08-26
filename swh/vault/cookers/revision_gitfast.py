@@ -18,6 +18,7 @@ from fastimport.commands import (
 
 from swh.model import hashutil
 from swh.model.from_disk import DentryPerms, mode_to_perms
+from swh.model.identifiers import ObjectType
 from swh.model.toposort import toposort
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.cookers.utils import revision_log
@@ -27,7 +28,8 @@ from swh.vault.to_disk import get_filtered_files_content
 class RevisionGitfastCooker(BaseVaultCooker):
     """Cooker to create a git fast-import bundle """
 
-    CACHE_TYPE_KEY = "revision_gitfast"
+    BUNDLE_TYPE = "gitfast"
+    SUPPORTED_OBJECT_TYPES = {ObjectType.REVISION}
 
     def check_exists(self):
         return not list(self.storage.revision_missing([self.obj_id]))
@@ -58,7 +60,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
             if last_progress_report is None or last_progress_report + 2 <= ct:
                 last_progress_report = ct
                 pg = "Computing revision {}/{}".format(i, len(self.log))
-                self.backend.set_progress(self.obj_type, self.obj_id, pg)
+                self.backend.set_progress(self.BUNDLE_TYPE, self.swhid, pg)
 
             # Compute the current commit
             self._compute_commit_command(rev)

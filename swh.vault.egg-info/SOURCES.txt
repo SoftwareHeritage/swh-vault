@@ -49,6 +49,7 @@ swh/vault/py.typed
 swh/vault/to_disk.py
 swh/vault/api/__init__.py
 swh/vault/api/client.py
+swh/vault/api/serializers.py
 swh/vault/api/server.py
 swh/vault/cookers/__init__.py
 swh/vault/cookers/base.py

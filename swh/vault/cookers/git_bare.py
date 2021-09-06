@@ -515,14 +515,15 @@ class GitBareCooker(BaseVaultCooker):
         self.write_object(obj_id, git_object)
 
         # Add children to the stack
-        entry_loaders: Dict[str, List[Sha1Git]] = {
+        entry_loaders: Dict[str, Optional[List[Sha1Git]]] = {
             "file": self._cnt_stack,
             "dir": self._dir_stack,
-            "rev": self._rev_stack,
+            "rev": None,  # Do not include submodule targets (rejected by git-fsck)
         }
         for entry in directory["entries"]:
             stack = entry_loaders[entry["type"]]
-            self._push(stack, [entry["target"]])
+            if stack is not None:
+                self._push(stack, [entry["target"]])
 
     def load_contents(self, obj_ids: List[Sha1Git]) -> None:
         # TODO: add support of filtered objects, somehow?

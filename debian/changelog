@@ -1,3 +1,12 @@
+swh-vault (1.1.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.1.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2021-09-08 14:29:18 +0200)
+  * Upstream changes:     - v1.1.0     - * git_bare: Remove sample git
+    hooks from output     - * git_bare: Fix crash on submodules
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 08 Sep 2021 12:32:28 +0000
+
 swh-vault (1.0.2-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.0.2     - (tagged by Valentin Lorentz

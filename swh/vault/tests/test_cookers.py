@@ -972,27 +972,44 @@ class TestRevisionCooker(RepoFixtures):
         with cook_extract_revision(loader.storage, swhid, fsck=False) as (ert, p):
             self.check_revision_null_fields(ert, p, swhid)
 
-    def test_revision_revision_data(self, swh_storage):
-        target_rev = "0e8a3ad980ec179856012b7eecf4327e99cd44cd"
+    @pytest.mark.parametrize("ingest_target_revision", [False, True])
+    def test_revision_submodule(
+        self, swh_storage, cook_extract_revision, ingest_target_revision
+    ):
+        date = TimestampWithTimezone.from_datetime(
+            datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
+        )
+
+        target_rev = Revision(
+            message=b"target_rev",
+            author=Person.from_fullname(b"me <test@example.org>"),
+            date=date,
+            committer=Person.from_fullname(b"me <test@example.org>"),
+            committer_date=date,
+            parents=(),
+            type=RevisionType.GIT,
+            directory=bytes.fromhex("3333333333333333333333333333333333333333"),
+            metadata={},
+            synthetic=True,
+        )
+        if ingest_target_revision:
+            swh_storage.revision_add([target_rev])
 
         dir = Directory(
             entries=(
                 DirectoryEntry(
-                    name=b"submodule",
-                    type="rev",
-                    target=hashutil.hash_to_bytes(target_rev),
-                    perms=0o100644,
+                    name=b"submodule", type="rev", target=target_rev.id, perms=0o160000,
                 ),
             ),
         )
         swh_storage.directory_add([dir])
 
         rev = Revision(
-            message=b"",
-            author=Person(name=None, email=None, fullname=b""),
-            date=None,
-            committer=Person(name=None, email=None, fullname=b""),
-            committer_date=None,
+            message=b"msg",
+            author=Person.from_fullname(b"me <test@example.org>"),
+            date=date,
+            committer=Person.from_fullname(b"me <test@example.org>"),
+            committer_date=date,
             parents=(),
             type=RevisionType.GIT,
             directory=dir.id,
@@ -1001,9 +1018,11 @@ class TestRevisionCooker(RepoFixtures):
         )
         swh_storage.revision_add([rev])
 
-        with cook_stream_revision_gitfast(swh_storage, rev.swhid()) as stream:
-            pattern = "M 160000 {} submodule".format(target_rev).encode()
-            assert pattern in stream.read()
+        with cook_extract_revision(swh_storage, rev.swhid()) as (ert, p):
+            ert.checkout(b"HEAD")
+            pattern = b"160000 submodule\x00%s" % target_rev.id
+            tree = ert.repo[b"HEAD"].tree
+            assert pattern in ert.repo[tree].as_raw_string()
 
 
 class TestSnapshotCooker(RepoFixtures):

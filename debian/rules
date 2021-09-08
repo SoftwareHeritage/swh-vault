@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 export PYBUILD_NAME=swh.vault
-export PYBUILD_TEST_ARGS=-v -m "not db and not fs and not graph"
+export PYBUILD_TEST_ARGS=-v -m "not db and not fs"
 export LC_ALL=C.UTF-8
 
 %:

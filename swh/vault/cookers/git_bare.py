@@ -19,6 +19,7 @@ to avoid downloading and writing the same objects twice.
 
 import datetime
 import enum
+import glob
 import logging
 import os.path
 import re
@@ -151,6 +152,10 @@ class GitBareCooker(BaseVaultCooker):
     def init_git(self) -> None:
         subprocess.run(["git", "-C", self.gitdir, "init", "--bare"], check=True)
         self.create_object_dirs()
+
+        # Remove example hooks; they take ~40KB and we don't use them
+        for filename in glob.glob(os.path.join(self.gitdir, "hooks", "*.sample")):
+            os.unlink(filename)
 
     def create_object_dirs(self) -> None:
         # Create all possible dirs ahead of time, so we don't have to check for
@@ -510,14 +515,15 @@ class GitBareCooker(BaseVaultCooker):
         self.write_object(obj_id, git_object)
 
         # Add children to the stack
-        entry_loaders: Dict[str, List[Sha1Git]] = {
+        entry_loaders: Dict[str, Optional[List[Sha1Git]]] = {
             "file": self._cnt_stack,
             "dir": self._dir_stack,
-            "rev": self._rev_stack,
+            "rev": None,  # Do not include submodule targets (rejected by git-fsck)
         }
         for entry in directory["entries"]:
             stack = entry_loaders[entry["type"]]
-            self._push(stack, [entry["target"]])
+            if stack is not None:
+                self._push(stack, [entry["target"]])
 
     def load_contents(self, obj_ids: List[Sha1Git]) -> None:
         # TODO: add support of filtered objects, somehow?

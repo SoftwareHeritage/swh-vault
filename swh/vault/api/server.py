@@ -74,14 +74,7 @@ def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     vcfg.update(vcfg.get("args", {}))
 
     # Default to top-level value if any
-    if "cache" not in vcfg:
-        vcfg["cache"] = cfg.get("cache")
-    if "storage" not in vcfg:
-        vcfg["storage"] = cfg.get("storage")
-    if "scheduler" not in vcfg:
-        vcfg["scheduler"] = cfg.get("scheduler")
-    if "client_max_size" not in vcfg:
-        vcfg["client_max_size"] = cfg.get("client_max_size")
+    vcfg = {**cfg, **vcfg}
 
     for key in ("cache", "storage", "scheduler"):
         if not vcfg.get(key):

@@ -16,6 +16,7 @@ import tarfile
 import tempfile
 import unittest.mock
 
+import attr
 import pytest
 from pytest import param
 
@@ -335,3 +336,99 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
         swh_storage.revision_shortlog.assert_not_called()
     else:
         swh_storage.revision_log.assert_called()
+
+
+@pytest.mark.parametrize(
+    "mismatch_on", ["content", "directory", "revision1", "revision2", "none"]
+)
+def test_checksum_mismatch(swh_storage, mismatch_on):
+    date = TimestampWithTimezone.from_datetime(
+        datetime.datetime(2021, 5, 7, 8, 43, 59, tzinfo=datetime.timezone.utc)
+    )
+    author = Person.from_fullname(b"Foo <foo@example.org>")
+
+    wrong_hash = b"\x12\x34" * 10
+
+    cnt1 = Content.from_data(b"Tr0ub4dor&3")
+    if mismatch_on == "content":
+        cnt1 = attr.evolve(cnt1, sha1_git=wrong_hash)
+
+    dir1 = Directory(
+        entries=(
+            DirectoryEntry(
+                name=b"file1",
+                type="file",
+                perms=DentryPerms.content,
+                target=cnt1.sha1_git,
+            ),
+        )
+    )
+
+    if mismatch_on == "directory":
+        dir1 = attr.evolve(dir1, id=wrong_hash)
+
+    rev1 = Revision(
+        message=b"msg1",
+        date=date,
+        committer_date=date,
+        author=author,
+        committer=author,
+        directory=dir1.id,
+        type=RevisionType.GIT,
+        synthetic=True,
+    )
+
+    if mismatch_on == "revision1":
+        rev1 = attr.evolve(rev1, id=wrong_hash)
+
+    rev2 = Revision(
+        message=b"msg2",
+        date=date,
+        committer_date=date,
+        author=author,
+        committer=author,
+        directory=dir1.id,
+        parents=(rev1.id,),
+        type=RevisionType.GIT,
+        synthetic=True,
+    )
+
+    if mismatch_on == "revision2":
+        rev2 = attr.evolve(rev2, id=wrong_hash)
+
+    cooked_swhid = rev2.swhid()
+
+    swh_storage.content_add([cnt1])
+    swh_storage.directory_add([dir1])
+    swh_storage.revision_add([rev1, rev2])
+
+    backend = InMemoryVaultBackend()
+    cooker = GitBareCooker(
+        cooked_swhid, backend=backend, storage=swh_storage, graph=None,
+    )
+
+    cooker.cook()
+
+    # Get bundle
+    bundle = backend.fetch("git_bare", cooked_swhid)
+
+    # Extract bundle and make sure both revisions are in it
+    with tempfile.TemporaryDirectory("swh-vault-test-bare") as tempdir:
+        with tarfile.open(fileobj=io.BytesIO(bundle)) as tf:
+            tf.extractall(tempdir)
+
+        if mismatch_on != "revision2":
+            # git-log fails if the head revision is corrupted
+            # TODO: we need to find a way to make this somewhat usable
+            output = subprocess.check_output(
+                [
+                    "git",
+                    "-C",
+                    f"{tempdir}/{cooked_swhid}.git",
+                    "log",
+                    "--format=oneline",
+                    "--decorate=",
+                ]
+            )
+
+            assert output.decode() == f"{rev2.id.hex()} msg2\n{rev1.id.hex()} msg1\n"

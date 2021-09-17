@@ -6,6 +6,7 @@
 import abc
 import io
 import logging
+import traceback
 from typing import ClassVar, Set
 
 from psycopg2.extensions import QueryCanceledError
@@ -141,10 +142,12 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
             self.backend.set_progress(self.BUNDLE_TYPE, self.swhid, str(e))
         except Exception:
             self.backend.set_status(self.BUNDLE_TYPE, self.swhid, "failed")
+            tb = traceback.format_exc()
             self.backend.set_progress(
                 self.BUNDLE_TYPE,
                 self.swhid,
-                "Internal Server Error. This incident will be reported.",
+                f"Internal Server Error. This incident will be reported.\n"
+                f"The full error was:\n\n{tb}",
             )
             logging.exception("Bundle cooking failed.")
         else:

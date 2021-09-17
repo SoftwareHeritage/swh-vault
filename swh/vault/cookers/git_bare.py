@@ -168,7 +168,10 @@ class GitBareCooker(BaseVaultCooker):
 
     def repack(self) -> None:
         # Add objects we wrote in a pack
-        subprocess.run(["git", "-C", self.gitdir, "repack", "-d"], check=True)
+        try:
+            subprocess.run(["git", "-C", self.gitdir, "repack", "-d"], check=True)
+        except subprocess.CalledProcessError:
+            logging.exception("git-repack failed with:")
 
         # Remove their non-packed originals
         subprocess.run(["git", "-C", self.gitdir, "prune-packed"], check=True)
@@ -190,10 +193,10 @@ class GitBareCooker(BaseVaultCooker):
 
         unexpected_errors = set(errors) - self._expected_fsck_errors
         if unexpected_errors:
-            raise Exception(
-                "\n".join(
-                    ["Unexpected errors from git-fsck:"] + sorted(unexpected_errors)
-                )
+            logging.error(
+                "Unexpected errors from git-fsck after cooking %s: %s",
+                self.swhid,
+                "\n".join(sorted(unexpected_errors)),
             )
 
     def write_refs(self, snapshot=None):

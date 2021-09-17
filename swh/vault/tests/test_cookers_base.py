@@ -1,8 +1,9 @@
-# Copyright (C) 2018  The Software Heritage developers
+# Copyright (C) 2018-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import textwrap
 from unittest.mock import MagicMock
 
 from swh.model.identifiers import CoreSWHID
@@ -56,7 +57,16 @@ def test_code_exception_cook():
     cooker.backend.put_bundle.assert_not_called()
 
     cooker.backend.set_status.assert_called_with(TEST_BUNDLE_TYPE, TEST_SWHID, "failed")
-    assert "Nope" not in cooker.backend.set_progress.call_args[0][2]
+    assert cooker.backend.set_progress.call_args[0][2].startswith(
+        textwrap.dedent(
+            """\
+            Internal Server Error. This incident will be reported.
+            The full error was:
+
+            Traceback (most recent call last):
+            """
+        )
+    )
     cooker.backend.send_notif.assert_called_with(TEST_BUNDLE_TYPE, TEST_SWHID)
 
 

@@ -73,7 +73,7 @@ class VaultBackend:
         self.cache = VaultCache(**config["cache"])
         self.scheduler = get_scheduler(**config["scheduler"])
         self.storage = get_storage(**config["storage"])
-        self.smtp_server = smtplib.SMTP()
+        self.smtp_server = smtplib.SMTP(**config.get("smtp", {}))
 
         db_conn = config["db"]
         self._pool = psycopg2.pool.ThreadedConnectionPool(

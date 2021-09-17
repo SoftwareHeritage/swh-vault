@@ -1,8 +1,12 @@
-swh-vault (1.1.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-vault (1.2.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.2.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2021-09-17 17:44:51 +0200)
+  * Upstream changes:     - v1.2.0     - * Add support for custom SMTP
+    configuration     - * Add the whole traceback in error messages.
+    - * Make object corruption non-fatal.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 08 Sep 2021 12:33:40 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 17 Sep 2021 15:47:52 +0000
 
 swh-vault (1.1.0-1~swh1) unstable-swh; urgency=medium
 

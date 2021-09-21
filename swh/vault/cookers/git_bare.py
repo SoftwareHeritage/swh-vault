@@ -567,7 +567,7 @@ class GitBareCooker(BaseVaultCooker):
         for (content, datum) in contents_and_data:
             if datum is None:
                 logger.error(
-                    "{content.swhid()} is visible, but is missing data. Skipping."
+                    "%s is visible, but is missing data. Skipping.", content.swhid()
                 )
                 continue
             self.write_content(content.sha1_git, datum)

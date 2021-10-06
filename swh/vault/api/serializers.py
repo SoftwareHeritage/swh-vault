@@ -5,7 +5,7 @@
 
 from typing import Callable, Dict, List, Tuple
 
-from swh.model.identifiers import CoreSWHID
+from swh.model.swhids import CoreSWHID
 
 ENCODERS: List[Tuple[type, str, Callable]] = [
     (CoreSWHID, "core_swhid", str),

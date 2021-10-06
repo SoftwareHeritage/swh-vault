@@ -18,7 +18,7 @@ from swh.core.cli import swh as swh_cli_group
 if TYPE_CHECKING:
     import io
 
-    from swh.model.identifiers import CoreSWHID
+    from swh.model.swhids import CoreSWHID
 
 
 class SwhidParamType(click.ParamType):
@@ -26,7 +26,7 @@ class SwhidParamType(click.ParamType):
 
     def convert(self, value, param, ctx):
         from swh.model.exceptions import ValidationError
-        from swh.model.identifiers import CoreSWHID
+        from swh.model.swhids import CoreSWHID
 
         try:
             return CoreSWHID.from_string(value)
@@ -70,7 +70,7 @@ def cook(
     and outputs it to the given file.
     """
     from swh.core import config
-    from swh.model.identifiers import ObjectType
+    from swh.model.swhids import ObjectType
     from swh.objstorage.exc import ObjNotFoundError
     from swh.objstorage.factory import get_objstorage
     from swh.storage import get_storage

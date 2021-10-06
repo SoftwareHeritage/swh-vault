@@ -13,7 +13,7 @@ import psycopg2.pool
 
 from swh.core.db import BaseDb
 from swh.core.db.common import db_transaction
-from swh.model.identifiers import CoreSWHID
+from swh.model.swhids import CoreSWHID
 from swh.scheduler import get_scheduler
 from swh.scheduler.utils import create_oneshot_task_dict
 from swh.storage import get_storage

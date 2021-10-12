@@ -21,7 +21,7 @@ First, ask the Vault to prepare your bundle:
 
     curl -X POST https://archive.softwareheritage.org/api/1/vault/flat/:swhid/
 
-where ``:swhid`` is a :ref:`persistent-identifier`. This initial request and all
+where ``:swhid`` is a :ref:`swh-devel:persistent-identifier`. This initial request and all
 subsequent requests to this endpoint will return some JSON data containing
 information about the progress of bundle creation:
 

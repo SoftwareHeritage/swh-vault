@@ -136,16 +136,30 @@ class GitBareCooker(BaseVaultCooker):
             # Load and write all the objects to disk
             self.load_objects()
 
+            self.backend.set_progress(
+                self.BUNDLE_TYPE, self.swhid, "Writing references..."
+            )
+
             # Write the root object as a ref (this step is skipped if it's a snapshot)
             # This must be done before repacking; git-repack ignores orphan objects.
             self.write_refs()
 
+            self.backend.set_progress(
+                self.BUNDLE_TYPE, self.swhid, "Checking content integrity"
+            )
+
             if self.use_fsck:
                 self.git_fsck()
+
+            self.backend.set_progress(
+                self.BUNDLE_TYPE, self.swhid, "Creating final bundle"
+            )
 
             self.repack()
 
             self.write_archive()
+
+            self.backend.set_progress(self.BUNDLE_TYPE, self.swhid, "Uploading bundle")
 
     def init_git(self) -> None:
         subprocess.run(["git", "-C", self.gitdir, "init", "--bare"], check=True)
@@ -290,6 +304,23 @@ class GitBareCooker(BaseVaultCooker):
 
     def load_objects(self) -> None:
         while self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack:
+
+            nb_remaining = (
+                len(self._rel_stack)
+                + len(self._rev_stack)
+                + len(self._dir_stack)
+                + len(self._cnt_stack)
+            )
+            # We assume assume nb_remaining is a lower bound.
+            # When the snapshot was loaded with swh-graph, this should be the exact
+            # value, though.
+            self.backend.set_progress(
+                self.BUNDLE_TYPE,
+                self.swhid,
+                f"Processing... {len(self._seen)} objects processed\n"
+                f"Over {nb_remaining} remaining",
+            )
+
             release_ids = self._pop(self._rel_stack, RELEASE_BATCH_SIZE)
             if release_ids:
                 self.load_releases(release_ids)

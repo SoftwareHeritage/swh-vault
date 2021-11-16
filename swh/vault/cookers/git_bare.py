@@ -30,12 +30,9 @@ from typing import Any, Dict, Iterable, Iterator, List, NoReturn, Optional, Set,
 import zlib
 
 from swh.core.api.classes import stream_results_optional
-from swh.model import identifiers
+from swh.model import git_objects
 from swh.model.hashutil import hash_to_bytehex, hash_to_hex
 from swh.model.model import (
-    Content,
-    DirectoryEntry,
-    ObjectType,
     Person,
     Release,
     Revision,
@@ -46,6 +43,9 @@ from swh.model.model import (
     TargetType,
     TimestampWithTimezone,
 )
+from swh.model.model import Content, DirectoryEntry
+from swh.model.model import ObjectType as ModelObjectType
+from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
 from swh.storage.algos.snapshot import snapshot_get_all_branches
 from swh.vault.cookers.base import BaseVaultCooker
@@ -78,9 +78,7 @@ def assert_never(value: NoReturn, msg) -> NoReturn:
 
 class GitBareCooker(BaseVaultCooker):
     BUNDLE_TYPE = "git_bare"
-    SUPPORTED_OBJECT_TYPES = {
-        identifiers.ObjectType[obj_type.name] for obj_type in RootObjectType
-    }
+    SUPPORTED_OBJECT_TYPES = {ObjectType[obj_type.name] for obj_type in RootObjectType}
 
     use_fsck = True
 
@@ -138,16 +136,30 @@ class GitBareCooker(BaseVaultCooker):
             # Load and write all the objects to disk
             self.load_objects()
 
+            self.backend.set_progress(
+                self.BUNDLE_TYPE, self.swhid, "Writing references..."
+            )
+
             # Write the root object as a ref (this step is skipped if it's a snapshot)
             # This must be done before repacking; git-repack ignores orphan objects.
             self.write_refs()
 
+            self.backend.set_progress(
+                self.BUNDLE_TYPE, self.swhid, "Checking content integrity"
+            )
+
             if self.use_fsck:
                 self.git_fsck()
+
+            self.backend.set_progress(
+                self.BUNDLE_TYPE, self.swhid, "Creating final bundle"
+            )
 
             self.repack()
 
             self.write_archive()
+
+            self.backend.set_progress(self.BUNDLE_TYPE, self.swhid, "Uploading bundle")
 
     def init_git(self) -> None:
         subprocess.run(["git", "-C", self.gitdir, "init", "--bare"], check=True)
@@ -292,6 +304,23 @@ class GitBareCooker(BaseVaultCooker):
 
     def load_objects(self) -> None:
         while self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack:
+
+            nb_remaining = (
+                len(self._rel_stack)
+                + len(self._rev_stack)
+                + len(self._dir_stack)
+                + len(self._cnt_stack)
+            )
+            # We assume assume nb_remaining is a lower bound.
+            # When the snapshot was loaded with swh-graph, this should be the exact
+            # value, though.
+            self.backend.set_progress(
+                self.BUNDLE_TYPE,
+                self.swhid,
+                f"Processing... {len(self._seen)} objects processed\n"
+                f"Over {nb_remaining} remaining",
+            )
+
             release_ids = self._pop(self._rel_stack, RELEASE_BATCH_SIZE)
             if release_ids:
                 self.load_releases(release_ids)
@@ -317,14 +346,12 @@ class GitBareCooker(BaseVaultCooker):
 
             # First, try to cook using swh-graph, as it is more efficient than
             # swh-storage for querying the history
-            obj_swhid = identifiers.CoreSWHID(
-                object_type=identifiers.ObjectType.REVISION, object_id=obj_id,
-            )
+            obj_swhid = CoreSWHID(object_type=ObjectType.REVISION, object_id=obj_id,)
             try:
                 revision_ids = (
                     swhid.object_id
                     for swhid in map(
-                        identifiers.CoreSWHID.from_string,
+                        CoreSWHID.from_string,
                         self.graph.visit_nodes(str(obj_swhid), edges="rev:rev"),
                     )
                 )
@@ -366,24 +393,22 @@ class GitBareCooker(BaseVaultCooker):
 
             # First, try to cook using swh-graph, as it is more efficient than
             # swh-storage for querying the history
-            obj_swhid = identifiers.CoreSWHID(
-                object_type=identifiers.ObjectType.SNAPSHOT, object_id=obj_id,
-            )
+            obj_swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=obj_id,)
             try:
-                swhids: Iterable[identifiers.CoreSWHID] = map(
-                    identifiers.CoreSWHID.from_string,
+                swhids: Iterable[CoreSWHID] = map(
+                    CoreSWHID.from_string,
                     self.graph.visit_nodes(str(obj_swhid), edges="snp:*,rel:*,rev:rev"),
                 )
                 for swhid in swhids:
-                    if swhid.object_type is identifiers.ObjectType.REVISION:
+                    if swhid.object_type is ObjectType.REVISION:
                         revision_ids.append(swhid.object_id)
-                    elif swhid.object_type is identifiers.ObjectType.RELEASE:
+                    elif swhid.object_type is ObjectType.RELEASE:
                         release_ids.append(swhid.object_id)
-                    elif swhid.object_type is identifiers.ObjectType.DIRECTORY:
+                    elif swhid.object_type is ObjectType.DIRECTORY:
                         directory_ids.append(swhid.object_id)
-                    elif swhid.object_type is identifiers.ObjectType.CONTENT:
+                    elif swhid.object_type is ObjectType.CONTENT:
                         content_ids.append(swhid.object_id)
-                    elif swhid.object_type is identifiers.ObjectType.SNAPSHOT:
+                    elif swhid.object_type is ObjectType.SNAPSHOT:
                         assert (
                             swhid.object_id == obj_id
                         ), f"Snapshot {obj_id.hex()} references a different snapshot"
@@ -454,7 +479,7 @@ class GitBareCooker(BaseVaultCooker):
 
     def write_revision_node(self, revision: Dict[str, Any]) -> bool:
         """Writes a revision object to disk"""
-        git_object = identifiers.revision_git_object(revision)
+        git_object = git_objects.revision_git_object(revision)
         return self.write_object(revision["id"], git_object)
 
     def load_releases(self, obj_ids: List[Sha1Git]) -> List[Release]:
@@ -475,15 +500,15 @@ class GitBareCooker(BaseVaultCooker):
         target to the list of objects to visit"""
         for release in self.load_releases(obj_ids):
             assert release.target, "{release.swhid(}) has no target"
-            if release.target_type is ObjectType.REVISION:
+            if release.target_type is ModelObjectType.REVISION:
                 self.push_revision_subgraph(release.target)
-            elif release.target_type is ObjectType.DIRECTORY:
+            elif release.target_type is ModelObjectType.DIRECTORY:
                 self._push(self._dir_stack, [release.target])
-            elif release.target_type is ObjectType.CONTENT:
+            elif release.target_type is ModelObjectType.CONTENT:
                 self._push(self._cnt_stack, [release.target])
-            elif release.target_type is ObjectType.RELEASE:
+            elif release.target_type is ModelObjectType.RELEASE:
                 self.push_releases_subgraphs([release.target])
-            elif release.target_type is ObjectType.SNAPSHOT:
+            elif release.target_type is ModelObjectType.SNAPSHOT:
                 raise NotImplementedError(
                     f"{release.swhid()} targets a snapshot: {release.target!r}"
                 )
@@ -495,7 +520,7 @@ class GitBareCooker(BaseVaultCooker):
 
     def write_release_node(self, release: Dict[str, Any]) -> bool:
         """Writes a release object to disk"""
-        git_object = identifiers.release_git_object(release)
+        git_object = git_objects.release_git_object(release)
         return self.write_object(release["id"], git_object)
 
     def load_directories(self, obj_ids: List[Sha1Git]) -> None:
@@ -514,7 +539,7 @@ class GitBareCooker(BaseVaultCooker):
 
         entries = [entry.to_dict() for entry in entries_it]
         directory = {"id": obj_id, "entries": entries}
-        git_object = identifiers.directory_git_object(directory)
+        git_object = git_objects.directory_git_object(directory)
         self.write_object(obj_id, git_object)
 
         # Add children to the stack
@@ -567,13 +592,13 @@ class GitBareCooker(BaseVaultCooker):
         for (content, datum) in contents_and_data:
             if datum is None:
                 logger.error(
-                    "{content.swhid()} is visible, but is missing data. Skipping."
+                    "%s is visible, but is missing data. Skipping.", content.swhid()
                 )
                 continue
             self.write_content(content.sha1_git, datum)
 
     def write_content(self, obj_id: Sha1Git, content: bytes) -> None:
-        header = identifiers.git_object_header("blob", len(content))
+        header = git_objects.git_object_header("blob", len(content))
         self.write_object(obj_id, header + content)
 
     def _expect_mismatched_object_error(self, obj_id):

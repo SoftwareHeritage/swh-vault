@@ -1,8 +1,12 @@
-swh-vault (1.2.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-vault (1.3.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.3.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2021-11-16 15:02:00 +0100)
+  * Upstream changes:     - v1.3.0     - * docs: Various fixes     - *
+    Remove references to swh.model.identifiers     - * git_bare: Send
+    progress updates while cooking
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 17 Sep 2021 15:49:14 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 16 Nov 2021 14:05:28 +0000
 
 swh-vault (1.2.0-1~swh1) unstable-swh; urgency=medium
 

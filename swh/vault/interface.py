@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from typing_extensions import Protocol, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
-from swh.model.identifiers import CoreSWHID
+from swh.model.swhids import CoreSWHID
 
 
 @runtime_checkable

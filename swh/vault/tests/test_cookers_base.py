@@ -6,7 +6,7 @@
 import textwrap
 from unittest.mock import MagicMock
 
-from swh.model.identifiers import CoreSWHID
+from swh.model.swhids import CoreSWHID
 from swh.vault.cookers.base import BaseVaultCooker
 
 TEST_BUNDLE_CHUNKS = [b"test content 1\n", b"test content 2\n", b"test content 3\n"]

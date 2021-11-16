@@ -11,7 +11,7 @@ from typing import ClassVar, Set
 
 from psycopg2.extensions import QueryCanceledError
 
-from swh.model.identifiers import CoreSWHID, ObjectType
+from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.interface import StorageInterface
 
 MAX_BUNDLE_SIZE = 2 ** 29  # 512 MiB

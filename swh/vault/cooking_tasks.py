@@ -5,7 +5,7 @@
 
 from celery import current_app as app
 
-from swh.model.identifiers import CoreSWHID
+from swh.model.swhids import CoreSWHID
 from swh.vault.cookers import get_cooker
 
 

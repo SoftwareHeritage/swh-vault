@@ -8,7 +8,7 @@ import tarfile
 import tempfile
 
 from swh.model import hashutil
-from swh.model.identifiers import ObjectType
+from swh.model.swhids import ObjectType
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.cookers.utils import revision_log
 from swh.vault.to_disk import DirectoryBuilder

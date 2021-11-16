@@ -11,8 +11,8 @@ import attr
 import psycopg2
 import pytest
 
-from swh.model.identifiers import CoreSWHID
 from swh.model.model import Content
+from swh.model.swhids import CoreSWHID
 from swh.vault.exc import NotFoundExc
 from swh.vault.tests.vault_testing import hash_content
 

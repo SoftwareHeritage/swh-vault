@@ -10,7 +10,7 @@ import click
 import click.testing
 import pytest
 
-from swh.model.identifiers import CoreSWHID
+from swh.model.swhids import CoreSWHID
 from swh.vault.cli import vault as vault_cli_group
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.in_memory_backend import InMemoryVaultBackend

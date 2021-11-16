@@ -25,51 +25,42 @@ Object identification
 ---------------------
 
 The vault stores bundles corresponding to different kinds of objects (see
-:ref:`data-model`). The following object kinds are currently supported by the
-Vault:
+:ref:`data-model`).
 
--  directories
--  revisions
--  snapshots
-
-The URL fragment ``:objectkind/:objectid`` is used throughout the vault API to
-identify vault objects. The syntax and meaning of ``:objectid`` for the
-different object kinds is detailed below.
-
-In the case of revisions, a third parameter, ``:format``, must be used to
-specify the format of the resulting bundle. The URL fragment then becomes
-``:objectkind/:objectid/:format``.
+The URL fragment ``:bundletype/:swhid`` is used throughout the vault API to
+identify vault objects. See :ref:`persistent-identifiers` for details on
+the syntax and meaning of ``:swhid``.
 
 
-Directories
-~~~~~~~~~~~
+Bundle types
+------------
 
--  object kind: ``directory``
--  URL fragment: ``directory/:dir_id``
 
-where ``:dir_id`` is a :py:func:`directory identifier
-<swh.model.identifiers.directory_identifier>`.
+Flat
+~~~~
 
-The only format available for a directory export is a gzip-compressed
-tarball. You can extract the resulting bundle using:
+Flat bundles are simple tarballs that can be read without any specialized software.
+
+When cooking directories, they are (very close to) the original directories that
+were ingested.
+When cooking other types of objects, they have multiple root directories,
+each corresponding to an original object (revision, ...)
+
+This is typically only useful to cook directories; cooking other types of objects
+(revisions, releases, snapshots) are usually done with ``git-bare`` as it is
+more efficient and closer to the original repository.
+
+You can extract the resulting bundle using:
 
 .. code:: shell
 
     tar xaf bundle.tar.gz
 
 
-Revisions
-~~~~~~~~~
+gitfast
+~~~~~~~
 
--  object kind: ``revision``
--  URL fragment: ``revision/:rev_id/:format``
-
-where ``:rev_id`` is a :py:func:`revision identifier
-<swh.model.identifiers.revision_identifier>` and ``:format`` is the export
-format.
-
-The only format available for a revision export is ``gitfast``: a
-gzip-compressed `git fast-export
+A gzip-compressed `git fast-export
 <https://git-scm.com/docs/git-fast-export>`_. You can extract the resulting
 bundle using:
 
@@ -80,18 +71,27 @@ bundle using:
     git checkout HEAD
 
 
-Repository snapshots
-~~~~~~~~~~~~~~~~~~~~
+git-bare
+~~~~~~~~
 
-.. TODO
+A tarball that can be decompressed to get a real git repository.
+It is without a checkout, so it is the equivalent of what one would get
+with ``git clone --bare``.
 
-**(NOT AVAILABLE YET)**
+This is the most flexible bundle type, as it allow to perfectly recreate
+original git repositories, including branches.
 
--  object kind: ``snapshot``
--  URL fragment: ``snapshot/:snp_id``
+You can extract the resulting bundle using:
 
-where ``:snp_id`` is a :py:func:`snapshot identifier
-<swh.model.identifiers.snapshot_identifier>`.
+.. code:: shell
+
+    tar xaf bundle.tar.gz
+
+Then explore its content like a normal ("non-bare") git repository by cloning it:
+
+.. code:: shell
+
+   git clone path/to/extracted/:swhid
 
 
 Cooking and status checking
@@ -103,8 +103,8 @@ around until it expires; after expiration, it will need to be cooked again
 before it can be retrieved. Cooking is idempotent, and a no-op in between a
 previous cooking operation and expiration.
 
-.. http:post:: /vault/:objectkind/:objectid[/:format]
-.. http:get:: /vault/:objectkind/:objectid[/:format]
+.. http:post:: /vault/:bundletype/:swhid
+.. http:get:: /vault/:bundletype/:swhid
 
     **Request body**: optionally, an ``email`` POST parameter containing an
     e-mail to notify when the bundle cooking has ended.
@@ -119,7 +119,7 @@ previous cooking operation and expiration.
     **Response:**
 
     :statuscode 200: bundle available for cooking, status of the cooking
-    :statuscode 400: malformed identifier hash or format
+    :statuscode 400: malformed SWHID
     :statuscode 404: unavailable bundle or object not found
 
     .. sourcecode:: http
@@ -129,9 +129,8 @@ previous cooking operation and expiration.
 
         {
             "id": 42,
-            "fetch_url": "/api/1/vault/directory/:dir_id/raw/",
-            "obj_id": ":dir_id",
-            "obj_type": "directory",
+            "fetch_url": "/api/1/vault/flat/:swhid/raw/",
+            "swhid": ":swhid",
             "progress_message": "Creating tarball...",
             "status": "pending"
         }
@@ -145,10 +144,7 @@ previous cooking operation and expiration.
 
     - ``fetch_url``: the URL that can be used for the retrieval of the bundle
 
-    - ``obj_type``: an internal identifier uniquely representing the object
-      kind and the format of the required bundle.
-
-    - ``obj_id``: the identifier of the requested bundle
+    - ``swhid``: the identifier of the requested bundle
 
     - ``progress_message``: a string describing the current progress of the
       cooking. If the cooking failed, ``progress_message`` will contain the
@@ -166,9 +162,7 @@ Retrieval
 
 Retrieve a specific bundle from the vault with:
 
-.. http:get:: /vault/:objectkind/:objectid[/:format]/raw
-
-   Where ``:format`` is optional, depending on the object kind.
+.. http:get:: /vault/:bundletype/:swhid/raw
 
     **Allowed HTTP Methods:** :http:method:`get`, :http:method:`head`,
     :http:method:`options`

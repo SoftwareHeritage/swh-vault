@@ -26,7 +26,6 @@ import pytest
 
 from swh.loader.git.from_disk import GitLoaderFromDisk
 from swh.model import from_disk, hashutil
-from swh.model.identifiers import CoreSWHID, ObjectType
 from swh.model.model import (
     Directory,
     DirectoryEntry,
@@ -35,6 +34,7 @@ from swh.model.model import (
     RevisionType,
     TimestampWithTimezone,
 )
+from swh.model.swhids import CoreSWHID, ObjectType
 from swh.vault.cookers import DirectoryCooker, GitBareCooker, RevisionGitfastCooker
 from swh.vault.tests.vault_testing import hash_content
 from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE

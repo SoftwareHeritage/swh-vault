@@ -5,7 +5,7 @@
 
 
 from swh.model import hashutil
-from swh.model.identifiers import CoreSWHID
+from swh.model.swhids import CoreSWHID
 
 TEST_TYPE_1 = "revision_gitfast"
 TEST_TYPE_2 = "directory"

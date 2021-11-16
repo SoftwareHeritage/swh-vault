@@ -19,10 +19,9 @@ First, ask the Vault to prepare your bundle:
 
 .. code:: shell
 
-    curl -X POST https://archive.softwareheritage.org/api/1/vault/directory/:dir_id/
+    curl -X POST https://archive.softwareheritage.org/api/1/vault/flat/:swhid/
 
-where ``:dir_id`` is a :py:func:`directory identifier
-<swh.model.identifiers.directory_identifier>`. This initial request and all
+where ``:swhid`` is a :ref:`persistent-identifiers`. This initial request and all
 subsequent requests to this endpoint will return some JSON data containing
 information about the progress of bundle creation:
 
@@ -30,9 +29,8 @@ information about the progress of bundle creation:
 
     {
         "id": 42,
-        "fetch_url": "/api/1/vault/directory/:dir_id/raw/",
-        "obj_id": ":dir_id",
-        "obj_type": "directory",
+        "fetch_url": "/api/1/vault/flat/:swhid/raw/",
+        "swhid": ":swhid",
         "progress_message": "Creating tarball...",
         "status": "pending"
     }
@@ -42,7 +40,7 @@ given in the ``fetch_url`` field.
 
 .. code:: shell
 
-    curl -o bundle.tar.gz https://archive.softwareheritage.org/api/1/vault/directory/:dir_id/raw
+    curl -o bundle.tar.gz https://archive.softwareheritage.org/api/1/vault/flat/:swhid/raw
     tar xaf bundle.tar.gz
 
 E-mail notifications

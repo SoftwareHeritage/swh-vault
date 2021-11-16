@@ -5,7 +5,7 @@
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from swh.model.identifiers import CoreSWHID
+from swh.model.swhids import CoreSWHID
 
 from .cache import VaultCache
 

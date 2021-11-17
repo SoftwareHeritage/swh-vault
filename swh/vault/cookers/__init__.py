@@ -122,10 +122,8 @@ def get_cooker(bundle_type: str, swhid: CoreSWHID):
         else:
             graph = None
 
-    return cooker_cls(
-        swhid,
-        backend=backend,
-        storage=storage,
-        graph=graph,
-        max_bundle_size=cfg["max_bundle_size"],
-    )
+    kwargs = {
+        k: v for (k, v) in cfg.items() if k in ("max_bundle_size", "thread_pool_size")
+    }
+
+    return cooker_cls(swhid, backend=backend, storage=storage, graph=graph, **kwargs,)

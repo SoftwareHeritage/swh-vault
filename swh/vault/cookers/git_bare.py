@@ -21,6 +21,7 @@ import datetime
 import enum
 import glob
 import logging
+import multiprocessing.dummy
 import os.path
 import re
 import subprocess
@@ -53,7 +54,7 @@ from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE
 
 RELEASE_BATCH_SIZE = 10000
 REVISION_BATCH_SIZE = 10000
-DIRECTORY_BATCH_SIZE = 10000
+DIRECTORY_BATCH_SIZE = 10000  # should be at least ~10x larger than THREAD_POOL_SIZE
 CONTENT_BATCH_SIZE = 100
 
 
@@ -524,8 +525,12 @@ class GitBareCooker(BaseVaultCooker):
         return self.write_object(release["id"], git_object)
 
     def load_directories(self, obj_ids: List[Sha1Git]) -> None:
-        for obj_id in obj_ids:
-            self.load_directory(obj_id)
+        if not obj_ids:
+            return
+
+        with multiprocessing.dummy.Pool(min(self.thread_pool_size, len(obj_ids))) as p:
+            for _ in p.imap_unordered(self.load_directory, obj_ids):
+                pass
 
     def load_directory(self, obj_id: Sha1Git) -> None:
         # Load the directory

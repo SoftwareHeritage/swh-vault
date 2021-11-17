@@ -71,6 +71,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         graph=None,
         objstorage=None,
         max_bundle_size: int = MAX_BUNDLE_SIZE,
+        thread_pool_size: int = 10,
     ):
         """Initialize the cooker.
 
@@ -90,6 +91,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         self.objstorage = objstorage
         self.graph = graph
         self.max_bundle_size = max_bundle_size
+        self.thread_pool_size = thread_pool_size
 
     @classmethod
     def check_object_type(cls, object_type: ObjectType) -> None:

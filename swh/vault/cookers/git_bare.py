@@ -131,6 +131,8 @@ class GitBareCooker(BaseVaultCooker):
             os.mkdir(self.gitdir)
             self.init_git()
 
+            self.nb_loaded = 0
+
             # Add the root object to the stack of objects to visit
             self.push_subgraph(self.obj_type, self.obj_id)
 
@@ -304,6 +306,7 @@ class GitBareCooker(BaseVaultCooker):
             assert_never(self.obj_type, f"Unexpected root object type: {self.obj_type}")
 
     def load_objects(self) -> None:
+        """Repeatedly loads objects in the todo-lists, until all lists are empty."""
         while self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack:
 
             nb_remaining = (
@@ -318,25 +321,29 @@ class GitBareCooker(BaseVaultCooker):
             self.backend.set_progress(
                 self.BUNDLE_TYPE,
                 self.swhid,
-                f"Processing... {len(self._seen)} objects processed\n"
+                f"Processing... {self.nb_loaded} objects processed\n"
                 f"Over {nb_remaining} remaining",
             )
 
             release_ids = self._pop(self._rel_stack, RELEASE_BATCH_SIZE)
             if release_ids:
                 self.load_releases(release_ids)
+                self.nb_loaded += len(release_ids)
 
             revision_ids = self._pop(self._rev_stack, REVISION_BATCH_SIZE)
             if revision_ids:
                 self.load_revisions(revision_ids)
+                self.nb_loaded += len(revision_ids)
 
             directory_ids = self._pop(self._dir_stack, DIRECTORY_BATCH_SIZE)
             if directory_ids:
                 self.load_directories(directory_ids)
+                self.nb_loaded += len(directory_ids)
 
             content_ids = self._pop(self._cnt_stack, CONTENT_BATCH_SIZE)
             if content_ids:
                 self.load_contents(content_ids)
+                self.nb_loaded += len(content_ids)
 
     def push_revision_subgraph(self, obj_id: Sha1Git) -> None:
         """Fetches a revision and all its children, and writes them to disk"""
@@ -375,6 +382,7 @@ class GitBareCooker(BaseVaultCooker):
             walker = DFSRevisionsWalker(self.storage, obj_id, state=self._walker_state)
             for revision in walker:
                 self.write_revision_node(revision)
+                self.nb_loaded += 1
                 self._push(self._dir_stack, [revision["directory"]])
             # Save the state, so the next call to the walker won't return the same
             # revisions
@@ -500,6 +508,7 @@ class GitBareCooker(BaseVaultCooker):
         """Given a list of release ids, loads these releases and adds their
         target to the list of objects to visit"""
         for release in self.load_releases(obj_ids):
+            self.nb_loaded += 1
             assert release.target, "{release.swhid(}) has no target"
             if release.target_type is ModelObjectType.REVISION:
                 self.push_revision_subgraph(release.target)

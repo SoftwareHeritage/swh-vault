@@ -1,11 +1,6 @@
 .. _swh-vault:
 
-Software Heritage - Vault
-=========================
-
-User-facing service that allows to retrieve parts of the archive as
-self-contained bundles (e.g., individual releases, entire repository snapshots,
-etc.)
+.. include:: README.rst
 
 
 .. toctree::

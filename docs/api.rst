@@ -15,8 +15,7 @@ and garbage collecting them as needed.
 
 The Vault is accessible via a RPC API documented below.
 
-All endpoints are mounted at API root, which is currently at
-https://archive.softwareheritage.org/api/1/.
+All endpoints are mounted at API root, which is currently at :swh_web:`api/1/`.
 
 Unless otherwise stated, API endpoints respond to HTTP GET method.
 

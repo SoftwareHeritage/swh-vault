@@ -535,7 +535,7 @@ class GitBareCooker(BaseVaultCooker):
 
     def write_revision_node(self, revision: Revision) -> bool:
         """Writes a revision object to disk"""
-        git_object = git_objects.revision_git_object(revision)
+        git_object = revision.raw_manifest or git_objects.revision_git_object(revision)
         return self.write_object(revision.id, git_object)
 
     def load_releases(self, obj_ids: List[Sha1Git]) -> List[Release]:
@@ -577,18 +577,23 @@ class GitBareCooker(BaseVaultCooker):
 
     def write_release_node(self, release: Release) -> bool:
         """Writes a release object to disk"""
-        git_object = git_objects.release_git_object(release)
+        git_object = release.raw_manifest or git_objects.release_git_object(release)
         return self.write_object(release.id, git_object)
 
     def load_directories(self, obj_ids: List[Sha1Git]) -> None:
         if not obj_ids:
             return
 
+        raw_manifests = self.storage.directory_get_raw_manifest(obj_ids)
+
         with multiprocessing.dummy.Pool(min(self.thread_pool_size, len(obj_ids))) as p:
-            for _ in p.imap_unordered(self.load_directory, obj_ids):
+            for _ in p.imap_unordered(
+                lambda obj_id: self.load_directory(obj_id, raw_manifests.get(obj_id)),
+                obj_ids,
+            ):
                 pass
 
-    def load_directory(self, obj_id: Sha1Git) -> None:
+    def load_directory(self, obj_id: Sha1Git, raw_manifest: Optional[bytes]) -> None:
         # Load the directory
         entries_it: Optional[Iterable[DirectoryEntry]] = stream_results_optional(
             self.storage.directory_get_entries, obj_id
@@ -598,8 +603,10 @@ class GitBareCooker(BaseVaultCooker):
             logger.error("Missing swh:1:dir:%s, ignoring.", hash_to_hex(obj_id))
             return
 
-        directory = Directory(id=obj_id, entries=tuple(entries_it))
-        git_object = git_objects.directory_git_object(directory)
+        directory = Directory(
+            id=obj_id, entries=tuple(entries_it), raw_manifest=raw_manifest
+        )
+        git_object = raw_manifest or git_objects.directory_git_object(directory)
         self.write_object(obj_id, git_object)
 
         # Add children to the stack

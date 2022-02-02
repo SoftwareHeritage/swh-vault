@@ -27,13 +27,18 @@ import pytest
 from swh.loader.git.from_disk import GitLoaderFromDisk
 from swh.model import from_disk, hashutil
 from swh.model.model import (
-    Directory,
-    DirectoryEntry,
     Person,
+    Release,
     Revision,
     RevisionType,
+    Snapshot,
+    SnapshotBranch,
+    TargetType,
+    Timestamp,
     TimestampWithTimezone,
 )
+from swh.model.model import Content, Directory, DirectoryEntry
+from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.vault.cookers import DirectoryCooker, GitBareCooker, RevisionGitfastCooker
 from swh.vault.tests.vault_testing import hash_content
@@ -1076,3 +1081,109 @@ class TestSnapshotCooker(RepoFixtures):
         swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
         with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
             self.check_snapshot_tags(ert, p, main_rev_id)
+
+    def test_original_malformed_objects(self, swh_storage, cook_extract_snapshot):
+        """Tests that objects that were originally malformed:
+
+        * are still interpreted somewhat correctly (if the loader could make sense of
+          them), especially that they still have links to children
+        * have their original manifest in the bundle
+        """
+        date = TimestampWithTimezone.from_numeric_offset(
+            Timestamp(1643819927, 0), 0, False
+        )
+
+        content = Content.from_data(b"foo")
+        swh_storage.content_add([content])
+
+        # disordered
+        # fmt: off
+        malformed_dir_manifest = (
+            b""
+            + b"100644 file2\x00" + content.sha1_git
+            + b"100644 file1\x00" + content.sha1_git
+        )
+        # fmt: on
+        directory = Directory(
+            entries=(
+                DirectoryEntry(
+                    name=b"file1", type="file", perms=0o100644, target=content.sha1_git
+                ),
+                DirectoryEntry(
+                    name=b"file2", type="file", perms=0o100644, target=content.sha1_git
+                ),
+            ),
+            raw_manifest=f"tree {len(malformed_dir_manifest)}\x00".encode()
+            + malformed_dir_manifest,
+        )
+        swh_storage.directory_add([directory])
+
+        # 'committer' and 'author' swapped
+        # fmt: off
+        malformed_rev_manifest = (
+            b"tree " + hashutil.hash_to_bytehex(directory.id) + b"\n"
+            + b"committer me <test@example.org> 1643819927 +0000\n"
+            + b"author me <test@example.org> 1643819927 +0000\n"
+            + b"\n"
+            + b"rev"
+        )
+        # fmt: on
+        revision = Revision(
+            message=b"rev",
+            author=Person.from_fullname(b"me <test@example.org>"),
+            date=date,
+            committer=Person.from_fullname(b"me <test@example.org>"),
+            committer_date=date,
+            parents=(),
+            type=RevisionType.GIT,
+            directory=directory.id,
+            synthetic=True,
+            raw_manifest=f"commit {len(malformed_rev_manifest)}\x00".encode()
+            + malformed_rev_manifest,
+        )
+        swh_storage.revision_add([revision])
+
+        # 'tag' and 'tagger' swapped
+        # fmt: off
+        malformed_rel_manifest = (
+            b"object " + hashutil.hash_to_bytehex(revision.id) + b"\n"
+            + b"type commit\n"
+            + b"tagger me <test@example.org> 1643819927 +0000\n"
+            + b"tag v1.1.0\n"
+        )
+        # fmt: on
+
+        release = Release(
+            name=b"v1.1.0",
+            message=None,
+            author=Person.from_fullname(b"me <test@example.org>"),
+            date=date,
+            target=revision.id,
+            target_type=ModelObjectType.REVISION,
+            synthetic=True,
+            raw_manifest=f"tag {len(malformed_rel_manifest)}\x00".encode()
+            + malformed_rel_manifest,
+        )
+        swh_storage.release_add([release])
+
+        snapshot = Snapshot(
+            branches={
+                b"refs/tags/v1.1.0": SnapshotBranch(
+                    target=release.id, target_type=TargetType.RELEASE
+                ),
+                b"HEAD": SnapshotBranch(
+                    target=revision.id, target_type=TargetType.REVISION
+                ),
+            }
+        )
+        swh_storage.snapshot_add([snapshot])
+
+        with cook_extract_snapshot(swh_storage, snapshot.swhid()) as (ert, p):
+            tag = ert.repo[b"refs/tags/v1.1.0"]
+            assert tag.as_raw_string() == malformed_rel_manifest
+
+            commit = ert.repo[tag.object[1]]
+            assert commit.as_raw_string() == malformed_rev_manifest
+
+            tree = ert.repo[commit.tree]
+            assert tree.as_raw_string() == malformed_dir_manifest

@@ -25,7 +25,7 @@ It is in charge of receiving cooking requests, scheduling corresponding tasks (v
 :ref:`swh-scheduler <swh-scheduler>` and Celery), getting heartbeats and final
 results from these, cooking tasks, and finally serving the results.
 
-It uses the same RPC protocol as the other component of the archive, and
+It uses the same RPC protocol as the other components of the archive, and
 its interface is described in :mod:`swh.vault.interface`.
 
 The cookers

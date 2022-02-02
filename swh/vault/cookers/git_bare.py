@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -56,7 +56,7 @@ from swh.model.model import (
     TargetType,
     TimestampWithTimezone,
 )
-from swh.model.model import Content, DirectoryEntry
+from swh.model.model import Content, Directory, DirectoryEntry
 from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
@@ -259,7 +259,7 @@ class GitBareCooker(BaseVaultCooker):
                 directory=self.obj_id,
                 synthetic=True,
             )
-            self.write_revision_node(revision.to_dict())
+            self.write_revision_node(revision)
             refs = {b"refs/heads/master": hash_to_bytehex(revision.id)}
         elif self.obj_type == RootObjectType.REVISION:
             refs = {b"refs/heads/master": hash_to_bytehex(self.obj_id)}
@@ -424,7 +424,7 @@ class GitBareCooker(BaseVaultCooker):
             # so we load them right now instead of just pushing them on the stack.
             walker = DFSRevisionsWalker(self.storage, obj_id, state=self._walker_state)
             for revision in walker:
-                self.write_revision_node(revision)
+                self.write_revision_node(Revision.from_dict(revision))
                 self.nb_loaded += 1
                 self._push(self._dir_stack, [revision["directory"]])
             # Save the state, so the next call to the walker won't return the same
@@ -530,13 +530,13 @@ class GitBareCooker(BaseVaultCooker):
             logger.error("Missing revision(s), ignoring them.")
 
         for revision in revisions:
-            self.write_revision_node(revision.to_dict())
+            self.write_revision_node(revision)
         self._push(self._dir_stack, (rev.directory for rev in revisions))
 
-    def write_revision_node(self, revision: Dict[str, Any]) -> bool:
+    def write_revision_node(self, revision: Revision) -> bool:
         """Writes a revision object to disk"""
         git_object = git_objects.revision_git_object(revision)
-        return self.write_object(revision["id"], git_object)
+        return self.write_object(revision.id, git_object)
 
     def load_releases(self, obj_ids: List[Sha1Git]) -> List[Release]:
         """Loads release objects, and returns them."""
@@ -547,7 +547,7 @@ class GitBareCooker(BaseVaultCooker):
             logger.error("Missing release(s), ignoring them.")
 
         for release in releases:
-            self.write_release_node(release.to_dict())
+            self.write_release_node(release)
 
         return releases
 
@@ -575,10 +575,10 @@ class GitBareCooker(BaseVaultCooker):
                     f"Unexpected release target type: {release.target_type}",
                 )
 
-    def write_release_node(self, release: Dict[str, Any]) -> bool:
+    def write_release_node(self, release: Release) -> bool:
         """Writes a release object to disk"""
         git_object = git_objects.release_git_object(release)
-        return self.write_object(release["id"], git_object)
+        return self.write_object(release.id, git_object)
 
     def load_directories(self, obj_ids: List[Sha1Git]) -> None:
         if not obj_ids:
@@ -598,8 +598,7 @@ class GitBareCooker(BaseVaultCooker):
             logger.error("Missing swh:1:dir:%s, ignoring.", hash_to_hex(obj_id))
             return
 
-        entries = [entry.to_dict() for entry in entries_it]
-        directory = {"id": obj_id, "entries": entries}
+        directory = Directory(id=obj_id, entries=tuple(entries_it))
         git_object = git_objects.directory_git_object(directory)
         self.write_object(obj_id, git_object)
 
@@ -609,10 +608,10 @@ class GitBareCooker(BaseVaultCooker):
             "dir": self._dir_stack,
             "rev": None,  # Do not include submodule targets (rejected by git-fsck)
         }
-        for entry in directory["entries"]:
-            stack = entry_loaders[entry["type"]]
+        for entry in directory.entries:
+            stack = entry_loaders[entry.type]
             if stack is not None:
-                self._push(stack, [entry["target"]])
+                self._push(stack, [entry.target])
 
     def load_contents(self, obj_ids: List[Sha1Git]) -> None:
         # TODO: add support of filtered objects, somehow?

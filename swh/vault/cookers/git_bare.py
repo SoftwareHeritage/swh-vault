@@ -422,7 +422,9 @@ class GitBareCooker(BaseVaultCooker):
             # swh-graph, fall back to self.storage.revision_log.
             # self.storage.revision_log also gives us the full revisions,
             # so we load them right now instead of just pushing them on the stack.
-            walker = DFSRevisionsWalker(self.storage, obj_id, state=self._walker_state)
+            walker = DFSRevisionsWalker(
+                self.storage, obj_id, state=self._walker_state, ignore_displayname=True
+            )
             for revision in walker:
                 self.write_revision_node(Revision.from_dict(revision))
                 self.nb_loaded += 1
@@ -523,7 +525,9 @@ class GitBareCooker(BaseVaultCooker):
     def load_revisions(self, obj_ids: List[Sha1Git]) -> None:
         """Given a list of revision ids, loads these revisions and their directories;
         but not their parent revisions (ie. this is not recursive)."""
-        ret: List[Optional[Revision]] = self.storage.revision_get(obj_ids)
+        ret: List[Optional[Revision]] = self.storage.revision_get(
+            obj_ids, ignore_displayname=True
+        )
 
         revisions: List[Revision] = list(filter(None, ret))
         if len(ret) != len(revisions):
@@ -540,7 +544,7 @@ class GitBareCooker(BaseVaultCooker):
 
     def load_releases(self, obj_ids: List[Sha1Git]) -> List[Release]:
         """Loads release objects, and returns them."""
-        ret = self.storage.release_get(obj_ids)
+        ret = self.storage.release_get(obj_ids, ignore_displayname=True)
 
         releases = list(filter(None, ret))
         if len(ret) != len(releases):

@@ -1,4 +1,4 @@
-pytest
+pytest < 7.0.0  # v7.0.0 removed _pytest.tmpdir.TempdirFactory, which is used by some of the pytest plugins we use
 dulwich >= 0.18.7
 swh.loader.core
 swh.loader.git >= 0.8

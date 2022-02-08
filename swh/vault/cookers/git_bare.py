@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -15,12 +15,25 @@ It works in three steps:
 
 It keeps a set of all written (or about-to-be-written) object hashes in memory
 to avoid downloading and writing the same objects twice.
+
+The first step is the most complex. When swh-graph is available, this roughly does
+the following:
+
+1. Find all the revisions and releases in the induced subgraph, adds them to
+   todo-lists
+2. Grab a batch from (release/revision/directory/content) todo-lists, and load them.
+   Add directory and content objects they reference to the todo-list
+3. If any todo-list is not empty, goto 1
+
+When swh-graph is not available, steps 1 and 2 are merged, because revisions need
+to be loaded in order to compute the subgraph.
 """
 
 import datetime
 import enum
 import glob
 import logging
+import multiprocessing.dummy
 import os.path
 import re
 import subprocess
@@ -43,7 +56,7 @@ from swh.model.model import (
     TargetType,
     TimestampWithTimezone,
 )
-from swh.model.model import Content, DirectoryEntry
+from swh.model.model import Content, Directory, DirectoryEntry
 from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
@@ -89,6 +102,7 @@ class GitBareCooker(BaseVaultCooker):
         self.obj_type = RootObjectType[self.swhid.object_type.name]
 
     def check_exists(self) -> bool:
+        """Returns whether the root object is present in the archive."""
         if self.obj_type is RootObjectType.REVISION:
             return not list(self.storage.revision_missing([self.obj_id]))
         elif self.obj_type is RootObjectType.DIRECTORY:
@@ -99,18 +113,23 @@ class GitBareCooker(BaseVaultCooker):
             assert_never(self.obj_type, f"Unexpected root object type: {self.obj_type}")
 
     def _push(self, stack: List[Sha1Git], obj_ids: Iterable[Sha1Git]) -> None:
+        """Adds all the given ``obj_ids`` to the given ``stack``, unless they are
+        already in ``self._seen``, and adds them to ``self._seen``."""
         assert not isinstance(obj_ids, bytes)
         revision_ids = [id_ for id_ in obj_ids if id_ not in self._seen]
         self._seen.update(revision_ids)
         stack.extend(revision_ids)
 
     def _pop(self, stack: List[Sha1Git], n: int) -> List[Sha1Git]:
+        """Removes ``n`` object from the ``stack`` and returns them."""
         obj_ids = stack[-n:]
         stack[-n:] = []
         return obj_ids
 
     def prepare_bundle(self):
-        # Objects we will visit soon:
+        """Main entry point. Initializes the state, creates the bundle, and
+        sends it to the backend."""
+        # Objects we will visit soon (aka. "todo-lists"):
         self._rel_stack: List[Sha1Git] = []
         self._rev_stack: List[Sha1Git] = []
         self._dir_stack: List[Sha1Git] = []
@@ -129,6 +148,8 @@ class GitBareCooker(BaseVaultCooker):
             self.gitdir = os.path.join(workdir, "clone.git")
             os.mkdir(self.gitdir)
             self.init_git()
+
+            self.nb_loaded = 0
 
             # Add the root object to the stack of objects to visit
             self.push_subgraph(self.obj_type, self.obj_id)
@@ -162,6 +183,7 @@ class GitBareCooker(BaseVaultCooker):
             self.backend.set_progress(self.BUNDLE_TYPE, self.swhid, "Uploading bundle")
 
     def init_git(self) -> None:
+        """Creates an empty :file:`.git` directory."""
         subprocess.run(["git", "-C", self.gitdir, "init", "--bare"], check=True)
         self.create_object_dirs()
 
@@ -170,6 +192,7 @@ class GitBareCooker(BaseVaultCooker):
             os.unlink(filename)
 
     def create_object_dirs(self) -> None:
+        """Creates all possible subdirectories of :file:`.git/objects/`"""
         # Create all possible dirs ahead of time, so we don't have to check for
         # existence every time.
         for byte in range(256):
@@ -179,7 +202,7 @@ class GitBareCooker(BaseVaultCooker):
                 pass
 
     def repack(self) -> None:
-        # Add objects we wrote in a pack
+        """Moves all objects from :file:`.git/objects/` to a packfile."""
         try:
             subprocess.run(["git", "-C", self.gitdir, "repack", "-d"], check=True)
         except subprocess.CalledProcessError:
@@ -189,6 +212,8 @@ class GitBareCooker(BaseVaultCooker):
         subprocess.run(["git", "-C", self.gitdir, "prune-packed"], check=True)
 
     def git_fsck(self) -> None:
+        """Runs git-fsck and ignores expected errors (eg. because of missing
+        objects)."""
         proc = subprocess.run(
             ["git", "-C", self.gitdir, "fsck"],
             stdout=subprocess.PIPE,
@@ -212,6 +237,9 @@ class GitBareCooker(BaseVaultCooker):
             )
 
     def write_refs(self, snapshot=None):
+        """Writes all files in :file:`.git/refs/`.
+
+        For non-snapshot objects, this is only ``master``."""
         refs: Dict[bytes, bytes]  # ref name -> target
         if self.obj_type == RootObjectType.DIRECTORY:
             # We need a synthetic revision pointing to the directory
@@ -231,7 +259,7 @@ class GitBareCooker(BaseVaultCooker):
                 directory=self.obj_id,
                 synthetic=True,
             )
-            self.write_revision_node(revision.to_dict())
+            self.write_revision_node(revision)
             refs = {b"refs/heads/master": hash_to_bytehex(revision.id)}
         elif self.obj_type == RootObjectType.REVISION:
             refs = {b"refs/heads/master": hash_to_bytehex(self.obj_id)}
@@ -265,19 +293,27 @@ class GitBareCooker(BaseVaultCooker):
                 fd.write(ref_target)
 
     def write_archive(self):
+        """Creates the final .tar file."""
         with tarfile.TarFile(mode="w", fileobj=self.fileobj) as tf:
             tf.add(self.gitdir, arcname=f"{self.swhid}.git", recursive=True)
 
     def _obj_path(self, obj_id: Sha1Git):
+        """Returns the absolute path of file (in :file:`.git/objects/`) that will
+        contain the git object identified by the ``obj_id``."""
         return os.path.join(self.gitdir, self._obj_relative_path(obj_id))
 
     def _obj_relative_path(self, obj_id: Sha1Git):
+        """Same as :meth:`_obj_path`, but relative."""
         obj_id_hex = hash_to_hex(obj_id)
         directory = obj_id_hex[0:2]
         filename = obj_id_hex[2:]
         return os.path.join("objects", directory, filename)
 
     def object_exists(self, obj_id: Sha1Git) -> bool:
+        """Returns whether the object identified by the given ``obj_id`` was already
+        written to a file in :file:`.git/object/`.
+
+        This function ignores objects contained in a git pack."""
         return os.path.exists(self._obj_path(obj_id))
 
     def write_object(self, obj_id: Sha1Git, obj: bytes) -> bool:
@@ -293,6 +329,12 @@ class GitBareCooker(BaseVaultCooker):
         return True
 
     def push_subgraph(self, obj_type: RootObjectType, obj_id) -> None:
+        """Adds graph induced by the given ``obj_id`` without recursing through
+        directories, to the todo-lists.
+
+        If swh-graph is not available, this immediately loads revisions, as they
+        need to be fetched in order to compute the subgraph, and fetching them
+        immediately avoids duplicate fetches."""
         if self.obj_type is RootObjectType.REVISION:
             self.push_revision_subgraph(obj_id)
         elif self.obj_type is RootObjectType.DIRECTORY:
@@ -303,6 +345,7 @@ class GitBareCooker(BaseVaultCooker):
             assert_never(self.obj_type, f"Unexpected root object type: {self.obj_type}")
 
     def load_objects(self) -> None:
+        """Repeatedly loads objects in the todo-lists, until all lists are empty."""
         while self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack:
 
             nb_remaining = (
@@ -317,28 +360,36 @@ class GitBareCooker(BaseVaultCooker):
             self.backend.set_progress(
                 self.BUNDLE_TYPE,
                 self.swhid,
-                f"Processing... {len(self._seen)} objects processed\n"
+                f"Processing... {self.nb_loaded} objects processed\n"
                 f"Over {nb_remaining} remaining",
             )
 
             release_ids = self._pop(self._rel_stack, RELEASE_BATCH_SIZE)
             if release_ids:
                 self.load_releases(release_ids)
+                self.nb_loaded += len(release_ids)
 
             revision_ids = self._pop(self._rev_stack, REVISION_BATCH_SIZE)
             if revision_ids:
                 self.load_revisions(revision_ids)
+                self.nb_loaded += len(revision_ids)
 
             directory_ids = self._pop(self._dir_stack, DIRECTORY_BATCH_SIZE)
             if directory_ids:
                 self.load_directories(directory_ids)
+                self.nb_loaded += len(directory_ids)
 
             content_ids = self._pop(self._cnt_stack, CONTENT_BATCH_SIZE)
             if content_ids:
                 self.load_contents(content_ids)
+                self.nb_loaded += len(content_ids)
 
     def push_revision_subgraph(self, obj_id: Sha1Git) -> None:
-        """Fetches a revision and all its children, and writes them to disk"""
+        """Fetches the graph of revisions induced by the given ``obj_id`` and adds
+        them to ``self._rev_stack``.
+
+        If swh-graph is not available, this requires fetching the revisions themselves,
+        so they are directly loaded instead."""
         loaded_from_graph = False
 
         if self.graph:
@@ -371,16 +422,23 @@ class GitBareCooker(BaseVaultCooker):
             # swh-graph, fall back to self.storage.revision_log.
             # self.storage.revision_log also gives us the full revisions,
             # so we load them right now instead of just pushing them on the stack.
-            walker = DFSRevisionsWalker(self.storage, obj_id, state=self._walker_state)
+            walker = DFSRevisionsWalker(
+                self.storage, obj_id, state=self._walker_state, ignore_displayname=True
+            )
             for revision in walker:
-                self.write_revision_node(revision)
+                self.write_revision_node(Revision.from_dict(revision))
+                self.nb_loaded += 1
                 self._push(self._dir_stack, [revision["directory"]])
             # Save the state, so the next call to the walker won't return the same
             # revisions
             self._walker_state = walker.export_state()
 
     def push_snapshot_subgraph(self, obj_id: Sha1Git) -> None:
-        """Fetches a snapshot and all its children, and writes them to disk"""
+        """Fetches a snapshot and all its children, excluding directories and contents,
+        and pushes them to the todo-lists.
+
+        Also loads revisions if swh-graph is not available, see
+        :meth:`push_revision_subgraph`."""
         loaded_from_graph = False
 
         if self.graph:
@@ -466,32 +524,34 @@ class GitBareCooker(BaseVaultCooker):
 
     def load_revisions(self, obj_ids: List[Sha1Git]) -> None:
         """Given a list of revision ids, loads these revisions and their directories;
-        but not their parent revisions."""
-        ret: List[Optional[Revision]] = self.storage.revision_get(obj_ids)
+        but not their parent revisions (ie. this is not recursive)."""
+        ret: List[Optional[Revision]] = self.storage.revision_get(
+            obj_ids, ignore_displayname=True
+        )
 
         revisions: List[Revision] = list(filter(None, ret))
         if len(ret) != len(revisions):
             logger.error("Missing revision(s), ignoring them.")
 
         for revision in revisions:
-            self.write_revision_node(revision.to_dict())
+            self.write_revision_node(revision)
         self._push(self._dir_stack, (rev.directory for rev in revisions))
 
-    def write_revision_node(self, revision: Dict[str, Any]) -> bool:
+    def write_revision_node(self, revision: Revision) -> bool:
         """Writes a revision object to disk"""
-        git_object = git_objects.revision_git_object(revision)
-        return self.write_object(revision["id"], git_object)
+        git_object = revision.raw_manifest or git_objects.revision_git_object(revision)
+        return self.write_object(revision.id, git_object)
 
     def load_releases(self, obj_ids: List[Sha1Git]) -> List[Release]:
         """Loads release objects, and returns them."""
-        ret = self.storage.release_get(obj_ids)
+        ret = self.storage.release_get(obj_ids, ignore_displayname=True)
 
         releases = list(filter(None, ret))
         if len(ret) != len(releases):
             logger.error("Missing release(s), ignoring them.")
 
         for release in releases:
-            self.write_release_node(release.to_dict())
+            self.write_release_node(release)
 
         return releases
 
@@ -499,6 +559,7 @@ class GitBareCooker(BaseVaultCooker):
         """Given a list of release ids, loads these releases and adds their
         target to the list of objects to visit"""
         for release in self.load_releases(obj_ids):
+            self.nb_loaded += 1
             assert release.target, "{release.swhid(}) has no target"
             if release.target_type is ModelObjectType.REVISION:
                 self.push_revision_subgraph(release.target)
@@ -518,16 +579,25 @@ class GitBareCooker(BaseVaultCooker):
                     f"Unexpected release target type: {release.target_type}",
                 )
 
-    def write_release_node(self, release: Dict[str, Any]) -> bool:
+    def write_release_node(self, release: Release) -> bool:
         """Writes a release object to disk"""
-        git_object = git_objects.release_git_object(release)
-        return self.write_object(release["id"], git_object)
+        git_object = release.raw_manifest or git_objects.release_git_object(release)
+        return self.write_object(release.id, git_object)
 
     def load_directories(self, obj_ids: List[Sha1Git]) -> None:
-        for obj_id in obj_ids:
-            self.load_directory(obj_id)
+        if not obj_ids:
+            return
 
-    def load_directory(self, obj_id: Sha1Git) -> None:
+        raw_manifests = self.storage.directory_get_raw_manifest(obj_ids)
+
+        with multiprocessing.dummy.Pool(min(self.thread_pool_size, len(obj_ids))) as p:
+            for _ in p.imap_unordered(
+                lambda obj_id: self.load_directory(obj_id, raw_manifests.get(obj_id)),
+                obj_ids,
+            ):
+                pass
+
+    def load_directory(self, obj_id: Sha1Git, raw_manifest: Optional[bytes]) -> None:
         # Load the directory
         entries_it: Optional[Iterable[DirectoryEntry]] = stream_results_optional(
             self.storage.directory_get_entries, obj_id
@@ -537,9 +607,10 @@ class GitBareCooker(BaseVaultCooker):
             logger.error("Missing swh:1:dir:%s, ignoring.", hash_to_hex(obj_id))
             return
 
-        entries = [entry.to_dict() for entry in entries_it]
-        directory = {"id": obj_id, "entries": entries}
-        git_object = git_objects.directory_git_object(directory)
+        directory = Directory(
+            id=obj_id, entries=tuple(entries_it), raw_manifest=raw_manifest
+        )
+        git_object = raw_manifest or git_objects.directory_git_object(directory)
         self.write_object(obj_id, git_object)
 
         # Add children to the stack
@@ -548,10 +619,10 @@ class GitBareCooker(BaseVaultCooker):
             "dir": self._dir_stack,
             "rev": None,  # Do not include submodule targets (rejected by git-fsck)
         }
-        for entry in directory["entries"]:
-            stack = entry_loaders[entry["type"]]
+        for entry in directory.entries:
+            stack = entry_loaders[entry.type]
             if stack is not None:
-                self._push(stack, [entry["target"]])
+                self._push(stack, [entry.target])
 
     def load_contents(self, obj_ids: List[Sha1Git]) -> None:
         # TODO: add support of filtered objects, somehow?

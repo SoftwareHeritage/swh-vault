@@ -6,7 +6,7 @@ CONTRIBUTORS
 LICENSE
 MANIFEST.in
 Makefile
-README.md
+README.rst
 conftest.py
 mypy.ini
 pyproject.toml
@@ -20,6 +20,7 @@ setup.py
 tox.ini
 docs/.gitignore
 docs/Makefile
+docs/README.rst
 docs/api.rst
 docs/cli.rst
 docs/conf.py

@@ -17,6 +17,7 @@ import tempfile
 import unittest.mock
 
 import attr
+import dulwich.repo
 import pytest
 from pytest import param
 
@@ -33,6 +34,7 @@ from swh.model.model import (
     Snapshot,
     SnapshotBranch,
     TargetType,
+    Timestamp,
     TimestampWithTimezone,
 )
 from swh.vault.cookers.git_bare import GitBareCooker
@@ -432,3 +434,134 @@ def test_checksum_mismatch(swh_storage, mismatch_on):
             )
 
             assert output.decode() == f"{rev2.id.hex()} msg2\n{rev1.id.hex()} msg1\n"
+
+
+@pytest.mark.parametrize(
+    "use_graph",
+    [
+        pytest.param(False, id="without-graph"),
+        pytest.param(True, id="with-graph", marks=pytest.mark.graph),
+    ],
+)
+def test_ignore_displayname(swh_storage, use_graph):
+    """Tests the original authorship information is used instead of
+    configured display names; otherwise objects would not match their hash,
+    and git-fsck/git-clone would fail.
+
+    This tests both with and without swh-graph, as both configurations use different
+    code paths to fetch revisions.
+    """
+
+    date = TimestampWithTimezone.from_numeric_offset(Timestamp(1643882820, 0), 0, False)
+    legacy_person = Person.from_fullname(b"old me <old@example.org>")
+    current_person = Person.from_fullname(b"me <me@example.org>")
+
+    content = Content.from_data(b"foo")
+    swh_storage.content_add([content])
+
+    directory = Directory(
+        entries=(
+            DirectoryEntry(
+                name=b"file1", type="file", perms=0o100644, target=content.sha1_git
+            ),
+        ),
+    )
+    swh_storage.directory_add([directory])
+
+    revision = Revision(
+        message=b"rev",
+        author=legacy_person,
+        date=date,
+        committer=legacy_person,
+        committer_date=date,
+        parents=(),
+        type=RevisionType.GIT,
+        directory=directory.id,
+        synthetic=True,
+    )
+    swh_storage.revision_add([revision])
+
+    release = Release(
+        name=b"v1.1.0",
+        message=None,
+        author=legacy_person,
+        date=date,
+        target=revision.id,
+        target_type=ObjectType.REVISION,
+        synthetic=True,
+    )
+    swh_storage.release_add([release])
+
+    snapshot = Snapshot(
+        branches={
+            b"refs/tags/v1.1.0": SnapshotBranch(
+                target=release.id, target_type=TargetType.RELEASE
+            ),
+            b"HEAD": SnapshotBranch(
+                target=revision.id, target_type=TargetType.REVISION
+            ),
+        }
+    )
+    swh_storage.snapshot_add([snapshot])
+
+    # Add all objects to graph
+    if use_graph:
+        from swh.graph.naive_client import NaiveClient as GraphClient
+
+        nodes = [
+            str(x.swhid()) for x in [content, directory, revision, release, snapshot]
+        ]
+        edges = [
+            (str(x.swhid()), str(y.swhid()))
+            for (x, y) in [
+                (directory, content),
+                (revision, directory),
+                (release, revision),
+                (snapshot, release),
+                (snapshot, revision),
+            ]
+        ]
+        swh_graph = unittest.mock.Mock(wraps=GraphClient(nodes=nodes, edges=edges))
+    else:
+        swh_graph = None
+
+    # Set a display name
+    with swh_storage.db() as db:
+        with db.transaction() as cur:
+            cur.execute(
+                "UPDATE person set displayname = %s where fullname = %s",
+                (current_person.fullname, legacy_person.fullname),
+            )
+
+    # Check the display name did apply in the storage
+    assert swh_storage.revision_get([revision.id])[0] == attr.evolve(
+        revision, author=current_person, committer=current_person,
+    )
+
+    # Cook
+    cooked_swhid = snapshot.swhid()
+    backend = InMemoryVaultBackend()
+    cooker = GitBareCooker(
+        cooked_swhid, backend=backend, storage=swh_storage, graph=swh_graph,
+    )
+
+    cooker.cook()
+
+    # Get bundle
+    bundle = backend.fetch("git_bare", cooked_swhid)
+
+    # Extract bundle and make sure both revisions are in it
+    with tempfile.TemporaryDirectory("swh-vault-test-bare") as tempdir:
+        with tarfile.open(fileobj=io.BytesIO(bundle)) as tf:
+            tf.extractall(tempdir)
+
+        # If we are here, it means git-fsck succeeded when called by cooker.cook(),
+        # so we already know the original person was used. Let's double-check.
+
+        repo = dulwich.repo.Repo(f"{tempdir}/{cooked_swhid}.git")
+
+        tag = repo[b"refs/tags/v1.1.0"]
+        assert tag.tagger == legacy_person.fullname
+
+        commit = repo[tag.object[1]]
+        assert commit.author == legacy_person.fullname

@@ -76,6 +76,7 @@ logger = logging.getLogger(__name__)
 class RootObjectType(enum.Enum):
     DIRECTORY = "directory"
     REVISION = "revision"
+    RELEASE = "release"
     SNAPSHOT = "snapshot"
 
 
@@ -105,6 +106,8 @@ class GitBareCooker(BaseVaultCooker):
         """Returns whether the root object is present in the archive."""
         if self.obj_type is RootObjectType.REVISION:
             return not list(self.storage.revision_missing([self.obj_id]))
+        elif self.obj_type is RootObjectType.RELEASE:
+            return not list(self.storage.release_missing([self.obj_id]))
         elif self.obj_type is RootObjectType.DIRECTORY:
             return not list(self.storage.directory_missing([self.obj_id]))
         elif self.obj_type is RootObjectType.SNAPSHOT:
@@ -236,6 +239,28 @@ class GitBareCooker(BaseVaultCooker):
                 "\n".join(sorted(unexpected_errors)),
             )
 
+    def _make_stub_directory_revision(self, dir_id: Sha1Git) -> Sha1Git:
+        author = Person.from_fullname(
+            b"swh-vault, git-bare cooker <robot@softwareheritage.org>"
+        )
+        dt = datetime.datetime.now(tz=datetime.timezone.utc)
+        dt = dt.replace(microsecond=0)  # not supported by git
+        date = TimestampWithTimezone.from_datetime(dt)
+
+        revision = Revision(
+            author=author,
+            committer=author,
+            date=date,
+            committer_date=date,
+            message=b"Initial commit",
+            type=RevisionType.GIT,
+            directory=self.obj_id,
+            synthetic=True,
+        )
+        self.write_revision_node(revision)
+
+        return revision.id
+
     def write_refs(self, snapshot=None):
         """Writes all files in :file:`.git/refs/`.
 
@@ -243,26 +268,28 @@ class GitBareCooker(BaseVaultCooker):
         refs: Dict[bytes, bytes]  # ref name -> target
         if self.obj_type == RootObjectType.DIRECTORY:
             # We need a synthetic revision pointing to the directory
-            author = Person.from_fullname(
-                b"swh-vault, git-bare cooker <robot@softwareheritage.org>"
-            )
-            dt = datetime.datetime.now(tz=datetime.timezone.utc)
-            dt = dt.replace(microsecond=0)  # not supported by git
-            date = TimestampWithTimezone.from_datetime(dt)
-            revision = Revision(
-                author=author,
-                committer=author,
-                date=date,
-                committer_date=date,
-                message=b"Initial commit",
-                type=RevisionType.GIT,
-                directory=self.obj_id,
-                synthetic=True,
-            )
-            self.write_revision_node(revision)
-            refs = {b"refs/heads/master": hash_to_bytehex(revision.id)}
+            rev_id = self._make_stub_directory_revision(self.obj_id)
+
+            refs = {b"refs/heads/master": hash_to_bytehex(rev_id)}
         elif self.obj_type == RootObjectType.REVISION:
             refs = {b"refs/heads/master": hash_to_bytehex(self.obj_id)}
+        elif self.obj_type == RootObjectType.RELEASE:
+            (release,) = self.storage.release_get([self.obj_id])
+
+            if release.name and re.match(br"^[a-zA-Z0-9_.-]+$", release.name):
+                release_name = release.name
+            else:
+                release_name = b"release"
+
+            refs = {
+                b"refs/tags/" + release_name: hash_to_bytehex(self.obj_id),
+            }
+
+            if release.target_type.value == ModelObjectType.REVISION:
+                # Not necessary, but makes it easier to browse
+                refs[b"ref/heads/master"] = hash_to_bytehex(release.target)
+            # TODO: synthetize a master branch for other target types
+
         elif self.obj_type == RootObjectType.SNAPSHOT:
             if snapshot is None:
                 # refs were already written in a previous step
@@ -341,6 +368,8 @@ class GitBareCooker(BaseVaultCooker):
             self._push(self._dir_stack, [obj_id])
         elif self.obj_type is RootObjectType.SNAPSHOT:
             self.push_snapshot_subgraph(obj_id)
+        elif self.obj_type is RootObjectType.RELEASE:
+            self.push_releases_subgraphs([obj_id])
         else:
             assert_never(self.obj_type, f"Unexpected root object type: {self.obj_type}")
 

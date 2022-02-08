@@ -1,1 +1,1 @@
-swh.graph >= v0.3.2
+swh.graph >= 0.3.2

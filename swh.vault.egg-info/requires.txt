@@ -8,13 +8,13 @@ swh.core[db,http]>=0.14.4
 swh.model>=3.0.0
 swh.objstorage>=0.0.17
 swh.scheduler>=0.7.0
-swh.storage>=0.29.0
+swh.storage>=0.43.1
 
 [graph]
-swh.graph>=v0.3.2
+swh.graph>=0.3.2
 
 [testing]
-pytest
+pytest<7.0.0
 dulwich>=0.18.7
 swh.loader.core
 swh.loader.git>=0.8

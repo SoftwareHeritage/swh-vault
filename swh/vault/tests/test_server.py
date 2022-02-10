@@ -12,6 +12,7 @@ import yaml
 
 from swh.core.api.serializers import json_dumps, msgpack_dumps, msgpack_loads
 from swh.vault.api.serializers import ENCODERS
+import swh.vault.api.server
 from swh.vault.api.server import (
     VaultServerApp,
     check_config,
@@ -63,6 +64,9 @@ def async_app(swh_local_vault_config: Dict[str, Any],) -> VaultServerApp:
     Note: This requires the db setup to run (fixture swh_vault in charge of this)
 
     """
+    # make sure a new VaultBackend is instantiated for each test to prevent
+    # side effects between tests
+    swh.vault.api.server.vault = None
     return make_app(swh_local_vault_config)
 
 

@@ -45,7 +45,7 @@ def test_make_app_from_env_variable(swh_vault_config_file):
 
 
 def test_make_app_from_file(swh_local_vault_config, tmp_path):
-    """Server initialization happens trough path if provided
+    """Server initialization happens through path if provided
 
     """
     conf_path = os.path.join(str(tmp_path), "vault-server.yml")

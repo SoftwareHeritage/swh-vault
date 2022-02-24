@@ -4,7 +4,7 @@ psycopg2
 python-dateutil
 fastimport
 typing-extensions
-swh.core[db,http]>=0.14.4
+swh.core[db,http]>=2
 swh.model>=3.0.0
 swh.objstorage>=0.0.17
 swh.scheduler>=0.7.0

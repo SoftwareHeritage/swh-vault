@@ -1,13 +1,3 @@
-create table if not exists dbversion
-(
-  version     int primary key,
-  release     timestamptz not null,
-  description text not null
-);
-comment on table dbversion is 'Schema update tracking';
-insert into dbversion (version, release, description)
-       values (4, now(), 'Initial version');
-
 create domain obj_hash as bytea;
 
 create type bundle_type as enum ('flat', 'gitfast', 'git_bare');

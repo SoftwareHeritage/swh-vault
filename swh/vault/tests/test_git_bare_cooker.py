@@ -10,6 +10,7 @@ run on the bare cooker.
 """
 
 import datetime
+import enum
 import io
 import subprocess
 import tarfile
@@ -41,26 +42,99 @@ from swh.vault.cookers.git_bare import GitBareCooker
 from swh.vault.in_memory_backend import InMemoryVaultBackend
 
 
+class RootObjects(enum.Enum):
+    REVISION = enum.auto()
+    SNAPSHOT = enum.auto()
+    RELEASE = enum.auto()
+    WEIRD_RELEASE = enum.auto()  # has a : in the name + points to another release
+
+
 @pytest.mark.graph
 @pytest.mark.parametrize(
-    "snapshot,up_to_date_graph,tag,weird_branches",
+    "root_object,up_to_date_graph,tag,weird_branches",
     [
-        # 'no snp' implies no tag or tree, because there can only be one root object
         param(
-            False, False, False, False, id="no snp, outdated graph, no tag/tree/blob"
+            RootObjects.REVISION,
+            False,
+            False,
+            False,
+            id="rev, outdated graph, no tag/tree/blob",
         ),
-        param(False, True, False, False, id="no snp, updated graph, no tag/tree/blob"),
-        param(True, False, False, False, id="snp, outdated graph, no tag/tree/blob"),
-        param(True, True, False, False, id="snp, updated graph, no tag/tree/blob"),
-        param(True, False, True, False, id="snp, outdated graph, w/ tag, no tree/blob"),
-        param(True, True, True, False, id="snp, updated graph, w/ tag, no tree/blob"),
         param(
-            True, False, True, True, id="snp, outdated graph, w/ tag, tree, and blob"
+            RootObjects.REVISION,
+            True,
+            False,
+            False,
+            id="rev, updated graph, no tag/tree/blob",
         ),
-        param(True, True, True, True, id="snp, updated graph, w/ tag, tree, and blob"),
+        param(
+            RootObjects.RELEASE,
+            False,
+            False,
+            False,
+            id="rel, outdated graph, no tag/tree/blob",
+        ),
+        param(
+            RootObjects.RELEASE,
+            True,
+            False,
+            False,
+            id="rel, updated graph, no tag/tree/blob",
+        ),
+        param(
+            RootObjects.WEIRD_RELEASE,
+            True,
+            False,
+            False,
+            id="weird rel, updated graph, no tag/tree/blob",
+        ),
+        param(
+            RootObjects.SNAPSHOT,
+            False,
+            False,
+            False,
+            id="snp, outdated graph, no tag/tree/blob",
+        ),
+        param(
+            RootObjects.SNAPSHOT,
+            True,
+            False,
+            False,
+            id="snp, updated graph, no tag/tree/blob",
+        ),
+        param(
+            RootObjects.SNAPSHOT,
+            False,
+            True,
+            False,
+            id="snp, outdated graph, w/ tag, no tree/blob",
+        ),
+        param(
+            RootObjects.SNAPSHOT,
+            True,
+            True,
+            False,
+            id="snp, updated graph, w/ tag, no tree/blob",
+        ),
+        param(
+            RootObjects.SNAPSHOT,
+            False,
+            True,
+            True,
+            id="snp, outdated graph, w/ tag, tree, and blob",
+        ),
+        param(
+            RootObjects.SNAPSHOT,
+            True,
+            True,
+            True,
+            id="snp, updated graph, w/ tag, tree, and blob",
+        ),
     ],
 )
-def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_branches):
+def test_graph_revisions(
+    swh_storage, up_to_date_graph, root_object, tag, weird_branches
+):
     r"""
     Build objects::
 
@@ -187,6 +261,13 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
         target=rel3.id,
         synthetic=True,
     )
+    rel5 = Release(
+        name=b"1.0.0:weirdname",
+        message=b"weird release",
+        target_type=ObjectType.RELEASE,
+        target=rel2.id,
+        synthetic=True,
+    )
 
     # Create snapshot:
 
@@ -229,7 +310,7 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
             edges.append((rel2, rev2))
             edges.append((snp, rel2))
         if weird_branches:
-            nodes.extend([cnt3, cnt4, cnt5, dir3, dir4, rel3, rel4])
+            nodes.extend([cnt3, cnt4, cnt5, dir3, dir4, rel3, rel4, rel5])
             edges.extend(
                 [
                     (dir3, cnt3),
@@ -239,6 +320,7 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
                     (snp, rel4),
                     (rel4, rel3),
                     (rel3, cnt5),
+                    (rel5, rev2),
                 ]
             )
     else:
@@ -263,7 +345,7 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
     swh_storage.content_add([cnt1, cnt2, cnt3, cnt4, cnt5])
     swh_storage.directory_add([dir1, dir2, dir3, dir4])
     swh_storage.revision_add([rev1, rev2])
-    swh_storage.release_add([rel2, rel3, rel4])
+    swh_storage.release_add([rel2, rel3, rel4, rel5])
     swh_storage.snapshot_add([snp])
 
     # Add spy on swh_storage, to make sure revision_log is not called
@@ -275,10 +357,12 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
 
     # Cook
     backend = InMemoryVaultBackend()
-    if snapshot:
-        cooked_swhid = snp.swhid()
-    else:
-        cooked_swhid = rev2.swhid()
+    cooked_swhid = {
+        RootObjects.SNAPSHOT: snp.swhid(),
+        RootObjects.REVISION: rev2.swhid(),
+        RootObjects.RELEASE: rel2.swhid(),
+        RootObjects.WEIRD_RELEASE: rel5.swhid(),
+    }[root_object]
     cooker = GitBareCooker(
         cooked_swhid, backend=backend, storage=swh_storage, graph=swh_graph,
     )
@@ -298,6 +382,15 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
         with tarfile.open(fileobj=io.BytesIO(bundle)) as tf:
             tf.extractall(tempdir)
 
+        if root_object in (RootObjects.SNAPSHOT, RootObjects.REVISION):
+            log_head = "master"
+        elif root_object == RootObjects.RELEASE:
+            log_head = "1.0.0"
+        elif root_object == RootObjects.WEIRD_RELEASE:
+            log_head = "release"
+        else:
+            assert False, root_object
+
         output = subprocess.check_output(
             [
                 "git",
@@ -306,13 +399,14 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
                 "log",
                 "--format=oneline",
                 "--decorate=",
+                log_head,
             ]
         )
 
         assert output.decode() == f"{rev2.id.hex()} msg2\n{rev1.id.hex()} msg1\n"
 
     # Make sure the graph was used instead of swh_storage.revision_log
-    if snapshot:
+    if root_object == RootObjects.SNAPSHOT:
         if up_to_date_graph:
             # The graph has everything, so the first call succeeds and returns
             # all objects transitively pointed by the snapshot
@@ -329,10 +423,17 @@ def test_graph_revisions(swh_storage, up_to_date_graph, snapshot, tag, weird_bra
                     unittest.mock.call(str(rev2.swhid()), edges="rev:rev"),
                 ]
             )
-    else:
+    elif root_object in (
+        RootObjects.REVISION,
+        RootObjects.RELEASE,
+        RootObjects.WEIRD_RELEASE,
+    ):
         swh_graph.visit_nodes.assert_has_calls(
             [unittest.mock.call(str(rev2.swhid()), edges="rev:rev")]
         )
+    else:
+        assert False, root_object
+
     if up_to_date_graph:
         swh_storage.revision_log.assert_not_called()
         swh_storage.revision_shortlog.assert_not_called()

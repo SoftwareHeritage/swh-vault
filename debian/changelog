@@ -1,8 +1,10 @@
-swh-vault (1.4.2-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-vault (1.5.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.5.0     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2022-02-24 17:20:11 +0100)
+  * Upstream changes:     - v1.5.0
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 08 Feb 2022 10:47:28 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 24 Feb 2022 16:23:28 +0000
 
 swh-vault (1.4.2-1~swh1) unstable-swh; urgency=medium
 

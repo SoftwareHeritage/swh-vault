@@ -68,6 +68,8 @@ class VaultBackend:
     Backend for the Software Heritage Vault.
     """
 
+    current_version = 4
+
     def __init__(self, **config):
         self.config = config
         self.cache = VaultCache(**config["cache"])

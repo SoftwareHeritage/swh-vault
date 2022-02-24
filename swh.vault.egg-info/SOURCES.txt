@@ -28,8 +28,6 @@ docs/getting-started.rst
 docs/index.rst
 docs/_static/.placeholder
 docs/_templates/.placeholder
-sql/upgrades/002.sql
-sql/upgrades/003.sql
 swh/__init__.py
 swh.vault.egg-info/PKG-INFO
 swh.vault.egg-info/SOURCES.txt
@@ -60,6 +58,8 @@ swh/vault/cookers/revision_flat.py
 swh/vault/cookers/revision_gitfast.py
 swh/vault/cookers/utils.py
 swh/vault/sql/30-schema.sql
+swh/vault/sql/upgrades/002.sql
+swh/vault/sql/upgrades/003.sql
 swh/vault/tests/__init__.py
 swh/vault/tests/conftest.py
 swh/vault/tests/test_backend.py

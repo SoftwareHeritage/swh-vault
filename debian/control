@@ -15,13 +15,13 @@ Build-Depends: debhelper (>= 9),
                python3-psycopg2,
                python3-setuptools,
                python3-setuptools-scm,
-               python3-swh.core (>= 0.9),
-               python3-swh.core.db.pytestplugin (>= 0.9),
+               python3-swh.core (>= 2),
+               python3-swh.core.db.pytestplugin (>= 2),
                python3-swh.loader.git,
-               python3-swh.model (>= 0.3.0~),
+               python3-swh.model (>= 3.0.0~),
                python3-swh.objstorage (>= 0.0.17~),
-               python3-swh.scheduler (>= 0.0.39~),
-               python3-swh.storage (>= 0.0.108~),
+               python3-swh.scheduler (>= 0.7.0~),
+               python3-swh.storage (>= 0.43.1~),
                python3-swh.graph.client,
                postgresql-contrib,
                git
@@ -30,11 +30,11 @@ Homepage: https://forge.softwareheritage.org/diffusion/DVAU/
 
 Package: python3-swh.vault
 Architecture: all
-Depends: python3-swh.core (>= 0.9),
-         python3-swh.model (>= 0.3.0~),
+Depends: python3-swh.core (>= 2),
+         python3-swh.model (>= 3.0.0~),
          python3-swh.objstorage (>= 0.0.17~),
-         python3-swh.scheduler (>= 0.0.39~),
-         python3-swh.storage (>= 0.0.108~),
+         python3-swh.scheduler (>= 0.7.0~),
+         python3-swh.storage (>= 0.43.1~),
          ${misc:Depends},
          ${python3:Depends}
 Description: Software Heritage Vault

@@ -3,17 +3,19 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from functools import partial
 import os
 from typing import Any, Dict
 
 import pkg_resources.extern.packaging.version
 import pytest
+from pytest_postgresql import factories
 import yaml
 
-from swh.core.db.pytest_plugin import postgresql_fact
-from swh.storage.tests import SQL_DIR as STORAGE_SQL_DIR
-import swh.vault
+from swh.core.db.pytest_plugin import initialize_database_for_module, postgresql_fact
+from swh.storage.postgresql.db import Db as StorageDb
 from swh.vault import get_vault
+from swh.vault.backend import VaultBackend
 
 os.environ["LC_ALL"] = "C.UTF-8"
 
@@ -34,14 +36,23 @@ if pytest_v < pkg_resources.extern.packaging.version.parse("3.9"):
             yield pathlib.Path(tmpdir)
 
 
-VAULT_SQL_DIR = os.path.join(os.path.dirname(swh.vault.__file__), "sql")
-
-
-postgres_vault = postgresql_fact(
-    "postgresql_proc", dbname="vault", dump_files=f"{VAULT_SQL_DIR}/*.sql"
+storage_postgresql_proc = factories.postgresql_proc(
+    dbname="storage",
+    load=[
+        partial(initialize_database_for_module, "storage", StorageDb.current_version)
+    ],
 )
+
+vault_postgresql_proc = factories.postgresql_proc(
+    dbname="vault",
+    load=[
+        partial(initialize_database_for_module, "vault", VaultBackend.current_version)
+    ],
+)
+
+postgres_vault = postgresql_fact("vault_postgresql_proc")
 postgres_storage = postgresql_fact(
-    "postgresql_proc", dbname="storage", dump_files=f"{STORAGE_SQL_DIR}/*.sql"
+    "storage_postgresql_proc", no_db_drop=True,  # keep the db for performance reasons
 )
 
 

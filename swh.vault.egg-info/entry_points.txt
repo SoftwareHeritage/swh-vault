@@ -1,4 +1,2 @@
-
-        [swh.cli.subcommands]
-        vault=swh.vault.cli
-    
+[swh.cli.subcommands]
+vault = swh.vault.cli

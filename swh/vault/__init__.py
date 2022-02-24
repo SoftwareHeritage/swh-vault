@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2020  The Software Heritage developers
+# Copyright (C) 2018-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU Affero General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -15,8 +15,10 @@ logger = logging.getLogger(__name__)
 
 BACKEND_TYPES: Dict[str, str] = {
     "remote": ".api.client.RemoteVaultClient",
-    "local": ".backend.VaultBackend",
+    "postgresql": ".backend.VaultBackend",
     "memory": ".in_memory_backend.InMemoryVaultBackend",
+    # deprecated
+    "local": ".backend.VaultBackend",
 }
 
 
@@ -53,3 +55,6 @@ def get_vault(cls: str = "remote", **kwargs):
     module = importlib.import_module(module_path, package=__package__)
     Vault = getattr(module, class_name)
     return Vault(**kwargs)
+
+
+get_datastore = get_vault

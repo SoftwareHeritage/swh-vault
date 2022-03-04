@@ -13,7 +13,7 @@ import yaml
 from swh.core.api.serializers import json_dumps, msgpack_dumps, msgpack_loads
 from swh.vault.api.serializers import ENCODERS
 import swh.vault.api.server
-from swh.vault.api.server import app, check_config, make_app_from_configfile
+from swh.vault.api.server import app, check_config, get_vault, make_app_from_configfile
 from swh.vault.tests.test_backend import TEST_SWHID
 
 
@@ -59,7 +59,7 @@ def test_make_app_from_env_variable(swh_vault_server_config_file):
     """
     app = make_app_from_configfile()
     assert app is not None
-    assert "vault" in app.config
+    assert get_vault() is not None
 
     # Cleanup app
     del app.config["vault"]
@@ -76,7 +76,7 @@ def test_make_app_from_file(swh_vault_server_config, tmp_path):
 
     app = make_app_from_configfile(conf_path)
     assert app is not None
-    assert "vault" in app.config
+    assert get_vault() is not None
 
     # Cleanup app
     del app.config["vault"]
@@ -84,9 +84,8 @@ def test_make_app_from_file(swh_vault_server_config, tmp_path):
 
 
 @pytest.fixture
-def vault_app(swh_vault_server_config):
-    app.config["vault"] = check_config(swh_vault_server_config)
-    yield app
+def vault_app(swh_vault_server_config_file):
+    yield make_app_from_configfile()
 
     # Cleanup app
     del app.config["vault"]

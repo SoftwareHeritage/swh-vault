@@ -66,12 +66,15 @@ def swh_vault_config(postgres_vault, postgres_storage, tmp_path) -> Dict[str, An
             "db": postgres_storage.dsn,
             "objstorage": {
                 "cls": "pathslicing",
-                "args": {"root": tmp_path, "slicing": "0:1/1:5",},
+                "root": tmp_path,
+                "slicing": "0:1/1:5",
             },
         },
         "cache": {
             "cls": "pathslicing",
-            "args": {"root": tmp_path, "slicing": "0:1/1:5", "allow_delete": True},
+            "root": tmp_path,
+            "slicing": "0:1/1:5",
+            "allow_delete": True,
         },
         "scheduler": {"cls": "remote", "url": "http://swh-scheduler:5008",},
     }

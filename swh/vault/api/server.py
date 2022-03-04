@@ -1,17 +1,16 @@
-# Copyright (C) 2016-2020  The Software Heritage developers
+# Copyright (C) 2016-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from __future__ import annotations
 
-import asyncio
 import os
 from typing import Any, Dict, Optional
 
-import aiohttp.web
-
-from swh.core.api.asynchronous import RPCServerApp
+from swh.core.api import RPCServerApp
+from swh.core.api import encode_data_server as encode_data
+from swh.core.api import error_handler
 from swh.core.config import config_basepath, merge_configs, read_raw_config
 from swh.vault import get_vault as get_swhvault
 from swh.vault.backend import NotFoundExc
@@ -24,15 +23,12 @@ DEFAULT_CONFIG = {
     "client_max_size": 1024 ** 3,
 }
 
-vault = None
-app = None
 
-
-def get_vault(config: Optional[Dict[str, Any]] = None) -> VaultInterface:
+def get_vault():
     global vault
     if not vault:
-        assert config is not None
-        vault = get_swhvault(**config)
+        vault = get_swhvault(**app.config["vault"])
+
     return vault
 
 
@@ -42,9 +38,23 @@ class VaultServerApp(RPCServerApp):
     extra_type_encoders = ENCODERS
 
 
-@asyncio.coroutine
-def index(request):
-    return aiohttp.web.Response(body="SWH Vault API server")
+vault = None
+app = VaultServerApp(__name__, backend_class=VaultInterface, backend_factory=get_vault,)
+
+
+@app.errorhandler(NotFoundExc)
+def argument_error_handler(exception):
+    return error_handler(exception, encode_data, status_code=400)
+
+
+@app.errorhandler(Exception)
+def my_error_handler(exception):
+    return error_handler(exception, encode_data)
+
+
+@app.route("/")
+def index():
+    return "SWH Vault API server"
 
 
 def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -83,21 +93,6 @@ def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     return vcfg
 
 
-def make_app(config: Dict[str, Any]) -> VaultServerApp:
-    """Ensure the configuration is ok, then instantiate the server application
-
-    """
-    config = check_config(config)
-    app = VaultServerApp(
-        __name__,
-        backend_class=VaultInterface,
-        backend_factory=lambda: get_vault(config),
-        client_max_size=config["client_max_size"],
-    )
-    app.router.add_route("GET", "/", index)
-    return app
-
-
 def make_app_from_configfile(
     config_path: Optional[str] = None, **kwargs
 ) -> VaultServerApp:
@@ -105,17 +100,14 @@ def make_app_from_configfile(
        application.
 
     """
-    global app
-    if not app:
-        config_path = os.environ.get("SWH_CONFIG_FILENAME", config_path)
-        if not config_path:
-            raise ValueError("Missing configuration path.")
-        if not os.path.isfile(config_path):
-            raise ValueError(f"Configuration path {config_path} should exist.")
+    config_path = os.environ.get("SWH_CONFIG_FILENAME", config_path)
+    if not config_path:
+        raise ValueError("Missing configuration path.")
+    if not os.path.isfile(config_path):
+        raise ValueError(f"Configuration path {config_path} should exist.")
 
-        app_config = read_raw_config(config_basepath(config_path))
-        app_config = merge_configs(DEFAULT_CONFIG, app_config)
-        app = make_app(app_config)
+    app_config = read_raw_config(config_basepath(config_path))
+    app.config.update(merge_configs(DEFAULT_CONFIG, app_config))
 
     return app
 

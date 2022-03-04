@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 pytest_plugins = [
-    "aiohttp.pytest_plugin",
     "swh.storage.pytest_plugin",
     "swh.loader.pytest_plugin",
 ]

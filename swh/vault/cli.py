@@ -165,11 +165,11 @@ def cook(
 @click.pass_context
 def serve(ctx, config_file, host, port, debug):
     """Software Heritage Vault RPC server."""
-    import aiohttp
-
     from swh.vault.api.server import make_app_from_configfile
 
     ctx.ensure_object(dict)
+    if "log_level" in ctx.obj:
+        logging.getLogger("werkzeug").setLevel(ctx.obj["log_level"])
 
     try:
         app = make_app_from_configfile(config_file, debug=debug)
@@ -177,7 +177,7 @@ def serve(ctx, config_file, host, port, debug):
         click.echo(e.msg, err=True)
         ctx.exit(1)
 
-    aiohttp.web.run_app(app, host=host, port=int(port))
+    app.run(host, port=int(port), debug=debug)
 
 
 def main():

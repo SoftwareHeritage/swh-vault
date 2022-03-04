@@ -1,11 +1,10 @@
-# Copyright (C) 2020  The Software Heritage developers
+# Copyright (C) 2020-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import copy
 import os
-from typing import Any, Dict
 
 import pytest
 import yaml
@@ -13,12 +12,7 @@ import yaml
 from swh.core.api.serializers import json_dumps, msgpack_dumps, msgpack_loads
 from swh.vault.api.serializers import ENCODERS
 import swh.vault.api.server
-from swh.vault.api.server import (
-    VaultServerApp,
-    check_config,
-    make_app,
-    make_app_from_configfile,
-)
+from swh.vault.api.server import app, check_config, make_app_from_configfile
 from swh.vault.tests.test_backend import TEST_SWHID
 
 
@@ -43,6 +37,11 @@ def test_make_app_from_env_variable(swh_vault_config_file):
     """
     app = make_app_from_configfile()
     assert app is not None
+    assert "vault" in app.config
+
+    # Cleanup app
+    del app.config["vault"]
+    swh.vault.api.server.vault = None
 
 
 def test_make_app_from_file(swh_local_vault_config, tmp_path):
@@ -55,79 +54,84 @@ def test_make_app_from_file(swh_local_vault_config, tmp_path):
 
     app = make_app_from_configfile(conf_path)
     assert app is not None
+    assert "vault" in app.config
 
-
-@pytest.fixture
-def async_app(swh_local_vault_config: Dict[str, Any],) -> VaultServerApp:
-    """Instantiate the vault server application.
-
-    Note: This requires the db setup to run (fixture swh_vault in charge of this)
-
-    """
-    # make sure a new VaultBackend is instantiated for each test to prevent
-    # side effects between tests
+    # Cleanup app
+    del app.config["vault"]
     swh.vault.api.server.vault = None
-    return make_app(swh_local_vault_config)
 
 
 @pytest.fixture
-def cli(async_app, aiohttp_client, loop):
-    return loop.run_until_complete(aiohttp_client(async_app))
+def vault_app(swh_local_vault_config):
+    # Set app config
+    app.config["vault"] = swh_local_vault_config["vault"]
+
+    yield app
+
+    # Cleanup app
+    del app.config["vault"]
+    swh.vault.api.server.vault = None
 
 
-async def test_client_index(cli):
-    resp = await cli.get("/")
-    assert resp.status == 200
+@pytest.fixture
+def cli(vault_app):
+    cli = vault_app.test_client()
+    return cli
 
 
-async def test_client_cook_notfound(cli):
-    resp = await cli.post(
+def test_client_index(cli):
+    resp = cli.get("/")
+    assert resp.status == "200 OK"
+
+
+def test_client_cook_notfound(cli):
+    resp = cli.post(
         "/cook",
         data=json_dumps(
             {"bundle_type": "flat", "swhid": TEST_SWHID}, extra_encoders=ENCODERS
         ),
         headers=[("Content-Type", "application/json")],
     )
-    assert resp.status == 400
-    content = msgpack_loads(await resp.content.read())
+    assert resp.status == "400 BAD REQUEST"
+    content = msgpack_loads(resp.data)
     assert content["type"] == "NotFoundExc"
     assert content["args"] == [f"flat {TEST_SWHID} was not found."]
 
 
-async def test_client_progress_notfound(cli):
-    resp = await cli.post(
+def test_client_progress_notfound(cli):
+    resp = cli.post(
         "/progress",
         data=json_dumps(
             {"bundle_type": "flat", "swhid": TEST_SWHID}, extra_encoders=ENCODERS
         ),
         headers=[("Content-Type", "application/json")],
     )
-    assert resp.status == 400
-    content = msgpack_loads(await resp.content.read())
+    assert resp.status == "400 BAD REQUEST"
+    content = msgpack_loads(resp.data)
     assert content["type"] == "NotFoundExc"
     assert content["args"] == [f"flat {TEST_SWHID} was not found."]
 
 
-async def test_client_batch_cook_invalid_type(cli):
-    resp = await cli.post(
+def test_client_batch_cook_invalid_type(cli):
+    resp = cli.post(
         "/batch_cook",
         data=msgpack_dumps({"batch": [("foobar", [])]}),
         headers={"Content-Type": "application/x-msgpack"},
     )
-    assert resp.status == 400
-    content = msgpack_loads(await resp.content.read())
+    assert resp.status == "400 BAD REQUEST"
+    content = msgpack_loads(resp.data)
     assert content["type"] == "NotFoundExc"
     assert content["args"] == ["foobar is an unknown type."]
 
 
-async def test_client_batch_progress_notfound(cli):
-    resp = await cli.post(
+def test_client_batch_progress_notfound(cli):
+    resp = cli.post(
         "/batch_progress",
         data=msgpack_dumps({"batch_id": 1}),
         headers={"Content-Type": "application/x-msgpack"},
     )
-    assert resp.status == 400
-    content = msgpack_loads(await resp.content.read())
+    assert resp.status == "400 BAD REQUEST"
+    content = msgpack_loads(resp.data)
     assert content["type"] == "NotFoundExc"
     assert content["args"] == ["Batch 1 does not exist."]
 

@@ -5,6 +5,7 @@
 
 import copy
 import os
+from typing import Any, Dict
 
 import pytest
 import yaml
@@ -12,8 +13,29 @@ import yaml
 from swh.core.api.serializers import json_dumps, msgpack_dumps, msgpack_loads
 from swh.vault.api.serializers import ENCODERS
 import swh.vault.api.server
-from swh.vault.api.server import app, check_config, make_app_from_configfile
+from swh.vault.api.server import app, check_config, get_vault, make_app_from_configfile
 from swh.vault.tests.test_backend import TEST_SWHID
+
+
+@pytest.fixture
+def swh_vault_server_config(swh_vault_config: Dict[str, Any]) -> Dict[str, Any]:
+    """Returns a vault server configuration, with ``storage``, ``scheduler`` and
+    ``cache`` set at the toplevel"""
+    return {
+        "vault": {"cls": "local", "db": swh_vault_config["db"]},
+        "client_max_size": 1024 ** 3,
+        **{k: v for k, v in swh_vault_config.items() if k != "db"},
+    }
+
+
+@pytest.fixture
+def swh_vault_server_config_file(swh_vault_server_config, monkeypatch, tmp_path):
+    """Creates a vault server configuration file and sets it into SWH_CONFIG_FILENAME"""
+    conf_path = os.path.join(str(tmp_path), "vault-server.yml")
+    with open(conf_path, "w") as f:
+        f.write(yaml.dump(swh_vault_server_config))
+    monkeypatch.setenv("SWH_CONFIG_FILENAME", conf_path)
+    return conf_path
 
 
 def test_make_app_from_file_missing():
@@ -31,30 +53,30 @@ def test_make_app_from_file_does_not_exist(tmp_path):
         make_app_from_configfile(conf_path)
 
 
-def test_make_app_from_env_variable(swh_vault_config_file):
+def test_make_app_from_env_variable(swh_vault_server_config_file):
     """Server initialization happens through env variable when no path is provided
 
     """
     app = make_app_from_configfile()
     assert app is not None
-    assert "vault" in app.config
+    assert get_vault() is not None
 
     # Cleanup app
     del app.config["vault"]
     swh.vault.api.server.vault = None
 
 
-def test_make_app_from_file(swh_local_vault_config, tmp_path):
+def test_make_app_from_file(swh_vault_server_config, tmp_path):
     """Server initialization happens through path if provided
 
     """
     conf_path = os.path.join(str(tmp_path), "vault-server.yml")
     with open(conf_path, "w") as f:
-        f.write(yaml.dump(swh_local_vault_config))
+        f.write(yaml.dump(swh_vault_server_config))
 
     app = make_app_from_configfile(conf_path)
     assert app is not None
-    assert "vault" in app.config
+    assert get_vault() is not None
 
     # Cleanup app
     del app.config["vault"]
@@ -62,11 +84,8 @@ def test_make_app_from_file(swh_local_vault_config, tmp_path):
 
 
 @pytest.fixture
-def vault_app(swh_local_vault_config):
-    # Set app config
-    app.config["vault"] = swh_local_vault_config["vault"]
-
-    yield app
+def vault_app(swh_vault_server_config_file):
+    yield make_app_from_configfile()
 
     # Cleanup app
     del app.config["vault"]
@@ -151,20 +170,19 @@ def test_check_config_not_local() -> None:
         check_config({"vault": {"cls": "remote"}})
 
 
+def test_check_config_ok(swh_vault_server_config) -> None:
+    """Check that the default config is accepted"""
+    assert check_config(swh_vault_server_config) is not None
+
+
 @pytest.mark.parametrize("missing_key", ["storage", "cache", "scheduler"])
-def test_check_config_missing_key(missing_key, swh_vault_config) -> None:
-    """Any other configuration than 'local' (the default) is rejected"""
-    config_ok = {"vault": {"cls": "local", **swh_vault_config}}
+def test_check_config_missing_key(missing_key, swh_vault_server_config) -> None:
+    """Check that configs with a missing key get rejected"""
+    config_ok = swh_vault_server_config
     config_ko = copy.deepcopy(config_ok)
     config_ko["vault"].pop(missing_key, None)
+    config_ko.pop(missing_key, None)
 
     expected_error = f"invalid configuration: missing {missing_key} config entry"
     with pytest.raises(ValueError, match=expected_error):
         check_config(config_ko)
-
-
-@pytest.mark.parametrize("missing_key", ["storage", "cache", "scheduler"])
-def test_check_config_ok(missing_key, swh_vault_config) -> None:
-    """Any other configuration than 'local' (the default) is rejected"""
-    config_ok = {"vault": {"cls": "local", **swh_vault_config}}
-    assert check_config(config_ok) is not None

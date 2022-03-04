@@ -107,6 +107,7 @@ def make_app_from_configfile(
         raise ValueError(f"Configuration path {config_path} should exist.")
 
     app_config = read_raw_config(config_basepath(config_path))
+    app_config["vault"] = check_config(app_config)
     app.config.update(merge_configs(DEFAULT_CONFIG, app_config))
 
     return app

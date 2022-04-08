@@ -51,7 +51,8 @@ vault_postgresql_proc = factories.postgresql_proc(
 
 postgres_vault = postgresql_fact("vault_postgresql_proc")
 postgres_storage = postgresql_fact(
-    "storage_postgresql_proc", no_db_drop=True,  # keep the db for performance reasons
+    "storage_postgresql_proc",
+    no_db_drop=True,  # keep the db for performance reasons
 )
 
 
@@ -75,7 +76,10 @@ def swh_vault_config(postgres_vault, postgres_storage, tmp_path) -> Dict[str, An
             "slicing": "0:1/1:5",
             "allow_delete": True,
         },
-        "scheduler": {"cls": "remote", "url": "http://swh-scheduler:5008",},
+        "scheduler": {
+            "cls": "remote",
+            "url": "http://swh-scheduler:5008",
+        },
     }
 
 

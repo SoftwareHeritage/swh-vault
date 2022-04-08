@@ -364,7 +364,10 @@ def test_graph_revisions(
         RootObjects.WEIRD_RELEASE: rel5.swhid(),
     }[root_object]
     cooker = GitBareCooker(
-        cooked_swhid, backend=backend, storage=swh_storage, graph=swh_graph,
+        cooked_swhid,
+        backend=backend,
+        storage=swh_storage,
+        graph=swh_graph,
     )
 
     if weird_branches:
@@ -411,7 +414,9 @@ def test_graph_revisions(
             # The graph has everything, so the first call succeeds and returns
             # all objects transitively pointed by the snapshot
             swh_graph.visit_nodes.assert_has_calls(
-                [unittest.mock.call(str(snp.swhid()), edges="snp:*,rel:*,rev:rev"),]
+                [
+                    unittest.mock.call(str(snp.swhid()), edges="snp:*,rel:*,rev:rev"),
+                ]
             )
         else:
             # The graph does not have everything, so the first call returns nothing.
@@ -507,7 +512,10 @@ def test_checksum_mismatch(swh_storage, mismatch_on):
 
     backend = InMemoryVaultBackend()
     cooker = GitBareCooker(
-        cooked_swhid, backend=backend, storage=swh_storage, graph=None,
+        cooked_swhid,
+        backend=backend,
+        storage=swh_storage,
+        graph=None,
     )
 
     cooker.cook()
@@ -636,14 +644,19 @@ def test_ignore_displayname(swh_storage, use_graph):
 
     # Check the display name did apply in the storage
     assert swh_storage.revision_get([revision.id])[0] == attr.evolve(
-        revision, author=current_person, committer=current_person,
+        revision,
+        author=current_person,
+        committer=current_person,
     )
 
     # Cook
     cooked_swhid = snapshot.swhid()
     backend = InMemoryVaultBackend()
     cooker = GitBareCooker(
-        cooked_swhid, backend=backend, storage=swh_storage, graph=swh_graph,
+        cooked_swhid,
+        backend=backend,
+        storage=swh_storage,
+        graph=swh_graph,
     )
 
     cooker.cook()

@@ -161,10 +161,10 @@ class TestRepo:
 
 
 @pytest.fixture
-def git_loader(swh_storage,):
-    """Instantiate a Git Loader using the storage instance as storage.
-
-    """
+def git_loader(
+    swh_storage,
+):
+    """Instantiate a Git Loader using the storage instance as storage."""
 
     def _create_loader(directory):
         return GitLoaderFromDisk(
@@ -254,7 +254,12 @@ def cook_extract_directory_git_bare(storage, swhid, fsck=True, direct_objstorage
         with tempfile.TemporaryDirectory(prefix="tmp-vault-clone-") as clone_dir:
             clone_dir = pathlib.Path(clone_dir)
             subprocess.check_call(
-                ["git", "clone", os.path.join(td, f"{swhid}.git"), clone_dir,]
+                [
+                    "git",
+                    "clone",
+                    os.path.join(td, f"{swhid}.git"),
+                    clone_dir,
+                ]
             )
             shutil.rmtree(clone_dir / ".git")
             yield clone_dir
@@ -324,7 +329,12 @@ def cook_extract_git_bare(storage, swhid, fsck=True):
         with tempfile.TemporaryDirectory(prefix="tmp-vault-clone-") as clone_dir:
             clone_dir = pathlib.Path(clone_dir)
             subprocess.check_call(
-                ["git", "clone", os.path.join(td, f"{swhid}.git"), clone_dir,]
+                [
+                    "git",
+                    "clone",
+                    os.path.join(td, f"{swhid}.git"),
+                    clone_dir,
+                ]
             )
             test_repo = TestRepo(clone_dir)
             with test_repo:
@@ -333,7 +343,11 @@ def cook_extract_git_bare(storage, swhid, fsck=True):
 
 @contextlib.contextmanager
 def cook_extract_revision_git_bare(storage, swhid, fsck=True):
-    with cook_extract_git_bare(storage, swhid, fsck=fsck,) as res:
+    with cook_extract_git_bare(
+        storage,
+        swhid,
+        fsck=fsck,
+    ) as res:
         yield res
 
 
@@ -349,12 +363,17 @@ def cook_extract_revision(request):
 
 @contextlib.contextmanager
 def cook_extract_snapshot_git_bare(storage, swhid, fsck=True):
-    with cook_extract_git_bare(storage, swhid, fsck=fsck,) as res:
+    with cook_extract_git_bare(
+        storage,
+        swhid,
+        fsck=fsck,
+    ) as res:
         yield res
 
 
 @pytest.fixture(
-    scope="module", params=[cook_extract_snapshot_git_bare],
+    scope="module",
+    params=[cook_extract_snapshot_git_bare],
 )
 def cook_extract_snapshot(request):
     """Equivalent to cook_extract_snapshot_git_bare; but analogous to
@@ -1003,7 +1022,10 @@ class TestRevisionCooker(RepoFixtures):
         dir = Directory(
             entries=(
                 DirectoryEntry(
-                    name=b"submodule", type="rev", target=target_rev.id, perms=0o160000,
+                    name=b"submodule",
+                    type="rev",
+                    target=target_rev.id,
+                    perms=0o160000,
                 ),
             ),
         )

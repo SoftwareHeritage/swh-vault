@@ -23,7 +23,7 @@ def swh_vault_server_config(swh_vault_config: Dict[str, Any]) -> Dict[str, Any]:
     ``cache`` set at the toplevel"""
     return {
         "vault": {"cls": "local", "db": swh_vault_config["db"]},
-        "client_max_size": 1024 ** 3,
+        "client_max_size": 1024**3,
         **{k: v for k, v in swh_vault_config.items() if k != "db"},
     }
 
@@ -54,9 +54,7 @@ def test_make_app_from_file_does_not_exist(tmp_path):
 
 
 def test_make_app_from_env_variable(swh_vault_server_config_file):
-    """Server initialization happens through env variable when no path is provided
-
-    """
+    """Server initialization happens through env variable when no path is provided"""
     app = make_app_from_configfile()
     assert app is not None
     assert get_vault() is not None
@@ -67,9 +65,7 @@ def test_make_app_from_env_variable(swh_vault_server_config_file):
 
 
 def test_make_app_from_file(swh_vault_server_config, tmp_path):
-    """Server initialization happens through path if provided
-
-    """
+    """Server initialization happens through path if provided"""
     conf_path = os.path.join(str(tmp_path), "vault-server.yml")
     with open(conf_path, "w") as f:
         f.write(yaml.dump(swh_vault_server_config))

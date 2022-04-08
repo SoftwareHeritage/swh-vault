@@ -20,7 +20,7 @@ from .serializers import DECODERS, ENCODERS
 
 # do not define default services here
 DEFAULT_CONFIG = {
-    "client_max_size": 1024 ** 3,
+    "client_max_size": 1024**3,
 }
 
 
@@ -39,7 +39,11 @@ class VaultServerApp(RPCServerApp):
 
 
 vault = None
-app = VaultServerApp(__name__, backend_class=VaultInterface, backend_factory=get_vault,)
+app = VaultServerApp(
+    __name__,
+    backend_class=VaultInterface,
+    backend_factory=get_vault,
+)
 
 
 @app.errorhandler(NotFoundExc)
@@ -97,7 +101,7 @@ def make_app_from_configfile(
     config_path: Optional[str] = None, **kwargs
 ) -> VaultServerApp:
     """Load and check configuration if ok, then instantiate (once) a vault server
-       application.
+    application.
 
     """
     config_path = os.environ.get("SWH_CONFIG_FILENAME", config_path)

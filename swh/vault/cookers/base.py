@@ -14,7 +14,7 @@ from psycopg2.extensions import QueryCanceledError
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.interface import StorageInterface
 
-MAX_BUNDLE_SIZE = 2 ** 29  # 512 MiB
+MAX_BUNDLE_SIZE = 2**29  # 512 MiB
 DEFAULT_CONFIG_PATH = "vault/cooker"
 DEFAULT_CONFIG = {
     "max_bundle_size": ("int", MAX_BUNDLE_SIZE),
@@ -122,8 +122,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         self.fileobj.write(chunk)
 
     def cook(self):
-        """Cook the requested object into a bundle
-        """
+        """Cook the requested object into a bundle"""
         self.backend.set_status(self.BUNDLE_TYPE, self.swhid, "pending")
         self.backend.set_progress(self.BUNDLE_TYPE, self.swhid, "Processing...")
 

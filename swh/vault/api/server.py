@@ -33,7 +33,6 @@ def get_vault():
 
 
 class VaultServerApp(RPCServerApp):
-    client_exception_classes = (NotFoundExc,)
     extra_type_decoders = DECODERS
     extra_type_encoders = ENCODERS
 

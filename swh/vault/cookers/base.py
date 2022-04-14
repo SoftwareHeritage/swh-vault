@@ -10,6 +10,7 @@ import traceback
 from typing import ClassVar, Set
 
 from psycopg2.extensions import QueryCanceledError
+import sentry_sdk
 
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.interface import StorageInterface
@@ -151,6 +152,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
                 f"The full error was:\n\n{tb}",
             )
             logging.exception("Bundle cooking failed.")
+            sentry_sdk.capture_exception()
         else:
             self.backend.set_status(self.BUNDLE_TYPE, self.swhid, "done")
             self.backend.set_progress(self.BUNDLE_TYPE, self.swhid, None)

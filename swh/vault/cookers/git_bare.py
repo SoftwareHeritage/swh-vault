@@ -42,6 +42,8 @@ import tempfile
 from typing import Any, Dict, Iterable, Iterator, List, NoReturn, Optional, Set, Tuple
 import zlib
 
+import sentry_sdk
+
 from swh.core.api.classes import stream_results_optional
 from swh.model import git_objects
 from swh.model.hashutil import hash_to_bytehex, hash_to_hex
@@ -210,6 +212,7 @@ class GitBareCooker(BaseVaultCooker):
             subprocess.run(["git", "-C", self.gitdir, "repack", "-d"], check=True)
         except subprocess.CalledProcessError:
             logging.exception("git-repack failed with:")
+            sentry_sdk.capture_exception()
 
         # Remove their non-packed originals
         subprocess.run(["git", "-C", self.gitdir, "prune-packed"], check=True)

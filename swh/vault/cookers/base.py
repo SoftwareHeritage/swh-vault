@@ -12,6 +12,7 @@ from typing import ClassVar, Set
 from psycopg2.extensions import QueryCanceledError
 import sentry_sdk
 
+import swh.model.swhids
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.interface import StorageInterface
 
@@ -61,7 +62,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     - def cook(): cook the object into a bundle
     """
 
-    SUPPORTED_OBJECT_TYPES: ClassVar[Set[ObjectType]]
+    SUPPORTED_OBJECT_TYPES: ClassVar[Set[swh.model.swhids.ObjectType]]
     BUNDLE_TYPE: ClassVar[str]
 
     def __init__(

@@ -11,7 +11,7 @@ import pkg_resources.extern.packaging.version
 import pytest
 from pytest_postgresql import factories
 
-from swh.core.db.pytest_plugin import initialize_database_for_module, postgresql_fact
+from swh.core.db.pytest_plugin import initialize_database_for_module
 from swh.vault import get_vault
 from swh.vault.backend import VaultBackend
 
@@ -35,13 +35,12 @@ if pytest_v < pkg_resources.extern.packaging.version.parse("3.9"):
 
 
 vault_postgresql_proc = factories.postgresql_proc(
-    dbname="vault",
     load=[
         partial(initialize_database_for_module, "vault", VaultBackend.current_version)
     ],
 )
 
-postgres_vault = postgresql_fact("vault_postgresql_proc")
+postgres_vault = factories.postgresql("vault_postgresql_proc")
 
 
 @pytest.fixture

@@ -24,7 +24,7 @@ import pytest
 from pytest import param
 from pytest_postgresql import factories
 
-from swh.core.db.pytest_plugin import initialize_database_for_module, postgresql_fact
+from swh.core.db.pytest_plugin import initialize_database_for_module
 from swh.model.from_disk import DentryPerms
 from swh.model.model import (
     Content,
@@ -47,7 +47,6 @@ from swh.vault.cookers.git_bare import GitBareCooker
 from swh.vault.in_memory_backend import InMemoryVaultBackend
 
 storage_postgresql_proc = factories.postgresql_proc(
-    dbname="storage",
     load=[
         partial(
             initialize_database_for_module, "storage", StorageBackend.current_version
@@ -55,7 +54,7 @@ storage_postgresql_proc = factories.postgresql_proc(
     ],
 )
 
-storage_postgresql = postgresql_fact("storage_postgresql_proc", no_db_drop=True)
+storage_postgresql = factories.postgresql("storage_postgresql_proc")
 
 
 @pytest.fixture

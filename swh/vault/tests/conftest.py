@@ -1,4 +1,4 @@
-# Copyright (C) 2020  The Software Heritage developers
+# Copyright (C) 2020-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,7 +12,6 @@ import pytest
 from pytest_postgresql import factories
 
 from swh.core.db.pytest_plugin import initialize_database_for_module, postgresql_fact
-from swh.storage.postgresql.db import Db as StorageDb
 from swh.vault import get_vault
 from swh.vault.backend import VaultBackend
 
@@ -35,13 +34,6 @@ if pytest_v < pkg_resources.extern.packaging.version.parse("3.9"):
             yield pathlib.Path(tmpdir)
 
 
-storage_postgresql_proc = factories.postgresql_proc(
-    dbname="storage",
-    load=[
-        partial(initialize_database_for_module, "storage", StorageDb.current_version)
-    ],
-)
-
 vault_postgresql_proc = factories.postgresql_proc(
     dbname="vault",
     load=[
@@ -50,25 +42,15 @@ vault_postgresql_proc = factories.postgresql_proc(
 )
 
 postgres_vault = postgresql_fact("vault_postgresql_proc")
-postgres_storage = postgresql_fact(
-    "storage_postgresql_proc",
-    no_db_drop=True,  # keep the db for performance reasons
-)
 
 
 @pytest.fixture
-def swh_vault_config(postgres_vault, postgres_storage, tmp_path) -> Dict[str, Any]:
+def swh_vault_config(postgres_vault, tmp_path) -> Dict[str, Any]:
     tmp_path = str(tmp_path)
     return {
         "db": postgres_vault.dsn,
         "storage": {
-            "cls": "postgresql",
-            "db": postgres_storage.dsn,
-            "objstorage": {
-                "cls": "pathslicing",
-                "root": tmp_path,
-                "slicing": "0:1/1:5",
-            },
+            "cls": "memory",
         },
         "cache": {
             "cls": "pathslicing",

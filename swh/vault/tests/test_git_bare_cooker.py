@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,6 +11,7 @@ run on the bare cooker.
 
 import datetime
 import enum
+from functools import partial
 import io
 import subprocess
 import tarfile
@@ -21,7 +22,9 @@ import attr
 import dulwich.repo
 import pytest
 from pytest import param
+from pytest_postgresql import factories
 
+from swh.core.db.pytest_plugin import initialize_database_for_module, postgresql_fact
 from swh.model.from_disk import DentryPerms
 from swh.model.model import (
     Content,
@@ -38,8 +41,26 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
+from swh.storage import get_storage
+from swh.storage.postgresql.db import Db as StorageBackend
 from swh.vault.cookers.git_bare import GitBareCooker
 from swh.vault.in_memory_backend import InMemoryVaultBackend
+
+storage_postgresql_proc = factories.postgresql_proc(
+    dbname="storage",
+    load=[
+        partial(
+            initialize_database_for_module, "storage", StorageBackend.current_version
+        )
+    ],
+)
+
+storage_postgresql = postgresql_fact("storage_postgresql_proc", no_db_drop=True)
+
+
+@pytest.fixture
+def swh_storage(storage_postgresql):
+    return get_storage("local", db=storage_postgresql.dsn, objstorage={"cls": "memory"})
 
 
 class RootObjects(enum.Enum):

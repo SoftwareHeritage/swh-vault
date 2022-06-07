@@ -42,16 +42,12 @@ from swh.model.model import (
     TimestampWithTimezone,
 )
 from swh.storage import get_storage
-from swh.storage.postgresql.db import Db as StorageBackend
+from swh.storage.postgresql.storage import Storage
 from swh.vault.cookers.git_bare import GitBareCooker
 from swh.vault.in_memory_backend import InMemoryVaultBackend
 
 storage_postgresql_proc = factories.postgresql_proc(
-    load=[
-        partial(
-            initialize_database_for_module, "storage", StorageBackend.current_version
-        )
-    ],
+    load=[partial(initialize_database_for_module, "storage", Storage.current_version)],
 )
 
 storage_postgresql = factories.postgresql("storage_postgresql_proc")

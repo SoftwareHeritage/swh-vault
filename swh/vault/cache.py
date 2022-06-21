@@ -31,10 +31,6 @@ class VaultCache:
         sid = self._get_internal_id(bundle_type, swhid)
         return self.objstorage.delete(hashutil.hash_to_bytes(sid))
 
-    def get_stream(self, bundle_type, swhid: CoreSWHID):
-        sid = self._get_internal_id(bundle_type, swhid)
-        return self.objstorage.get_stream(hashutil.hash_to_bytes(sid))
-
     def is_cached(self, bundle_type, swhid: CoreSWHID):
         sid = self._get_internal_id(bundle_type, swhid)
         return hashutil.hash_to_bytes(sid) in self.objstorage

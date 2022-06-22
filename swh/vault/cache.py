@@ -19,11 +19,11 @@ class VaultCache:
     def __init__(self, **objstorage):
         self.objstorage = get_objstorage(**objstorage)
 
-    def add(self, bundle_type, swhid: CoreSWHID, content):
+    def add(self, bundle_type, swhid: CoreSWHID, content) -> None:
         sid = self._get_internal_id(bundle_type, swhid)
-        return self.objstorage.add(content, sid)
+        self.objstorage.add(content, sid)
 
-    def get(self, bundle_type, swhid: CoreSWHID):
+    def get(self, bundle_type, swhid: CoreSWHID) -> bytes:
         sid = self._get_internal_id(bundle_type, swhid)
         return self.objstorage.get(hashutil.hash_to_bytes(sid))
 
@@ -31,11 +31,7 @@ class VaultCache:
         sid = self._get_internal_id(bundle_type, swhid)
         return self.objstorage.delete(hashutil.hash_to_bytes(sid))
 
-    def get_stream(self, bundle_type, swhid: CoreSWHID):
-        sid = self._get_internal_id(bundle_type, swhid)
-        return self.objstorage.get_stream(hashutil.hash_to_bytes(sid))
-
-    def is_cached(self, bundle_type, swhid: CoreSWHID):
+    def is_cached(self, bundle_type, swhid: CoreSWHID) -> bool:
         sid = self._get_internal_id(bundle_type, swhid)
         return hashutil.hash_to_bytes(sid) in self.objstorage
 

@@ -10,11 +10,13 @@ import traceback
 from typing import ClassVar, Set
 
 from psycopg2.extensions import QueryCanceledError
+import sentry_sdk
 
+import swh.model.swhids
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.interface import StorageInterface
 
-MAX_BUNDLE_SIZE = 2 ** 29  # 512 MiB
+MAX_BUNDLE_SIZE = 2**29  # 512 MiB
 DEFAULT_CONFIG_PATH = "vault/cooker"
 DEFAULT_CONFIG = {
     "max_bundle_size": ("int", MAX_BUNDLE_SIZE),
@@ -60,7 +62,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
     - def cook(): cook the object into a bundle
     """
 
-    SUPPORTED_OBJECT_TYPES: ClassVar[Set[ObjectType]]
+    SUPPORTED_OBJECT_TYPES: ClassVar[Set[swh.model.swhids.ObjectType]]
     BUNDLE_TYPE: ClassVar[str]
 
     def __init__(
@@ -122,8 +124,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         self.fileobj.write(chunk)
 
     def cook(self):
-        """Cook the requested object into a bundle
-        """
+        """Cook the requested object into a bundle"""
         self.backend.set_status(self.BUNDLE_TYPE, self.swhid, "pending")
         self.backend.set_progress(self.BUNDLE_TYPE, self.swhid, "Processing...")
 
@@ -152,6 +153,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
                 f"The full error was:\n\n{tb}",
             )
             logging.exception("Bundle cooking failed.")
+            sentry_sdk.capture_exception()
         else:
             self.backend.set_status(self.BUNDLE_TYPE, self.swhid, "done")
             self.backend.set_progress(self.BUNDLE_TYPE, self.swhid, None)

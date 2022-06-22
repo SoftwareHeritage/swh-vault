@@ -69,8 +69,7 @@ def apply_chunked(func, input_list, chunk_size):
 
 
 class DirectoryBuilder:
-    """Reconstructs the on-disk representation of a directory in the storage.
-    """
+    """Reconstructs the on-disk representation of a directory in the storage."""
 
     def __init__(self, storage, root, dir_id):
         """Initialize the directory builder.

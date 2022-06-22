@@ -30,7 +30,10 @@ def test_get_filtered_files_content(swh_storage):
             "sha1_git": content.sha1_git,
             "target": content.sha1_git,
         },
-        {"status": "absent", "target": skipped_content.sha1_git,},
+        {
+            "status": "absent",
+            "target": skipped_content.sha1_git,
+        },
     ]
 
     res = list(get_filtered_files_content(swh_storage, files_data))
@@ -65,7 +68,10 @@ def test_get_filtered_files_content__unknown_status(swh_storage):
             "sha1_git": content.sha1_git,
             "target": content.sha1_git,
         },
-        {"status": None, "target": b"c" * 20,},
+        {
+            "status": None,
+            "target": b"c" * 20,
+        },
     ]
 
     with pytest.raises(AssertionError, match="unexpected status None"):

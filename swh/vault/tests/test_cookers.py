@@ -17,6 +17,7 @@ import tempfile
 import unittest
 import unittest.mock
 
+import attrs
 import dulwich.fastexport
 import dulwich.index
 import dulwich.objects
@@ -31,6 +32,7 @@ from swh.model.model import (
     Release,
     Revision,
     RevisionType,
+    SkippedContent,
     Snapshot,
     SnapshotBranch,
     TargetType,
@@ -161,10 +163,10 @@ class TestRepo:
 
 
 @pytest.fixture
-def git_loader(swh_storage,):
-    """Instantiate a Git Loader using the storage instance as storage.
-
-    """
+def git_loader(
+    swh_storage,
+):
+    """Instantiate a Git Loader using the storage instance as storage."""
 
     def _create_loader(directory):
         return GitLoaderFromDisk(
@@ -254,7 +256,12 @@ def cook_extract_directory_git_bare(storage, swhid, fsck=True, direct_objstorage
         with tempfile.TemporaryDirectory(prefix="tmp-vault-clone-") as clone_dir:
             clone_dir = pathlib.Path(clone_dir)
             subprocess.check_call(
-                ["git", "clone", os.path.join(td, f"{swhid}.git"), clone_dir,]
+                [
+                    "git",
+                    "clone",
+                    os.path.join(td, f"{swhid}.git"),
+                    clone_dir,
+                ]
             )
             shutil.rmtree(clone_dir / ".git")
             yield clone_dir
@@ -324,7 +331,12 @@ def cook_extract_git_bare(storage, swhid, fsck=True):
         with tempfile.TemporaryDirectory(prefix="tmp-vault-clone-") as clone_dir:
             clone_dir = pathlib.Path(clone_dir)
             subprocess.check_call(
-                ["git", "clone", os.path.join(td, f"{swhid}.git"), clone_dir,]
+                [
+                    "git",
+                    "clone",
+                    os.path.join(td, f"{swhid}.git"),
+                    clone_dir,
+                ]
             )
             test_repo = TestRepo(clone_dir)
             with test_repo:
@@ -333,7 +345,11 @@ def cook_extract_git_bare(storage, swhid, fsck=True):
 
 @contextlib.contextmanager
 def cook_extract_revision_git_bare(storage, swhid, fsck=True):
-    with cook_extract_git_bare(storage, swhid, fsck=fsck,) as res:
+    with cook_extract_git_bare(
+        storage,
+        swhid,
+        fsck=fsck,
+    ) as res:
         yield res
 
 
@@ -349,12 +365,17 @@ def cook_extract_revision(request):
 
 @contextlib.contextmanager
 def cook_extract_snapshot_git_bare(storage, swhid, fsck=True):
-    with cook_extract_git_bare(storage, swhid, fsck=fsck,) as res:
+    with cook_extract_git_bare(
+        storage,
+        swhid,
+        fsck=fsck,
+    ) as res:
         yield res
 
 
 @pytest.fixture(
-    scope="module", params=[cook_extract_snapshot_git_bare],
+    scope="module",
+    params=[cook_extract_snapshot_git_bare],
 )
 def cook_extract_snapshot(request):
     """Equivalent to cook_extract_snapshot_git_bare; but analogous to
@@ -418,32 +439,25 @@ class TestDirectoryCooker:
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
             swhid = CoreSWHID(object_type=ObjectType.DIRECTORY, object_id=obj_id)
 
-        # FIXME: storage.content_update() should be changed to allow things
-        # like that
-        with loader.storage.get_db().transaction() as cur:
-            cur.execute(
-                """update content set status = 'visible'
-                           where sha1 = %s""",
-                (id_1,),
-            )
-            cur.execute(
-                """update content set status = 'hidden'
-                           where sha1 = %s""",
-                (id_2,),
-            )
+        # alter the content of the storage
+        # 1/ make file 2 an hidden file object
+        loader.storage._allow_overwrite = True
+        cnt2 = attrs.evolve(
+            loader.storage.content_get([id_2])[0], status="hidden", data=file_2
+        )
+        loader.storage.content_add([cnt2])
+        assert loader.storage.content_get([id_2])[0].status == "hidden"
 
-            cur.execute(
-                """
-                insert into skipped_content
-                    (sha1, sha1_git, sha256, blake2s256, length, reason)
-                select sha1, sha1_git, sha256, blake2s256, length, 'no reason'
-                from content
-                where sha1 = %s
-                """,
-                (id_3,),
-            )
-
-            cur.execute("delete from content where sha1 = %s", (id_3,))
+        # 2/ make file 3 an skipped file object
+        cnt3 = loader.storage.content_get([id_3])[0].to_dict()
+        cnt3["status"] = "absent"
+        cnt3["reason"] = "no reason"
+        sk_cnt3 = SkippedContent.from_dict(cnt3)
+        loader.storage.skipped_content_add([sk_cnt3])
+        # dirty dirty dirty... let's pretend it is the equivalent of writing sql
+        # queries in the postgresql backend
+        for hashkey in loader.storage._cql_runner._content_indexes:
+            loader.storage._cql_runner._content_indexes[hashkey].pop(cnt3[hashkey])
 
         with cook_extract_directory(loader.storage, swhid) as p:
             assert (p / "file").read_bytes() == b"test1"
@@ -809,32 +823,26 @@ class RepoFixtures:
             loader = git_loader(str(rp))
             loader.load()
 
-        # FIXME: storage.content_update() should be changed to allow things
-        # like that
-        with loader.storage.get_db().transaction() as cur:
-            cur.execute(
-                """update content set status = 'visible'
-                           where sha1 = %s""",
-                (id_1,),
-            )
-            cur.execute(
-                """update content set status = 'hidden'
-                           where sha1 = %s""",
-                (id_2,),
-            )
+        # alter the content of the storage
+        # 1/ make file 2 an hidden file object
+        loader.storage._allow_overwrite = True
+        cnt2 = attrs.evolve(
+            loader.storage.content_get([id_2])[0], status="hidden", data=file_2
+        )
+        loader.storage.content_add([cnt2])
+        assert loader.storage.content_get([id_2])[0].status == "hidden"
 
-            cur.execute(
-                """
-                insert into skipped_content
-                    (sha1, sha1_git, sha256, blake2s256, length, reason)
-                select sha1, sha1_git, sha256, blake2s256, length, 'no reason'
-                from content
-                where sha1 = %s
-                """,
-                (id_3,),
-            )
+        # 2/ make file 3 an skipped file object
+        cnt3 = loader.storage.content_get([id_3])[0].to_dict()
+        cnt3["status"] = "absent"
+        cnt3["reason"] = "no reason"
+        sk_cnt3 = SkippedContent.from_dict(cnt3)
+        loader.storage.skipped_content_add([sk_cnt3])
+        # dirty dirty dirty... let's pretend it is the equivalent of writing sql
+        # queries in the postgresql backend
+        for hashkey in loader.storage._cql_runner._content_indexes:
+            loader.storage._cql_runner._content_indexes[hashkey].pop(cnt3[hashkey])
 
-            cur.execute("delete from content where sha1 = %s", (id_3,))
         return (loader, swhid)
 
     def check_revision_filtered_objects(self, ert, p, swhid):
@@ -1003,7 +1011,10 @@ class TestRevisionCooker(RepoFixtures):
         dir = Directory(
             entries=(
                 DirectoryEntry(
-                    name=b"submodule", type="rev", target=target_rev.id, perms=0o160000,
+                    name=b"submodule",
+                    type="rev",
+                    target=target_rev.id,
+                    perms=0o160000,
                 ),
             ),
         )

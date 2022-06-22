@@ -12,7 +12,7 @@ from swh.vault.to_disk import DirectoryBuilder
 
 
 class DirectoryCooker(BaseVaultCooker):
-    """Cooker to create a directory bundle """
+    """Cooker to create a directory bundle"""
 
     BUNDLE_TYPE = "flat"
     SUPPORTED_OBJECT_TYPES = {ObjectType.DIRECTORY}

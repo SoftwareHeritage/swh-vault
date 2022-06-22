@@ -45,7 +45,10 @@ def test_cook_unknown_cooker():
 
 @pytest.mark.parametrize(
     "bundle_type,cooker_name_suffix,swhid_type",
-    [("directory", "", "dir"), ("revision", "gitfast", "rev"),],
+    [
+        ("directory", "", "dir"),
+        ("revision", "gitfast", "rev"),
+    ],
 )
 def test_cook_directory(bundle_type, cooker_name_suffix, swhid_type, mocker):
     storage = object()
@@ -83,7 +86,8 @@ def test_cook_directory(bundle_type, cooker_name_suffix, swhid_type, mocker):
             )
         else:
             result = runner.invoke(
-                vault_cli_group, ["cook", str(swhid), "-", "-C", config_fd.name],
+                vault_cli_group,
+                ["cook", str(swhid), "-", "-C", config_fd.name],
             )
 
     if result.exception is not None:

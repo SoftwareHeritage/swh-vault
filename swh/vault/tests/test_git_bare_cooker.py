@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,6 +11,7 @@ run on the bare cooker.
 
 import datetime
 import enum
+from functools import partial
 import io
 import subprocess
 import tarfile
@@ -21,7 +22,9 @@ import attr
 import dulwich.repo
 import pytest
 from pytest import param
+from pytest_postgresql import factories
 
+from swh.core.db.pytest_plugin import initialize_database_for_module
 from swh.model.from_disk import DentryPerms
 from swh.model.model import (
     Content,
@@ -38,8 +41,21 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
+from swh.storage import get_storage
+from swh.storage.postgresql.storage import Storage
 from swh.vault.cookers.git_bare import GitBareCooker
 from swh.vault.in_memory_backend import InMemoryVaultBackend
+
+storage_postgresql_proc = factories.postgresql_proc(
+    load=[partial(initialize_database_for_module, "storage", Storage.current_version)],
+)
+
+storage_postgresql = factories.postgresql("storage_postgresql_proc")
+
+
+@pytest.fixture
+def swh_storage(storage_postgresql):
+    return get_storage("local", db=storage_postgresql.dsn, objstorage={"cls": "memory"})
 
 
 class RootObjects(enum.Enum):
@@ -364,7 +380,10 @@ def test_graph_revisions(
         RootObjects.WEIRD_RELEASE: rel5.swhid(),
     }[root_object]
     cooker = GitBareCooker(
-        cooked_swhid, backend=backend, storage=swh_storage, graph=swh_graph,
+        cooked_swhid,
+        backend=backend,
+        storage=swh_storage,
+        graph=swh_graph,
     )
 
     if weird_branches:
@@ -411,7 +430,9 @@ def test_graph_revisions(
             # The graph has everything, so the first call succeeds and returns
             # all objects transitively pointed by the snapshot
             swh_graph.visit_nodes.assert_has_calls(
-                [unittest.mock.call(str(snp.swhid()), edges="snp:*,rel:*,rev:rev"),]
+                [
+                    unittest.mock.call(str(snp.swhid()), edges="snp:*,rel:*,rev:rev"),
+                ]
             )
         else:
             # The graph does not have everything, so the first call returns nothing.
@@ -507,7 +528,10 @@ def test_checksum_mismatch(swh_storage, mismatch_on):
 
     backend = InMemoryVaultBackend()
     cooker = GitBareCooker(
-        cooked_swhid, backend=backend, storage=swh_storage, graph=None,
+        cooked_swhid,
+        backend=backend,
+        storage=swh_storage,
+        graph=None,
     )
 
     cooker.cook()
@@ -636,14 +660,19 @@ def test_ignore_displayname(swh_storage, use_graph):
 
     # Check the display name did apply in the storage
     assert swh_storage.revision_get([revision.id])[0] == attr.evolve(
-        revision, author=current_person, committer=current_person,
+        revision,
+        author=current_person,
+        committer=current_person,
     )
 
     # Cook
     cooked_swhid = snapshot.swhid()
     backend = InMemoryVaultBackend()
     cooker = GitBareCooker(
-        cooked_swhid, backend=backend, storage=swh_storage, graph=swh_graph,
+        cooked_swhid,
+        backend=backend,
+        storage=swh_storage,
+        graph=swh_graph,
     )
 
     cooker.cook()

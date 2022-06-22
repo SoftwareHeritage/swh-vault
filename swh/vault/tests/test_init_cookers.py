@@ -28,7 +28,7 @@ def swh_cooker_config():
 
 def write_config_to_env(config: Dict, tmp_path, monkeypatch) -> str:
     """Write the configuration dict into a temporary file, then reference that path to
-       SWH_CONFIG_FILENAME environment variable.
+    SWH_CONFIG_FILENAME environment variable.
 
     """
     conf_path = os.path.join(str(tmp_path), "cooker.yml")
@@ -68,9 +68,7 @@ def test_write_to_env(swh_cooker_config, tmp_path, monkeypatch):
 def test_get_cooker_config_ko(
     config_ko, exception_class, exception_msg, monkeypatch, tmp_path
 ):
-    """Misconfigured cooker should fail the instantiation with exception message
-
-    """
+    """Misconfigured cooker should fail the instantiation with exception message"""
     write_config_to_env(config_ko, tmp_path, monkeypatch)
 
     with pytest.raises(exception_class, match=exception_msg):
@@ -90,19 +88,25 @@ def test_get_cooker_config_ko(
             }
         },
         {
-            "vault": {"cls": "remote", "args": {"url": "mock://vault-backend",},},
+            "vault": {
+                "cls": "remote",
+                "args": {
+                    "url": "mock://vault-backend",
+                },
+            },
             "storage": {"cls": "remote", "url": "mock://storage-url"},
         },
         {
-            "vault": {"cls": "remote", "url": "mock://vault-backend",},
+            "vault": {
+                "cls": "remote",
+                "url": "mock://vault-backend",
+            },
             "storage": {"cls": "remote", "url": "mock://storage-url"},
         },
     ],
 )
 def test_get_cooker_nominal(config_ok, tmp_path, monkeypatch):
-    """Correct configuration should allow the instantiation of the cookers
-
-    """
+    """Correct configuration should allow the instantiation of the cookers"""
     for cooker_type in COOKER_TYPES.keys():
         write_config_to_env(config_ok, tmp_path, monkeypatch)
 

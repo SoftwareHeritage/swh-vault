@@ -27,7 +27,7 @@ class VaultInterface(Protocol):
         self, bundle_type: str, swhid: CoreSWHID, email: Optional[str] = None
     ) -> Dict[str, Any]:
         """Main entry point for cooking requests. This starts a cooking task if
-            needed, and add the given e-mail to the notify list"""
+        needed, and add the given e-mail to the notify list"""
         ...
 
     @remote_api_endpoint("progress")

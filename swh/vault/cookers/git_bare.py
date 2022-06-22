@@ -42,6 +42,8 @@ import tempfile
 from typing import Any, Dict, Iterable, Iterator, List, NoReturn, Optional, Set, Tuple
 import zlib
 
+import sentry_sdk
+
 from swh.core.api.classes import stream_results_optional
 from swh.model import git_objects
 from swh.model.hashutil import hash_to_bytehex, hash_to_hex
@@ -210,6 +212,7 @@ class GitBareCooker(BaseVaultCooker):
             subprocess.run(["git", "-C", self.gitdir, "repack", "-d"], check=True)
         except subprocess.CalledProcessError:
             logging.exception("git-repack failed with:")
+            sentry_sdk.capture_exception()
 
         # Remove their non-packed originals
         subprocess.run(["git", "-C", self.gitdir, "prune-packed"], check=True)
@@ -276,7 +279,7 @@ class GitBareCooker(BaseVaultCooker):
         elif self.obj_type == RootObjectType.RELEASE:
             (release,) = self.storage.release_get([self.obj_id])
 
-            if release.name and re.match(br"^[a-zA-Z0-9_.-]+$", release.name):
+            if release.name and re.match(rb"^[a-zA-Z0-9_.-]+$", release.name):
                 release_name = release.name
             else:
                 release_name = b"release"
@@ -426,7 +429,10 @@ class GitBareCooker(BaseVaultCooker):
 
             # First, try to cook using swh-graph, as it is more efficient than
             # swh-storage for querying the history
-            obj_swhid = CoreSWHID(object_type=ObjectType.REVISION, object_id=obj_id,)
+            obj_swhid = CoreSWHID(
+                object_type=ObjectType.REVISION,
+                object_id=obj_id,
+            )
             try:
                 revision_ids = (
                     swhid.object_id
@@ -480,7 +486,10 @@ class GitBareCooker(BaseVaultCooker):
 
             # First, try to cook using swh-graph, as it is more efficient than
             # swh-storage for querying the history
-            obj_swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=obj_id,)
+            obj_swhid = CoreSWHID(
+                object_type=ObjectType.SNAPSHOT,
+                object_id=obj_id,
+            )
             try:
                 swhids: Iterable[CoreSWHID] = map(
                     CoreSWHID.from_string,

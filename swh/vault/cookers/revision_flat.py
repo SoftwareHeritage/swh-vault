@@ -15,7 +15,7 @@ from swh.vault.to_disk import DirectoryBuilder
 
 
 class RevisionFlatCooker(BaseVaultCooker):
-    """Cooker to create a revision_flat bundle """
+    """Cooker to create a revision_flat bundle"""
 
     BUNDLE_TYPE = "flat"
     SUPPORTED_OBJECT_TYPES = {ObjectType.REVISION}

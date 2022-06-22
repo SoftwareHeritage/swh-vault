@@ -1,12 +1,13 @@
-# Copyright (C) 2020  The Software Heritage developers
+# Copyright (C) 2020-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import pytest
 
-from swh.model.model import Content, SkippedContent
-from swh.vault.to_disk import get_filtered_files_content
+from swh.model.from_disk import DentryPerms
+from swh.model.model import Content, Directory, DirectoryEntry, SkippedContent
+from swh.vault.to_disk import DirectoryBuilder, get_filtered_files_content
 
 
 def test_get_filtered_files_content(swh_storage):
@@ -76,3 +77,58 @@ def test_get_filtered_files_content__unknown_status(swh_storage):
 
     with pytest.raises(AssertionError, match="unexpected status None"):
         list(get_filtered_files_content(swh_storage, files_data))
+
+
+def test_directory_builder(swh_storage, tmp_path):
+    cnt1 = Content.from_data(b"foo bar")
+    cnt2 = Content.from_data(b"bar baz")
+    cnt3 = Content.from_data(b"baz qux")
+    dir1 = Directory(
+        entries=(
+            DirectoryEntry(
+                name=b"content1",
+                type="file",
+                target=cnt1.sha1_git,
+                perms=DentryPerms.content,
+            ),
+            DirectoryEntry(
+                name=b"content2",
+                type="file",
+                target=cnt2.sha1_git,
+                perms=DentryPerms.content,
+            ),
+        )
+    )
+    dir2 = Directory(
+        entries=(
+            DirectoryEntry(
+                name=b"content3",
+                type="file",
+                target=cnt3.sha1_git,
+                perms=DentryPerms.content,
+            ),
+            DirectoryEntry(
+                name=b"subdirectory",
+                type="dir",
+                target=dir1.id,
+                perms=DentryPerms.directory,
+            ),
+        )
+    )
+    swh_storage.content_add([cnt1, cnt2, cnt3])
+    swh_storage.directory_add([dir1, dir2])
+
+    root = tmp_path / "root"
+    builder = DirectoryBuilder(swh_storage, bytes(root), dir2.id)
+
+    assert not root.exists()
+
+    builder.build()
+
+    assert root.is_dir()
+    assert set(root.glob("**/*")) == {
+        root / "subdirectory",
+        root / "subdirectory" / "content1",
+        root / "subdirectory" / "content2",
+        root / "content3",
+    }

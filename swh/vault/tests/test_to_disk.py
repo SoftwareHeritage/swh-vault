@@ -79,7 +79,7 @@ def test_get_filtered_files_content__unknown_status(swh_storage):
         list(get_filtered_files_content(swh_storage, files_data))
 
 
-def _fill_storage(swh_storage, exclude_cnt3=False):
+def _fill_storage(swh_storage, exclude_cnt3=False, exclude_dir1=False):
     cnt1 = Content.from_data(b"foo bar")
     cnt2 = Content.from_data(b"bar baz")
     cnt3 = Content.from_data(b"baz qux")
@@ -119,7 +119,10 @@ def _fill_storage(swh_storage, exclude_cnt3=False):
         swh_storage.content_add([cnt1, cnt2])
     else:
         swh_storage.content_add([cnt1, cnt2, cnt3])
-    swh_storage.directory_add([dir1, dir2])
+    if exclude_dir1:
+        swh_storage.directory_add([dir2])
+    else:
+        swh_storage.directory_add([dir1, dir2])
 
     return dir2
 
@@ -160,3 +163,22 @@ def test_directory_builder_missing_content(swh_storage, tmp_path):
     assert root.is_dir()
 
     assert "This content is missing" in (root / "content3").open().read()
+
+
+def test_directory_builder_missing_directory(swh_storage, tmp_path):
+    dir2 = _fill_storage(swh_storage, exclude_dir1=True)
+
+    root = tmp_path / "root"
+    builder = DirectoryBuilder(swh_storage, bytes(root), dir2.id)
+
+    assert not root.exists()
+
+    builder.build()
+
+    assert root.is_dir()
+    assert set(root.glob("**/*")) == {
+        root / "subdirectory",
+        root / "content3",
+    }
+
+    assert (root / "content3").open().read() == "baz qux"

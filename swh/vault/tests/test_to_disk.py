@@ -70,16 +70,16 @@ def test_get_filtered_files_content__unknown_status(swh_storage):
             "target": content.sha1_git,
         },
         {
-            "status": None,
+            "status": "blah",
             "target": b"c" * 20,
         },
     ]
 
-    with pytest.raises(AssertionError, match="unexpected status None"):
+    with pytest.raises(AssertionError, match="unexpected status 'blah'"):
         list(get_filtered_files_content(swh_storage, files_data))
 
 
-def test_directory_builder(swh_storage, tmp_path):
+def _fill_storage(swh_storage, exclude_cnt3=False):
     cnt1 = Content.from_data(b"foo bar")
     cnt2 = Content.from_data(b"bar baz")
     cnt3 = Content.from_data(b"baz qux")
@@ -115,8 +115,17 @@ def test_directory_builder(swh_storage, tmp_path):
             ),
         )
     )
-    swh_storage.content_add([cnt1, cnt2, cnt3])
+    if exclude_cnt3:
+        swh_storage.content_add([cnt1, cnt2])
+    else:
+        swh_storage.content_add([cnt1, cnt2, cnt3])
     swh_storage.directory_add([dir1, dir2])
+
+    return dir2
+
+
+def test_directory_builder(swh_storage, tmp_path):
+    dir2 = _fill_storage(swh_storage)
 
     root = tmp_path / "root"
     builder = DirectoryBuilder(swh_storage, bytes(root), dir2.id)
@@ -132,3 +141,22 @@ def test_directory_builder(swh_storage, tmp_path):
         root / "subdirectory" / "content2",
         root / "content3",
     }
+
+    assert (root / "subdirectory" / "content1").open().read() == "foo bar"
+    assert (root / "subdirectory" / "content2").open().read() == "bar baz"
+    assert (root / "content3").open().read() == "baz qux"
+
+
+def test_directory_builder_missing_content(swh_storage, tmp_path):
+    dir2 = _fill_storage(swh_storage, exclude_cnt3=True)
+
+    root = tmp_path / "root"
+    builder = DirectoryBuilder(swh_storage, bytes(root), dir2.id)
+
+    assert not root.exists()
+
+    builder.build()
+
+    assert root.is_dir()
+
+    assert "This content is missing" in (root / "content3").open().read()

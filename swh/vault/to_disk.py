@@ -13,6 +13,11 @@ from swh.model.from_disk import DentryPerms, mode_to_perms
 from swh.storage.algos.dir_iterators import dir_iterator
 from swh.storage.interface import StorageInterface
 
+MISSING_MESSAGE = (
+    b"This content is missing from the Software Heritage archive "
+    b"(or from the mirror used while retrieving it)."
+)
+
 SKIPPED_MESSAGE = (
     b"This content has not been retrieved in the "
     b"Software Heritage archive due to its size."
@@ -42,17 +47,19 @@ def get_filtered_files_content(
     """
     for file_data in files_data:
         status = file_data["status"]
-        if status == "absent":
-            content = SKIPPED_MESSAGE
-        elif status == "hidden":
-            content = HIDDEN_MESSAGE
-        elif status == "visible":
+        if status == "visible":
             sha1 = file_data["sha1"]
             data = storage.content_get_data(sha1)
             if data is None:
                 content = SKIPPED_MESSAGE
             else:
                 content = data
+        elif status == "absent":
+            content = SKIPPED_MESSAGE
+        elif status == "hidden":
+            content = HIDDEN_MESSAGE
+        elif status is None:
+            content = MISSING_MESSAGE
         else:
             assert False, (
                 f"unexpected status {status!r} "

@@ -1,10 +1,9 @@
-# Copyright (C) 2017  The Software Heritage developers
+# Copyright (C) 2017-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 
-from swh.model import hashutil
 from swh.model.swhids import CoreSWHID
 
 TEST_TYPE_1 = "revision_gitfast"
@@ -28,7 +27,7 @@ TEST_CONTENT_2 = b"test content 2"
 
 def test_internal_id(swh_vault):
     sid = swh_vault.cache._get_internal_id(TEST_TYPE_1, TEST_SWHID_1)
-    assert hashutil.hash_to_hex(sid) == "ec2a99d6b21a68648a9d0c99c5d7c35f69268564"
+    assert sid["sha1"].hex() == "ec2a99d6b21a68648a9d0c99c5d7c35f69268564"
 
 
 def test_simple_add_get(swh_vault):

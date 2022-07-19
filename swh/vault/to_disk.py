@@ -130,7 +130,7 @@ class DirectoryBuilder:
         identifier."""
         for file_data in revs_data:
             path = os.path.join(self.root, file_data["path"])
-            target = hashutil.hash_to_hex(file_data["target"])
+            target = hashutil.hash_to_bytehex(file_data["target"])
             self._create_file(path, target, mode=DentryPerms.symlink)
 
     def _create_file(

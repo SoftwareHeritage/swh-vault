@@ -22,7 +22,7 @@ def swh_vault_server_config(swh_vault_config: Dict[str, Any]) -> Dict[str, Any]:
     """Returns a vault server configuration, with ``storage``, ``scheduler`` and
     ``cache`` set at the toplevel"""
     return {
-        "vault": {"cls": "local", "db": swh_vault_config["db"]},
+        "vault": {"cls": "postgresql", "db": swh_vault_config["db"]},
         "client_max_size": 1024**3,
         **{k: v for k, v in swh_vault_config.items() if k != "db"},
     }
@@ -160,14 +160,17 @@ def test_check_config_missing_vault_configuration() -> None:
 def test_check_config_not_local() -> None:
     """Wrong configuration raises"""
     expected_error = (
-        "The vault backend can only be started with a 'local' configuration"
+        "The vault backend can only be started with a 'postgresql' configuration"
     )
     with pytest.raises(EnvironmentError, match=expected_error):
         check_config({"vault": {"cls": "remote"}})
 
 
-def test_check_config_ok(swh_vault_server_config) -> None:
+@pytest.mark.parametrize("clazz", ["local", "postgresql"])
+def test_check_config_ok(swh_vault_server_config, clazz) -> None:
     """Check that the default config is accepted"""
+    config = swh_vault_server_config.copy()
+    config["vault"]["cls"] = clazz
     assert check_config(swh_vault_server_config) is not None
 
 

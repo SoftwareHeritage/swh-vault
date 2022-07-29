@@ -61,15 +61,16 @@ def index():
 
 
 def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    """Ensure the configuration is ok to run a local vault server, and propagate defaults.
+    """Ensure the configuration is ok to run a postgresql vault server, and propagate
+    defaults.
 
     Raises:
-        EnvironmentError if the configuration is not for local instance
+        EnvironmentError if the configuration is not for postgresql instance
         ValueError if one of the following keys is missing: vault, cache, storage,
         scheduler
 
     Returns:
-        New configuration dict to instantiate a local vault server instance.
+        New configuration dict to instantiate a postgresql vault server instance.
 
     """
     cfg = cfg.copy()
@@ -78,9 +79,9 @@ def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("missing 'vault' configuration")
 
     vcfg = cfg["vault"]
-    if vcfg["cls"] != "local":
+    if vcfg["cls"] not in ("local", "postgresql"):
         raise EnvironmentError(
-            "The vault backend can only be started with a 'local' configuration",
+            "The vault backend can only be started with a 'postgresql' configuration",
         )
 
     # TODO: Soft-deprecation of args key. Remove when ready.

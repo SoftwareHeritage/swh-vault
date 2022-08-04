@@ -17,7 +17,7 @@ import tempfile
 import unittest
 import unittest.mock
 
-import attrs
+import attr
 import dulwich.fastexport
 import dulwich.index
 import dulwich.objects
@@ -442,7 +442,7 @@ class TestDirectoryCooker:
         # alter the content of the storage
         # 1/ make file 2 an hidden file object
         loader.storage._allow_overwrite = True
-        cnt2 = attrs.evolve(
+        cnt2 = attr.evolve(
             loader.storage.content_get([id_2])[0], status="hidden", data=file_2
         )
         loader.storage.content_add([cnt2])
@@ -826,7 +826,7 @@ class RepoFixtures:
         # alter the content of the storage
         # 1/ make file 2 an hidden file object
         loader.storage._allow_overwrite = True
-        cnt2 = attrs.evolve(
+        cnt2 = attr.evolve(
             loader.storage.content_get([id_2])[0], status="hidden", data=file_2
         )
         loader.storage.content_add([cnt2])

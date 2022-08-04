@@ -10,7 +10,12 @@ import click
 import click.testing
 import pytest
 
+from swh.core.cli.db import db as swhdb
+from swh.core.db import BaseDb
+from swh.core.db.db_utils import swh_db_module, swh_db_version
+from swh.core.db.tests.test_cli import craft_conninfo
 from swh.model.swhids import CoreSWHID
+from swh.vault.backend import VaultBackend
 from swh.vault.cli import vault as vault_cli_group
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.in_memory_backend import InMemoryVaultBackend
@@ -104,3 +109,52 @@ def test_cook_directory(bundle_type, cooker_name_suffix, swhid_type, mocker):
     cooker.cook.assert_called_once_with()
 
     assert result.stdout_bytes == b"bundle content"
+
+
+def test_cli_swh_vault_db_create_and_init_db(postgresql, tmp_path):
+    """Test that 'swh db init vault' works"""
+    module_name = "vault"
+    conninfo = craft_conninfo(postgresql, "new-db")
+
+    cfgfile = tmp_path / "config.yml"
+    CFG = f"""
+vault:
+  cls: postgresql
+  db: {conninfo}
+  cache:
+    cls: memory
+  storage:
+    cls: memory
+  scheduler:
+    cls: remote
+    url: mock://scheduler
+    """
+    cfgfile.write_text(CFG)
+
+    cli_runner = click.testing.CliRunner()
+    # This creates the db and installs the necessary admin extensions
+    result = cli_runner.invoke(swhdb, ["create", module_name, "--dbname", conninfo])
+    assert result.exit_code == 0, f"Unexpected output: {result.output}"
+
+    result = cli_runner.invoke(swhdb, ["init-admin", module_name, "--dbname", conninfo])
+    assert result.exit_code == 0, f"Unexpected output: {result.output}"
+
+    # This initializes the schema and data
+    result = cli_runner.invoke(swhdb, ["-C", cfgfile, "init", module_name])
+    assert result.exit_code == 0, f"Unexpected output: {result.output}"
+
+    assert swh_db_module(conninfo) == "vault"
+    assert swh_db_version(conninfo) == VaultBackend.current_version
+
+    with BaseDb.connect(conninfo).cursor() as cur:
+        cur.execute("select tablename from pg_tables where schemaname='public'")
+        tables = {table for table, in cur.fetchall()}
+
+    assert tables == {
+        "dbmodule",
+        "dbversion",
+        "vault_bundle",
+        "vault_notif_email",
+        "vault_batch",
+        "vault_batch_bundle",
+    }

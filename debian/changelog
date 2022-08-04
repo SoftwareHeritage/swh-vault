@@ -1,3 +1,11 @@
+swh-vault (1.7.1-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.7.1     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2022-08-04 15:50:00 +0200)
+  * Upstream changes:     - v1.7.1
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 04 Aug 2022 13:56:27 +0000
+
 swh-vault (1.7.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.7.0     - (tagged by Nicolas Dandrimont

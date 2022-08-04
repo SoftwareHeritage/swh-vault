@@ -13,6 +13,11 @@ from swh.model.from_disk import DentryPerms, mode_to_perms
 from swh.storage.algos.dir_iterators import dir_iterator
 from swh.storage.interface import StorageInterface
 
+MISSING_MESSAGE = (
+    b"This content is missing from the Software Heritage archive "
+    b"(or from the mirror used while retrieving it)."
+)
+
 SKIPPED_MESSAGE = (
     b"This content has not been retrieved in the "
     b"Software Heritage archive due to its size."
@@ -42,17 +47,19 @@ def get_filtered_files_content(
     """
     for file_data in files_data:
         status = file_data["status"]
-        if status == "absent":
-            content = SKIPPED_MESSAGE
-        elif status == "hidden":
-            content = HIDDEN_MESSAGE
-        elif status == "visible":
+        if status == "visible":
             sha1 = file_data["sha1"]
             data = storage.content_get_data(sha1)
             if data is None:
                 content = SKIPPED_MESSAGE
             else:
                 content = data
+        elif status == "absent":
+            content = SKIPPED_MESSAGE
+        elif status == "hidden":
+            content = HIDDEN_MESSAGE
+        elif status is None:
+            content = MISSING_MESSAGE
         else:
             assert False, (
                 f"unexpected status {status!r} "
@@ -69,10 +76,9 @@ def apply_chunked(func, input_list, chunk_size):
 
 
 class DirectoryBuilder:
-    """Reconstructs the on-disk representation of a directory in the storage.
-    """
+    """Reconstructs the on-disk representation of a directory in the storage."""
 
-    def __init__(self, storage, root, dir_id):
+    def __init__(self, storage: StorageInterface, root: bytes, dir_id: bytes):
         """Initialize the directory builder.
 
         Args:
@@ -84,7 +90,7 @@ class DirectoryBuilder:
         self.root = root
         self.dir_id = dir_id
 
-    def build(self):
+    def build(self) -> None:
         """Perform the reconstruction of the directory in the given root."""
         # Retrieve data from the database.
         # Split into files, revisions and directory data.
@@ -97,7 +103,7 @@ class DirectoryBuilder:
         self._create_files(entries["file"])
         self._create_revisions(entries["rev"])
 
-    def _create_tree(self, directories):
+    def _create_tree(self, directories: List[Dict[str, Any]]) -> None:
         """Create a directory tree from the given paths
 
         The tree is created from `root` and each given directory in
@@ -110,7 +116,7 @@ class DirectoryBuilder:
         for dir in directories:
             os.makedirs(os.path.join(self.root, dir["path"]))
 
-    def _create_files(self, files_data):
+    def _create_files(self, files_data: List[Dict[str, Any]]) -> None:
         """Create the files in the tree and fetch their contents."""
         f = functools.partial(get_filtered_files_content, self.storage)
         files_data = apply_chunked(f, files_data, 1000)
@@ -119,15 +125,17 @@ class DirectoryBuilder:
             path = os.path.join(self.root, file_data["path"])
             self._create_file(path, file_data["content"], file_data["perms"])
 
-    def _create_revisions(self, revs_data):
+    def _create_revisions(self, revs_data: List[Dict[str, Any]]) -> None:
         """Create the revisions in the tree as broken symlinks to the target
         identifier."""
         for file_data in revs_data:
             path = os.path.join(self.root, file_data["path"])
-            target = hashutil.hash_to_hex(file_data["target"])
+            target = hashutil.hash_to_bytehex(file_data["target"])
             self._create_file(path, target, mode=DentryPerms.symlink)
 
-    def _create_file(self, path, content, mode=DentryPerms.content):
+    def _create_file(
+        self, path: bytes, content: bytes, mode: int = DentryPerms.content
+    ) -> None:
         """Create the given file and fill it with content."""
         perms = mode_to_perms(mode)
         if perms == DentryPerms.symlink:

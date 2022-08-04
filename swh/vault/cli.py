@@ -46,7 +46,10 @@ def vault(ctx):
     "-C",
     default=None,
     metavar="CONFIGFILE",
-    type=click.Path(exists=True, dir_okay=False,),
+    type=click.Path(
+        exists=True,
+        dir_okay=False,
+    ),
     help="Configuration file.",
 )
 @click.argument("swhid", type=SwhidParamType())
@@ -95,7 +98,10 @@ def cook(
     backend = InMemoryVaultBackend()
 
     if bundle_type is None:
-        if swhid.object_type in (ObjectType.RELEASE, ObjectType.SNAPSHOT,):
+        if swhid.object_type in (
+            ObjectType.RELEASE,
+            ObjectType.SNAPSHOT,
+        ):
             bundle_type = "git_bare"
         elif swhid.object_type in (ObjectType.DIRECTORY,):
             bundle_type = "flat"
@@ -140,7 +146,10 @@ def cook(
     "-C",
     default=None,
     metavar="CONFIGFILE",
-    type=click.Path(exists=True, dir_okay=False,),
+    type=click.Path(
+        exists=True,
+        dir_okay=False,
+    ),
     help="Configuration file.",
 )
 @click.option(

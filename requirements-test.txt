@@ -1,9 +1,10 @@
-pytest < 7.0.0  # v7.0.0 removed _pytest.tmpdir.TempdirFactory, which is used by some of the pytest plugins we use
+attrs
 dulwich >= 0.18.7
+pytest
+pytest-mock
 swh.loader.core
 swh.loader.git >= 0.8
 swh.storage[testing]
-pytest-mock
 types-click
 types-python-dateutil
 types-pyyaml

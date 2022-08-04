@@ -1,8 +1,9 @@
 click
+fastimport
 flask
 psycopg2
 python-dateutil
-fastimport
+sentry-sdk
 typing-extensions
 swh.core[db,http]>=2
 swh.model>=3.0.0
@@ -14,12 +15,13 @@ swh.storage>=0.43.1
 swh.graph>=0.3.2
 
 [testing]
-pytest<7.0.0
+attrs
 dulwich>=0.18.7
+pytest
+pytest-mock
 swh.loader.core
 swh.loader.git>=0.8
 swh.storage[testing]
-pytest-mock
 types-click
 types-python-dateutil
 types-pyyaml

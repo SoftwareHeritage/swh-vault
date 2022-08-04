@@ -26,7 +26,7 @@ from swh.vault.to_disk import get_filtered_files_content
 
 
 class RevisionGitfastCooker(BaseVaultCooker):
-    """Cooker to create a git fast-import bundle """
+    """Cooker to create a git fast-import bundle"""
 
     BUNDLE_TYPE = "gitfast"
     SUPPORTED_OBJECT_TYPES = {ObjectType.REVISION}
@@ -45,8 +45,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
         super().write(self.gzobj.compress(chunk))
 
     def fastexport(self):
-        """Generate all the git fast-import commands from a given log.
-        """
+        """Generate all the git fast-import commands from a given log."""
         self.rev_by_id = {r["id"]: r for r in self.log}
         self.obj_done = set()
         self.obj_to_mark = {}
@@ -105,8 +104,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
         return author_tuple + date_tuple
 
     def _compute_commit_command(self, rev):
-        """Compute a commit command from a specific revision.
-        """
+        """Compute a commit command from a specific revision."""
         if "parents" in rev and rev["parents"]:
             from_ = b":" + self.mark(rev["parents"][0])
             merges = [b":" + self.mark(r) for r in rev["parents"][1:]]

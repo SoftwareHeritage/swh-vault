@@ -5,11 +5,13 @@
 
 import collections
 from email.mime.text import MIMEText
+import logging
 import smtplib
 from typing import Any, Dict, List, Optional, Tuple
 
 import psycopg2.extras
 import psycopg2.pool
+import sentry_sdk
 
 from swh.core.db import BaseDb
 from swh.core.db.common import db_transaction
@@ -21,6 +23,7 @@ from swh.vault.cache import VaultCache
 from swh.vault.cookers import COOKER_TYPES, get_cooker_cls
 from swh.vault.exc import NotFoundExc
 
+logger = logging.getLogger(__name__)
 cooking_task_name = "swh.vault.cooking_tasks.SWHCookingTask"
 
 NOTIF_EMAIL_FROM = '"Software Heritage Vault" ' "<bot@softwareheritage.org>"
@@ -75,7 +78,6 @@ class VaultBackend:
         self.cache = VaultCache(**config["cache"])
         self.scheduler = get_scheduler(**config["scheduler"])
         self.storage = get_storage(**config["storage"])
-        self.smtp_server = smtplib.SMTP(**config.get("smtp", {}))
 
         if "db" not in self.config:
             raise ValueError(
@@ -487,16 +489,29 @@ class VaultBackend:
             )
 
     def _smtp_send(self, msg: MIMEText):
-        # Reconnect if needed
+        smtp_server = smtplib.SMTP(**self.config.get("smtp", {}))
         try:
-            status = self.smtp_server.noop()[0]
+            status = smtp_server.noop()[0]
         except smtplib.SMTPException:
             status = -1
         if status != 250:
-            self.smtp_server.connect("localhost", 25)
-
-        # Send the message
-        self.smtp_server.send_message(msg)
+            error_message = (
+                f"Unable to send SMTP message '{msg['Subject']}' to "
+                f"{msg['To']}: cannot connect to server"
+            )
+            logger.error(error_message)
+            sentry_sdk.capture_message(error_message, "error")
+        else:
+            try:
+                # Send the message
+                smtp_server.send_message(msg)
+            except smtplib.SMTPException as exc:
+                logger.exception(exc)
+                error_message = (
+                    f"Unable to send SMTP message '{msg['Subject']}' to "
+                    f"{msg['To']}: {exc}"
+                )
+                sentry_sdk.capture_message(error_message, "error")
 
     @db_transaction()
     def _cache_expire(self, cond, *args, db=None, cur=None) -> None:

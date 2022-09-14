@@ -695,7 +695,7 @@ class GitBareCooker(BaseVaultCooker):
         else:
             contents_and_data = zip(
                 visible_contents,
-                self.objstorage.get_batch(c.sha1 for c in visible_contents),
+                self.objstorage.get_batch(c.hashes() for c in visible_contents),
             )
 
         for (content, datum) in contents_and_data:

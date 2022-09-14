@@ -1,8 +1,11 @@
-swh-vault (1.7.2-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-vault (1.8.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.8.0     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2022-09-14 17:29:32 +0200)
+  * Upstream changes:     - v1.8.0     - add support for swh-objstorage
+    v2     - make smtp config optional
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 04 Aug 2022 14:44:27 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 14 Sep 2022 15:35:01 +0000
 
 swh-vault (1.7.2-1~swh1) unstable-swh; urgency=medium
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2017  The Software Heritage developers
+# Copyright (C) 2016-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,7 +6,7 @@
 from swh.model import hashutil
 from swh.model.swhids import CoreSWHID
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.objstorage import compute_hash
+from swh.objstorage.interface import ObjId
 
 
 class VaultCache:
@@ -25,15 +25,16 @@ class VaultCache:
 
     def get(self, bundle_type, swhid: CoreSWHID) -> bytes:
         sid = self._get_internal_id(bundle_type, swhid)
-        return self.objstorage.get(hashutil.hash_to_bytes(sid))
+        return self.objstorage.get(sid)
 
     def delete(self, bundle_type, swhid: CoreSWHID):
         sid = self._get_internal_id(bundle_type, swhid)
-        return self.objstorage.delete(hashutil.hash_to_bytes(sid))
+        return self.objstorage.delete(sid)
 
     def is_cached(self, bundle_type, swhid: CoreSWHID) -> bool:
         sid = self._get_internal_id(bundle_type, swhid)
-        return hashutil.hash_to_bytes(sid) in self.objstorage
+        return sid in self.objstorage
 
-    def _get_internal_id(self, bundle_type, swhid: CoreSWHID):
-        return compute_hash("{}:{}".format(bundle_type, swhid).encode())
+    def _get_internal_id(self, bundle_type, swhid: CoreSWHID) -> ObjId:
+        key = "{}:{}".format(bundle_type, swhid).encode()
+        return hashutil.MultiHash.from_data(key).digest()

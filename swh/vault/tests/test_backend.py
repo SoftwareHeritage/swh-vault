@@ -5,12 +5,15 @@
 
 import contextlib
 import datetime
+import re
+import smtplib
 from unittest.mock import MagicMock, patch
 
 import attr
 import psycopg2
 import pytest
 
+from swh.core.sentry import init_sentry
 from swh.model.model import Content
 from swh.model.swhids import CoreSWHID
 from swh.vault.exc import NotFoundExc
@@ -212,10 +215,10 @@ def test_send_all_emails(swh_vault):
 
     swh_vault.set_status(TEST_TYPE, TEST_SWHID, "done")
 
-    with patch.object(swh_vault, "smtp_server") as m:
+    with patch.object(swh_vault, "_smtp_send") as m:
         swh_vault.send_notif(TEST_TYPE, TEST_SWHID)
 
-        sent_emails = {k[0][0] for k in m.send_message.call_args_list}
+        sent_emails = {k[0][0] for k in m.call_args_list}
         assert {k["To"] for k in sent_emails} == set(emails)
 
         for e in sent_emails:
@@ -232,6 +235,64 @@ def test_send_all_emails(swh_vault):
         m.reset_mock()
         swh_vault.send_notif(TEST_TYPE, TEST_SWHID)
         m.assert_not_called()
+
+
+def test_send_email_error_no_smtp(swh_vault):
+    reports = []
+    init_sentry("http://example.org", extra_kwargs={"transport": reports.append})
+
+    emails = ("a@example.com", "billg@example.com", "test+42@example.org")
+    with mock_cooking(swh_vault):
+        for email in emails:
+            swh_vault.cook(TEST_TYPE, TEST_SWHID, email=email)
+    swh_vault.set_status(TEST_TYPE, TEST_SWHID, "done")
+    swh_vault.send_notif(TEST_TYPE, TEST_SWHID)
+
+    assert len(reports) == 6
+    for i, email in enumerate(emails):
+        # first report is the logger.error
+        assert reports[2 * i]["level"] == "error"
+        assert reports[2 * i]["logger"] == "swh.vault.backend"
+        reg = re.compile(
+            "Unable to send SMTP message 'Bundle ready: gitfast [0-9a-f]{7}' "
+            f"to {email.replace('+', '[+]')}: cannot connect to server"
+        )
+        assert reg.match(reports[2 * i]["logentry"]["message"])
+        # second is the sentry_sdk.capture_message
+        assert reports[2 * i + 1]["level"] == "error"
+        assert reg.match(reports[2 * i + 1]["message"])
+
+
+def test_send_email_error_send_failed(swh_vault):
+    reports = []
+    init_sentry("http://example.org", extra_kwargs={"transport": reports.append})
+
+    emails = ("a@example.com", "billg@example.com", "test+42@example.org")
+    with mock_cooking(swh_vault):
+        for email in emails:
+            swh_vault.cook(TEST_TYPE, TEST_SWHID, email=email)
+    swh_vault.set_status(TEST_TYPE, TEST_SWHID, "done")
+
+    with patch("smtplib.SMTP") as MockSMTP:
+        smtp = MockSMTP.return_value
+        smtp.noop.return_value = [250]
+        smtp.send_message.side_effect = smtplib.SMTPHeloError(404, "HELO Failed")
+
+        swh_vault.send_notif(TEST_TYPE, TEST_SWHID)
+
+    assert len(reports) == 4
+    # first one is the captured exception
+    assert reports[0]["level"] == "error"
+    assert reports[0]["exception"]["values"][0]["type"] == "SMTPHeloError"
+
+    # the following 3 ones are the sentry_sdk.capture_message() calls
+    for i, email in enumerate(emails, start=1):
+        assert reports[i]["level"] == "error"
+        reg = re.compile(
+            "Unable to send SMTP message 'Bundle ready: gitfast [0-9a-f]{7}' "
+            f"to {email.replace('+', '[+]')}: [(]404, 'HELO Failed'[)]"
+        )
+        assert reg.match(reports[i]["message"])
 
 
 def test_available(swh_vault):
@@ -327,10 +388,10 @@ def test_send_failure_email(swh_vault):
     swh_vault.set_status(TEST_TYPE, TEST_SWHID, "failed")
     swh_vault.set_progress(TEST_TYPE, TEST_SWHID, "test error")
 
-    with patch.object(swh_vault, "smtp_server") as m:
+    with patch.object(swh_vault, "_smtp_send") as m:
         swh_vault.send_notif(TEST_TYPE, TEST_SWHID)
 
-        e = [k[0][0] for k in m.send_message.call_args_list][0]
+        e = [k[0][0] for k in m.call_args_list][0]
         assert e["To"] == "a@example.com"
 
         assert "bot@softwareheritage.org" in e["From"]

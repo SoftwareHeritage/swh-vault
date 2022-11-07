@@ -451,7 +451,7 @@ class VaultBackend:
         #   the table
         # * use this url for the notification e-mail
         url = "https://archive.softwareheritage.org/api/1/vault/{}/{}/" "raw".format(
-            bundle_type, swhid
+            bundle_type.replace("_", "-"), swhid
         )
 
         if status == "done":

@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2020  The Software Heritage developers
+# Copyright (C) 2017-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -62,7 +62,7 @@ def fail_cook(backend, bundle_type, swhid, failure_reason):
     backend.set_progress(bundle_type, swhid, failure_reason)
 
 
-TEST_TYPE = "gitfast"
+TEST_TYPE = "git_bare"
 TEST_SWHID = CoreSWHID.from_string("swh:1:rev:4a4b9771542143cf070386f86b4b92d42966bdbc")
 TEST_PROGRESS = (
     "Mr. White, You're telling me you're cooking again? \N{ASTONISHED FACE} "
@@ -221,12 +221,17 @@ def test_send_all_emails(swh_vault):
         sent_emails = {k[0][0] for k in m.call_args_list}
         assert {k["To"] for k in sent_emails} == set(emails)
 
+        download_url = (
+            "https://archive.softwareheritage.org/api/1/vault/"
+            f"{TEST_TYPE.replace('_', '-')}/{str(TEST_SWHID)}/raw"
+        )
+
         for e in sent_emails:
             assert "bot@softwareheritage.org" in e["From"]
             assert TEST_TYPE in e["Subject"]
             assert TEST_SWHID.object_id.hex()[:5] in e["Subject"]
             assert TEST_TYPE in str(e)
-            assert "https://archive.softwareheritage.org/" in str(e)
+            assert download_url in str(e)
             assert TEST_SWHID.object_id.hex()[:5] in str(e)
             assert "--\x20\n" in str(e)  # Well-formated signature!!!
 
@@ -254,7 +259,7 @@ def test_send_email_error_no_smtp(swh_vault):
         assert reports[2 * i]["level"] == "error"
         assert reports[2 * i]["logger"] == "swh.vault.backend"
         reg = re.compile(
-            "Unable to send SMTP message 'Bundle ready: gitfast [0-9a-f]{7}' "
+            f"Unable to send SMTP message 'Bundle ready: {TEST_TYPE} [0-9a-f]{{7}}' "
             f"to {email.replace('+', '[+]')}: cannot connect to server"
         )
         assert reg.match(reports[2 * i]["logentry"]["message"])
@@ -289,7 +294,7 @@ def test_send_email_error_send_failed(swh_vault):
     for i, email in enumerate(emails, start=1):
         assert reports[i]["level"] == "error"
         reg = re.compile(
-            "Unable to send SMTP message 'Bundle ready: gitfast [0-9a-f]{7}' "
+            f"Unable to send SMTP message 'Bundle ready: {TEST_TYPE} [0-9a-f]{{7}}' "
             f"to {email.replace('+', '[+]')}: [(]404, 'HELO Failed'[)]"
         )
         assert reg.match(reports[i]["message"])

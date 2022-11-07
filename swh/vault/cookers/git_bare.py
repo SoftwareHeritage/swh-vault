@@ -291,7 +291,7 @@ class GitBareCooker(BaseVaultCooker):
             if release.target_type.value == ModelObjectType.REVISION:
                 # Not necessary, but makes it easier to browse
                 refs[b"ref/heads/master"] = hash_to_bytehex(release.target)
-            # TODO: synthetize a master branch for other target types
+            # TODO: synthesize a master branch for other target types
 
         elif self.obj_type == RootObjectType.SNAPSHOT:
             if snapshot is None:

@@ -492,26 +492,32 @@ class VaultBackend:
         smtp_server = smtplib.SMTP(**self.config.get("smtp", {}))
         try:
             status = smtp_server.noop()[0]
-        except smtplib.SMTPException:
-            status = -1
-        if status != 250:
+        except smtplib.SMTPException as e:
             error_message = (
                 f"Unable to send SMTP message '{msg['Subject']}' to "
-                f"{msg['To']}: cannot connect to server"
+                f"{msg['To']}: cannot connect to server ({e})"
             )
             logger.error(error_message)
             sentry_sdk.capture_message(error_message, "error")
         else:
-            try:
-                # Send the message
-                smtp_server.send_message(msg)
-            except smtplib.SMTPException as exc:
-                logger.exception(exc)
+            if status != 250:
                 error_message = (
                     f"Unable to send SMTP message '{msg['Subject']}' to "
-                    f"{msg['To']}: {exc}"
+                    f"{msg['To']}: server returned status {status}"
                 )
+                logger.error(error_message)
                 sentry_sdk.capture_message(error_message, "error")
+            else:
+                try:
+                    # Send the message
+                    smtp_server.send_message(msg)
+                except smtplib.SMTPException as exc:
+                    logger.exception(exc)
+                    error_message = (
+                        f"Unable to send SMTP message '{msg['Subject']}' to "
+                        f"{msg['To']}: {exc}"
+                    )
+                    sentry_sdk.capture_message(error_message, "error")
 
     @db_transaction()
     def _cache_expire(self, cond, *args, db=None, cur=None) -> None:

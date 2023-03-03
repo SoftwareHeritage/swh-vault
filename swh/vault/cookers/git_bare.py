@@ -39,7 +39,18 @@ import re
 import subprocess
 import tarfile
 import tempfile
-from typing import Any, Dict, Iterable, Iterator, List, NoReturn, Optional, Set, Tuple
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    NoReturn,
+    Optional,
+    Set,
+    Tuple,
+    cast,
+)
 import zlib
 
 import sentry_sdk
@@ -63,6 +74,7 @@ from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
 from swh.storage.algos.snapshot import snapshot_get_all_branches
+from swh.storage.interface import HashDict
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE
 
@@ -690,7 +702,10 @@ class GitBareCooker(BaseVaultCooker):
         contents_and_data: Iterator[Tuple[Content, Optional[bytes]]]
         if self.objstorage is None:
             contents_and_data = (
-                (content, self.storage.content_get_data(content.sha1))
+                (
+                    content,
+                    self.storage.content_get_data(cast(HashDict, content.hashes())),
+                )
                 for content in visible_contents
             )
         else:

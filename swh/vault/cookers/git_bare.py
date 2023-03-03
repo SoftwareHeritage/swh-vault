@@ -425,7 +425,7 @@ class GitBareCooker(BaseVaultCooker):
         loaded_from_graph = False
 
         if self.graph:
-            from swh.graph.client import GraphArgumentException
+            from swh.graph.http_client import GraphArgumentException
 
             # First, try to cook using swh-graph, as it is more efficient than
             # swh-storage for querying the history
@@ -482,7 +482,7 @@ class GitBareCooker(BaseVaultCooker):
             directory_ids = []
             content_ids = []
 
-            from swh.graph.client import GraphArgumentException
+            from swh.graph.http_client import GraphArgumentException
 
             # First, try to cook using swh-graph, as it is more efficient than
             # swh-storage for querying the history

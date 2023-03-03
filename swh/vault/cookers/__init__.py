@@ -111,7 +111,7 @@ def get_cooker(bundle_type: str, swhid: CoreSWHID):
     backend = get_vault(**vcfg)
 
     try:
-        from swh.graph.client import RemoteGraphClient  # optional dependency
+        from swh.graph.http_client import RemoteGraphClient  # optional dependency
 
         graph = RemoteGraphClient(**vcfg["graph"]) if vcfg.get("graph") else None
     except ModuleNotFoundError:

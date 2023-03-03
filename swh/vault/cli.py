@@ -84,7 +84,7 @@ def cook(
     conf = config.read(config_file)
 
     try:
-        from swh.graph.client import RemoteGraphClient  # optional dependency
+        from swh.graph.http_client import RemoteGraphClient  # optional dependency
 
         graph = RemoteGraphClient(**conf["graph"]) if conf.get("graph") else None
     except ModuleNotFoundError:

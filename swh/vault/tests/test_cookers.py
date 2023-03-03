@@ -25,7 +25,7 @@ import dulwich.porcelain
 import dulwich.repo
 import pytest
 
-from swh.loader.git.from_disk import GitLoaderFromDisk
+from swh.loader.git.loader import GitLoader
 from swh.model import from_disk, hashutil
 from swh.model.model import (
     Person,
@@ -169,11 +169,9 @@ def git_loader(
     """Instantiate a Git Loader using the storage instance as storage."""
 
     def _create_loader(directory):
-        return GitLoaderFromDisk(
+        return GitLoader(
             swh_storage,
-            "fake_origin",
-            directory=directory,
-            visit_date=datetime.datetime.now(datetime.timezone.utc),
+            directory,
         )
 
     return _create_loader

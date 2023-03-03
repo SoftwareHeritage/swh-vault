@@ -131,7 +131,7 @@ class GitBareCooker(BaseVaultCooker):
         stack[-n:] = []
         return obj_ids
 
-    def prepare_bundle(self):
+    def prepare_bundle(self) -> None:
         """Main entry point. Initializes the state, creates the bundle, and
         sends it to the backend."""
         # Objects we will visit soon (aka. "todo-lists"):
@@ -145,7 +145,7 @@ class GitBareCooker(BaseVaultCooker):
         self._walker_state: Optional[Any] = None
 
         # Set of errors we expect git-fsck to raise at the end:
-        self._expected_fsck_errors = set()
+        self._expected_fsck_errors: Set[str] = set()
 
         with tempfile.TemporaryDirectory(prefix="swh-vault-gitbare-") as workdir:
             # Initialize a Git directory
@@ -264,20 +264,21 @@ class GitBareCooker(BaseVaultCooker):
 
         return revision.id
 
-    def write_refs(self, snapshot=None):
+    def write_refs(self, snapshot=None) -> None:
         """Writes all files in :file:`.git/refs/`.
 
         For non-snapshot objects, this is only ``master``."""
         refs: Dict[bytes, bytes]  # ref name -> target
-        if self.obj_type == RootObjectType.DIRECTORY:
+        if self.obj_type is RootObjectType.DIRECTORY:
             # We need a synthetic revision pointing to the directory
             rev_id = self._make_stub_directory_revision(self.obj_id)
 
             refs = {b"refs/heads/master": hash_to_bytehex(rev_id)}
-        elif self.obj_type == RootObjectType.REVISION:
+        elif self.obj_type is RootObjectType.REVISION:
             refs = {b"refs/heads/master": hash_to_bytehex(self.obj_id)}
-        elif self.obj_type == RootObjectType.RELEASE:
+        elif self.obj_type is RootObjectType.RELEASE:
             (release,) = self.storage.release_get([self.obj_id])
+            assert release, self.obj_id
 
             if release.name and re.match(rb"^[a-zA-Z0-9_.-]+$", release.name):
                 release_name = release.name
@@ -293,7 +294,7 @@ class GitBareCooker(BaseVaultCooker):
                 refs[b"ref/heads/master"] = hash_to_bytehex(release.target)
             # TODO: synthesize a master branch for other target types
 
-        elif self.obj_type == RootObjectType.SNAPSHOT:
+        elif self.obj_type is RootObjectType.SNAPSHOT:
             if snapshot is None:
                 # refs were already written in a previous step
                 return

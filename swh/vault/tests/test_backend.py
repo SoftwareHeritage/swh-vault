@@ -19,6 +19,8 @@ from swh.model.swhids import CoreSWHID
 from swh.vault.exc import NotFoundExc
 from swh.vault.tests.vault_testing import hash_content
 
+SENTRY_DSN = "https://user@example.org/1234"
+
 
 @contextlib.contextmanager
 def mock_cooking(vault_backend):
@@ -244,7 +246,7 @@ def test_send_all_emails(swh_vault):
 
 def test_send_email_error_no_smtp(swh_vault):
     reports = []
-    init_sentry("http://example.org", extra_kwargs={"transport": reports.append})
+    init_sentry(SENTRY_DSN, extra_kwargs={"transport": reports.append})
 
     emails = ("a@example.com", "billg@example.com", "test+42@example.org")
     with mock_cooking(swh_vault):
@@ -270,7 +272,7 @@ def test_send_email_error_no_smtp(swh_vault):
 
 def test_send_email_error_send_failed(swh_vault):
     reports = []
-    init_sentry("http://example.org", extra_kwargs={"transport": reports.append})
+    init_sentry(SENTRY_DSN, extra_kwargs={"transport": reports.append})
 
     emails = ("a@example.com", "billg@example.com", "test+42@example.org")
     with mock_cooking(swh_vault):

@@ -18,10 +18,8 @@ def swh_cooker_config():
     return {
         "vault": {
             "cls": "remote",
-            "args": {
-                "url": "mock://vault-backend",
-                "storage": {"cls": "remote", "url": "mock://storage-url"},
-            },
+            "url": "mock://vault-backend",
+            "storage": {"cls": "remote", "url": "mock://storage-url"},
         }
     }
 
@@ -59,7 +57,7 @@ def test_write_to_env(swh_cooker_config, tmp_path, monkeypatch):
             "This vault backend can only be a 'remote' configuration",
         ),
         (
-            {"vault": {"cls": "remote", "args": {"missing-storage-key": ""}}},
+            {"vault": {"cls": "remote", "missing-storage-key": ""}},
             ValueError,
             "invalid configuration: missing 'storage' config entry",
         ),
@@ -81,18 +79,14 @@ def test_get_cooker_config_ko(
         {
             "vault": {
                 "cls": "remote",
-                "args": {
-                    "url": "mock://vault-backend",
-                    "storage": {"cls": "remote", "url": "mock://storage-url"},
-                },
+                "url": "mock://vault-backend",
+                "storage": {"cls": "remote", "url": "mock://storage-url"},
             }
         },
         {
             "vault": {
                 "cls": "remote",
-                "args": {
-                    "url": "mock://vault-backend",
-                },
+                "url": "mock://vault-backend",
             },
             "storage": {"cls": "remote", "url": "mock://storage-url"},
         },

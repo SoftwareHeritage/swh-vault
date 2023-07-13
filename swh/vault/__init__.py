@@ -10,6 +10,8 @@ import logging
 from typing import Dict
 import warnings
 
+from swh.vault.backend import VaultDB
+
 logger = logging.getLogger(__name__)
 
 
@@ -57,4 +59,4 @@ def get_vault(cls: str = "remote", **kwargs):
     return Vault(**kwargs)
 
 
-get_datastore = get_vault
+get_datastore = VaultDB

@@ -39,7 +39,18 @@ import re
 import subprocess
 import tarfile
 import tempfile
-from typing import Any, Dict, Iterable, Iterator, List, NoReturn, Optional, Set, Tuple
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    NoReturn,
+    Optional,
+    Set,
+    Tuple,
+    cast,
+)
 import zlib
 
 import sentry_sdk
@@ -63,6 +74,7 @@ from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
 from swh.storage.algos.snapshot import snapshot_get_all_branches
+from swh.storage.interface import HashDict
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE
 
@@ -131,7 +143,7 @@ class GitBareCooker(BaseVaultCooker):
         stack[-n:] = []
         return obj_ids
 
-    def prepare_bundle(self):
+    def prepare_bundle(self) -> None:
         """Main entry point. Initializes the state, creates the bundle, and
         sends it to the backend."""
         # Objects we will visit soon (aka. "todo-lists"):
@@ -145,7 +157,7 @@ class GitBareCooker(BaseVaultCooker):
         self._walker_state: Optional[Any] = None
 
         # Set of errors we expect git-fsck to raise at the end:
-        self._expected_fsck_errors = set()
+        self._expected_fsck_errors: Set[str] = set()
 
         with tempfile.TemporaryDirectory(prefix="swh-vault-gitbare-") as workdir:
             # Initialize a Git directory
@@ -264,20 +276,21 @@ class GitBareCooker(BaseVaultCooker):
 
         return revision.id
 
-    def write_refs(self, snapshot=None):
+    def write_refs(self, snapshot=None) -> None:
         """Writes all files in :file:`.git/refs/`.
 
         For non-snapshot objects, this is only ``master``."""
         refs: Dict[bytes, bytes]  # ref name -> target
-        if self.obj_type == RootObjectType.DIRECTORY:
+        if self.obj_type is RootObjectType.DIRECTORY:
             # We need a synthetic revision pointing to the directory
             rev_id = self._make_stub_directory_revision(self.obj_id)
 
             refs = {b"refs/heads/master": hash_to_bytehex(rev_id)}
-        elif self.obj_type == RootObjectType.REVISION:
+        elif self.obj_type is RootObjectType.REVISION:
             refs = {b"refs/heads/master": hash_to_bytehex(self.obj_id)}
-        elif self.obj_type == RootObjectType.RELEASE:
+        elif self.obj_type is RootObjectType.RELEASE:
             (release,) = self.storage.release_get([self.obj_id])
+            assert release, self.obj_id
 
             if release.name and re.match(rb"^[a-zA-Z0-9_.-]+$", release.name):
                 release_name = release.name
@@ -293,7 +306,7 @@ class GitBareCooker(BaseVaultCooker):
                 refs[b"ref/heads/master"] = hash_to_bytehex(release.target)
             # TODO: synthesize a master branch for other target types
 
-        elif self.obj_type == RootObjectType.SNAPSHOT:
+        elif self.obj_type is RootObjectType.SNAPSHOT:
             if snapshot is None:
                 # refs were already written in a previous step
                 return
@@ -425,7 +438,7 @@ class GitBareCooker(BaseVaultCooker):
         loaded_from_graph = False
 
         if self.graph:
-            from swh.graph.client import GraphArgumentException
+            from swh.graph.http_client import GraphArgumentException
 
             # First, try to cook using swh-graph, as it is more efficient than
             # swh-storage for querying the history
@@ -482,7 +495,7 @@ class GitBareCooker(BaseVaultCooker):
             directory_ids = []
             content_ids = []
 
-            from swh.graph.client import GraphArgumentException
+            from swh.graph.http_client import GraphArgumentException
 
             # First, try to cook using swh-graph, as it is more efficient than
             # swh-storage for querying the history
@@ -689,7 +702,10 @@ class GitBareCooker(BaseVaultCooker):
         contents_and_data: Iterator[Tuple[Content, Optional[bytes]]]
         if self.objstorage is None:
             contents_and_data = (
-                (content, self.storage.content_get_data(content.sha1))
+                (
+                    content,
+                    self.storage.content_get_data(cast(HashDict, content.hashes())),
+                )
                 for content in visible_contents
             )
         else:

@@ -48,4 +48,4 @@ class InMemoryVaultBackend:
         raise NotImplementedError("InMemoryVaultBackend.batch_cook()")
 
     def batch_progress(self, batch_id: int) -> Dict[str, Any]:
-        pass
+        return {}

@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2022  The Software Heritage developers
+# Copyright (C) 2016-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 from swh.core.api import RPCServerApp
 from swh.core.api import encode_data_server as encode_data
 from swh.core.api import error_handler
-from swh.core.config import config_basepath, merge_configs, read_raw_config
+from swh.core.config import merge_configs, read_raw_config
 from swh.vault import get_vault as get_swhvault
 from swh.vault.backend import NotFoundExc
 from swh.vault.interface import VaultInterface
@@ -110,7 +110,7 @@ def make_app_from_configfile(
     if not os.path.isfile(config_path):
         raise ValueError(f"Configuration path {config_path} should exist.")
 
-    app_config = read_raw_config(config_basepath(config_path))
+    app_config = read_raw_config(config_path)
     app_config["vault"] = check_config(app_config)
     app.config.update(merge_configs(DEFAULT_CONFIG, app_config))
 

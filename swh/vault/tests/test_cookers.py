@@ -25,7 +25,7 @@ import dulwich.porcelain
 import dulwich.repo
 import pytest
 
-from swh.loader.git.from_disk import GitLoaderFromDisk
+from swh.loader.git.loader import GitLoader
 from swh.model import from_disk, hashutil
 from swh.model.model import (
     Person,
@@ -47,7 +47,7 @@ from swh.vault.tests.vault_testing import hash_content
 from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE
 
 
-class TestRepo:
+class _TestRepo:
     """A tiny context manager for a test git repository, with some utility
     functions to perform basic git stuff.
     """
@@ -169,11 +169,9 @@ def git_loader(
     """Instantiate a Git Loader using the storage instance as storage."""
 
     def _create_loader(directory):
-        return GitLoaderFromDisk(
+        return GitLoader(
             swh_storage,
-            "fake_origin",
-            directory=directory,
-            visit_date=datetime.datetime.now(datetime.timezone.utc),
+            directory,
         )
 
     return _create_loader
@@ -200,7 +198,7 @@ def cook_extract_directory_dircooker(storage, swhid, fsck=True):
 def cook_extract_directory_gitfast(storage, swhid, fsck=True):
     """Context manager that cooks a revision containing a directory and extract it,
     using RevisionGitfastCooker"""
-    test_repo = TestRepo()
+    test_repo = _TestRepo()
     with test_repo as p:
         date = TimestampWithTimezone.from_datetime(
             datetime.datetime.now(datetime.timezone.utc)
@@ -300,7 +298,7 @@ def cook_stream_revision_gitfast(storage, swhid):
 def cook_extract_revision_gitfast(storage, swhid, fsck=True):
     """Context manager that cooks a revision and extract it,
     using RevisionGitfastCooker"""
-    test_repo = TestRepo()
+    test_repo = _TestRepo()
     with cook_stream_revision_gitfast(storage, swhid) as stream, test_repo as p:
         processor = dulwich.fastexport.GitImportProcessor(test_repo.repo)
         processor.import_stream(stream)
@@ -338,7 +336,7 @@ def cook_extract_git_bare(storage, swhid, fsck=True):
                     clone_dir,
                 ]
             )
-            test_repo = TestRepo(clone_dir)
+            test_repo = _TestRepo(clone_dir)
             with test_repo:
                 yield test_repo, clone_dir
 
@@ -391,7 +389,7 @@ TEST_EXECUTABLE = b"\x42\x40\x00\x00\x05"
 
 class TestDirectoryCooker:
     def test_directory_simple(self, git_loader, cook_extract_directory):
-        repo = TestRepo()
+        repo = _TestRepo()
         with repo as rp:
             (rp / "file").write_text(TEST_CONTENT)
             (rp / "executable").write_bytes(TEST_EXECUTABLE)
@@ -421,7 +419,7 @@ class TestDirectoryCooker:
             assert obj_id_hex == hashutil.hash_to_hex(directory.hash)
 
     def test_directory_filtered_objects(self, git_loader, cook_extract_directory):
-        repo = TestRepo()
+        repo = _TestRepo()
         with repo as rp:
             file_1, id_1 = hash_content(b"test1")
             file_2, id_2 = hash_content(b"test2")
@@ -468,7 +466,7 @@ class TestDirectoryCooker:
         # Some early git repositories have 664/775 permissions... let's check
         # if all the weird modes are properly normalized in the directory
         # cooker.
-        repo = TestRepo()
+        repo = _TestRepo()
         with repo as rp:
             (rp / "file").write_text(TEST_CONTENT)
             (rp / "file").chmod(0o664)
@@ -518,7 +516,7 @@ class TestDirectoryCooker:
     ):
         """Like test_directory_simple, but using swh_objstorage directly, without
         going through swh_storage.content_get_data()"""
-        repo = TestRepo()
+        repo = _TestRepo()
         with repo as rp:
             (rp / "file").write_text(TEST_CONTENT)
             (rp / "executable").write_bytes(TEST_EXECUTABLE)
@@ -594,7 +592,7 @@ class RepoFixtures:
         #
         #     1--2--3--4--5--6--7
         #
-        repo = TestRepo()
+        repo = _TestRepo()
         with repo as rp:
             (rp / "file1").write_text(TEST_CONTENT)
             repo.commit("add file1")
@@ -637,7 +635,7 @@ class RepoFixtures:
         #        /
         #   2----
         #
-        repo = TestRepo()
+        repo = _TestRepo()
         with repo as rp:
             (rp / "file1").write_text(TEST_CONTENT)
             c1 = repo.commit("Add file1")
@@ -666,7 +664,7 @@ class RepoFixtures:
         #         \
         #          ----3     <-- b2
         #
-        repo = TestRepo()
+        repo = _TestRepo()
         with repo as rp:
             (rp / "file1").write_text(TEST_CONTENT)
             repo.commit("Add file1")
@@ -711,7 +709,7 @@ class RepoFixtures:
         #    /   /   /
         #   1---3---5
         #
-        repo = TestRepo()
+        repo = _TestRepo()
         with repo as rp:
             (rp / "file1").write_text(TEST_CONTENT)
             c1 = repo.commit("Add file1")  # create commit 1
@@ -764,7 +762,7 @@ class RepoFixtures:
         #    /   /   /
         #   1---.---.
         #
-        repo = TestRepo()
+        repo = _TestRepo()
         with repo as rp:
             (rp / "file1").write_text(TEST_CONTENT)
             c1 = repo.commit("Commit 1")
@@ -806,7 +804,7 @@ class RepoFixtures:
         )
 
     def load_repo_filtered_objects(self, git_loader):
-        repo = TestRepo()
+        repo = _TestRepo()
         with repo as rp:
             file_1, id_1 = hash_content(b"test1")
             file_2, id_2 = hash_content(b"test2")
@@ -854,7 +852,7 @@ class RepoFixtures:
     def load_repo_null_fields(self, git_loader):
         # Our schema doesn't enforce a lot of non-null revision fields. We need
         # to check these cases don't break the cooker.
-        repo = TestRepo()
+        repo = _TestRepo()
         with repo as rp:
             (rp / "file").write_text(TEST_CONTENT)
             c = repo.commit("initial commit")
@@ -892,7 +890,7 @@ class RepoFixtures:
         #         \
         #          ----3----4     <-- t4a (annotated)
         #
-        repo = TestRepo()
+        repo = _TestRepo()
         with repo as rp:
             (rp / "file1").write_text(TEST_CONTENT)
             repo.commit("Add file1")

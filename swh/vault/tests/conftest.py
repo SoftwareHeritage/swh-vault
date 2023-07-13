@@ -11,7 +11,7 @@ import pkg_resources.extern.packaging.version
 import pytest
 from pytest_postgresql import factories
 
-from swh.core.db.pytest_plugin import initialize_database_for_module
+from swh.core.db.db_utils import initialize_database_for_module
 from swh.vault import get_vault
 from swh.vault.backend import VaultBackend
 

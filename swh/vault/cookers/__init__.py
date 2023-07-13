@@ -12,7 +12,6 @@ from swh.core.config import load_named_config
 from swh.core.config import read as read_config
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage import get_storage
-from swh.vault import get_vault
 from swh.vault.cookers.base import DEFAULT_CONFIG, DEFAULT_CONFIG_PATH, BaseVaultCooker
 from swh.vault.cookers.directory import DirectoryCooker
 from swh.vault.cookers.git_bare import GitBareCooker
@@ -98,6 +97,8 @@ def get_cooker(bundle_type: str, swhid: CoreSWHID):
         EnvironmentError in case the vault configuration reference a non remote class.
 
     """
+    from swh.vault import get_vault
+
     if "SWH_CONFIG_FILENAME" in os.environ:
         cfg = read_config(os.environ["SWH_CONFIG_FILENAME"], DEFAULT_CONFIG)
     else:
@@ -111,7 +112,7 @@ def get_cooker(bundle_type: str, swhid: CoreSWHID):
     backend = get_vault(**vcfg)
 
     try:
-        from swh.graph.client import RemoteGraphClient  # optional dependency
+        from swh.graph.http_client import RemoteGraphClient  # optional dependency
 
         graph = RemoteGraphClient(**vcfg["graph"]) if vcfg.get("graph") else None
     except ModuleNotFoundError:

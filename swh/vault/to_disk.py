@@ -11,7 +11,7 @@ from typing import Any, Dict, Iterator, List
 from swh.model import hashutil
 from swh.model.from_disk import DentryPerms, mode_to_perms
 from swh.storage.algos.dir_iterators import dir_iterator
-from swh.storage.interface import StorageInterface
+from swh.storage.interface import HashDict, StorageInterface
 
 MISSING_MESSAGE = (
     b"This content is missing from the Software Heritage archive "
@@ -48,8 +48,11 @@ def get_filtered_files_content(
     for file_data in files_data:
         status = file_data["status"]
         if status == "visible":
-            sha1 = file_data["sha1"]
-            data = storage.content_get_data(sha1)
+            hashes: HashDict = {
+                "sha1": file_data["sha1"],
+                "sha1_git": file_data["sha1_git"],
+            }
+            data = storage.content_get_data(hashes)
             if data is None:
                 content = SKIPPED_MESSAGE
             else:

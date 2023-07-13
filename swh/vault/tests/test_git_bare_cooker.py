@@ -24,7 +24,7 @@ import pytest
 from pytest import param
 from pytest_postgresql import factories
 
-from swh.core.db.pytest_plugin import initialize_database_for_module
+from swh.core.db.db_utils import initialize_database_for_module
 from swh.model.from_disk import DentryPerms
 from swh.model.model import (
     Content,
@@ -55,7 +55,9 @@ storage_postgresql = factories.postgresql("storage_postgresql_proc")
 
 @pytest.fixture
 def swh_storage(storage_postgresql):
-    return get_storage("local", db=storage_postgresql.dsn, objstorage={"cls": "memory"})
+    return get_storage(
+        "postgresql", db=storage_postgresql.dsn, objstorage={"cls": "memory"}
+    )
 
 
 class RootObjects(enum.Enum):
@@ -175,7 +177,7 @@ def test_graph_revisions(
 
     If weird_branches is False, dir4, cnt4, rel3, rel4, and cnt5 are excluded.
     """
-    from swh.graph.naive_client import NaiveClient as GraphClient
+    from swh.graph.http_naive_client import NaiveClient as GraphClient
 
     # Create objects:
 
@@ -631,7 +633,7 @@ def test_ignore_displayname(swh_storage, use_graph):
 
     # Add all objects to graph
     if use_graph:
-        from swh.graph.naive_client import NaiveClient as GraphClient
+        from swh.graph.http_naive_client import NaiveClient as GraphClient
 
         nodes = [
             str(x.swhid()) for x in [content, directory, revision, release, snapshot]

@@ -66,18 +66,15 @@ The Software Heritage Developers
 """
 
 
-class VaultBackend:
+class VaultDB:
     """
-    Backend for the Software Heritage Vault.
+    PostgreSQL backend for the Software Heritage Vault.
     """
 
     current_version = 4
 
     def __init__(self, **config):
         self.config = config
-        self.cache = VaultCache(**config["cache"])
-        self.scheduler = get_scheduler(**config["scheduler"])
-        self.storage = get_storage(**config["storage"])
 
         if "db" not in self.config:
             raise ValueError(
@@ -101,6 +98,18 @@ class VaultBackend:
     def put_db(self, db):
         if db is not self._db:
             db.put_conn()
+
+
+class VaultBackend(VaultDB):
+    """
+    Backend for the Software Heritage Vault.
+    """
+
+    def __init__(self, **config):
+        super().__init__(**config)
+        self.cache = VaultCache(**config["cache"])
+        self.scheduler = get_scheduler(**config["scheduler"])
+        self.storage = get_storage(**config["storage"])
 
     @db_transaction()
     def progress(

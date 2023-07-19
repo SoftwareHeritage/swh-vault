@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2022  The Software Heritage developers
+# Copyright (C) 2020-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -41,6 +41,26 @@ vault_postgresql_proc = factories.postgresql_proc(
 )
 
 postgres_vault = factories.postgresql("vault_postgresql_proc")
+
+
+def pytest_collection_modifyitems(items):
+    """Skip tests using httpserver fixture if pytest-httpserver is
+    not available (debian < 12 for instance)"""
+    try:
+        from pytest_httpserver import HTTPServer  # noqa
+    except ImportError:
+        pytest_httpserver_available = False
+    else:
+        pytest_httpserver_available = True
+    for item in items:
+        try:
+            fixtures = item.fixturenames
+            if "httpserver" in fixtures and not pytest_httpserver_available:
+                item.add_marker(
+                    pytest.mark.skip(reason="pytest-httpserver not installed")
+                )
+        except Exception:
+            pass
 
 
 @pytest.fixture

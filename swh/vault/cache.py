@@ -1,7 +1,10 @@
-# Copyright (C) 2016-2022  The Software Heritage developers
+# Copyright (C) 2016-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
+
+from datetime import timedelta
+from typing import Optional
 
 from swh.model import hashutil
 from swh.model.swhids import CoreSWHID
@@ -26,6 +29,16 @@ class VaultCache:
     def get(self, bundle_type, swhid: CoreSWHID) -> bytes:
         sid = self._get_internal_id(bundle_type, swhid)
         return self.objstorage.get(sid)
+
+    def download_url(
+        self,
+        bundle_type,
+        swhid: CoreSWHID,
+        content_disposition: Optional[str] = None,
+        expiry: Optional[timedelta] = None,
+    ) -> Optional[str]:
+        sid = self._get_internal_id(bundle_type, swhid)
+        return self.objstorage.download_url(sid, content_disposition, expiry)
 
     def delete(self, bundle_type, swhid: CoreSWHID):
         sid = self._get_internal_id(bundle_type, swhid)

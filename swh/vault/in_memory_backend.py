@@ -1,8 +1,9 @@
-# Copyright (C) 2017-2021  The Software Heritage developers
+# Copyright (C) 2017-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from datetime import timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from swh.model.swhids import CoreSWHID
@@ -18,6 +19,15 @@ class InMemoryVaultBackend:
 
     def fetch(self, bundle_type: str, swhid: CoreSWHID) -> Optional[bytes]:
         return self._cache.get(bundle_type, swhid)
+
+    def download_url(
+        self,
+        bundle_type: str,
+        swhid: CoreSWHID,
+        content_disposition: Optional[str] = None,
+        expiry: Optional[timedelta] = None,
+    ) -> Optional[str]:
+        return None
 
     def cook(
         self, bundle_type: str, swhid: CoreSWHID, email: Optional[str] = None

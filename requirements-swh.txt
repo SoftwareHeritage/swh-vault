@@ -1,5 +1,5 @@
 swh.core[db,http] >= 2
 swh.model >= 6
-swh.objstorage >= 2
+swh.objstorage >= 2.3.0
 swh.scheduler >= 1.2
 swh.storage >= 1.3

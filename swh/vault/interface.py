@@ -1,8 +1,9 @@
-# Copyright (C) 2017-2020  The Software Heritage developers
+# Copyright (C) 2017-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from datetime import timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from typing_extensions import Protocol, runtime_checkable
@@ -20,6 +21,17 @@ class VaultInterface(Protocol):
     @remote_api_endpoint("fetch")
     def fetch(self, bundle_type: str, swhid: CoreSWHID) -> Optional[bytes]:
         """Fetch information from a bundle"""
+        ...
+
+    @remote_api_endpoint("download_url")
+    def download_url(
+        self,
+        bundle_type: str,
+        swhid: CoreSWHID,
+        content_disposition: Optional[str] = None,
+        expiry: Optional[timedelta] = None,
+    ) -> Optional[str]:
+        """Obtain bundle direct download link if the vault cache backend supports it."""
         ...
 
     @remote_api_endpoint("cook")

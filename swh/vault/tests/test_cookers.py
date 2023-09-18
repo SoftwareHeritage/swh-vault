@@ -580,8 +580,8 @@ class TestDirectoryCooker:
         with cook_extract_directory_dircooker(
             swh_storage, dir.swhid(), fsck=False
         ) as p:
-            assert (p / "submodule").is_symlink()
-            assert os.readlink(str(p / "submodule")) == target_rev
+            assert (p / "submodule").is_dir()
+            assert list((p / "submodule").iterdir()) == []
 
 
 class RepoFixtures:

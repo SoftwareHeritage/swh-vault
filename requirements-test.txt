@@ -1,6 +1,7 @@
 attrs
 dulwich >= 0.18.7
 pytest
+pytest-httpserver
 pytest-mock
 swh.core[testing]
 swh.loader.core

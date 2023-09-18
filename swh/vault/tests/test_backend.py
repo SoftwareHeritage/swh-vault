@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2022  The Software Heritage developers
+# Copyright (C) 2017-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import attr
 import psycopg2
 import pytest
+import requests
 
 from swh.core.sentry import init_sentry
 from swh.model.model import Content
@@ -419,3 +420,45 @@ def test_retry_failed_bundle(swh_vault):
         swh_vault.cook(TEST_TYPE, TEST_SWHID)
     info = swh_vault.progress(TEST_TYPE, TEST_SWHID)
     assert info["task_status"] == "new"
+
+
+def test_download_url_cache_pathslicing_backend(swh_vault):
+    swhid, content = fake_cook(swh_vault, TEST_TYPE, b"content")
+    # download URL feature is not available with pathslicing backend for vault cache
+    assert swh_vault.download_url(TEST_TYPE, swhid) is None
+
+
+@pytest.fixture
+def swh_vault_config_http_cache(swh_vault_config, httpserver):
+    swh_vault_config["cache"] = {
+        "cls": "http",
+        "url": httpserver.url_for("/"),
+        "compression": "none",
+    }
+    return swh_vault_config
+
+
+@pytest.fixture
+def swh_vault_http_cache(swh_vault_config_http_cache):
+    from swh.vault import get_vault
+
+    return get_vault("local", **swh_vault_config_http_cache)
+
+
+def test_download_url_cache_http_backend(swh_vault_http_cache, mocker, httpserver):
+    unknown_swhid = Content.from_data(b"foo").swhid()
+    with pytest.raises(
+        NotFoundExc, match=f"{TEST_TYPE} {unknown_swhid} is not available."
+    ):
+        swh_vault_http_cache.download_url(TEST_TYPE, unknown_swhid)
+
+    mocker.patch.object(
+        swh_vault_http_cache, "progress", return_value={"task_status": "done"}
+    )
+    content = b"content"
+    swhid = Content.from_data(content).swhid()
+    objid = swh_vault_http_cache.cache._get_internal_id(TEST_TYPE, swhid)["sha1"]
+    httpserver.expect_request(f"/{objid.hex()}").respond_with_data(content)
+    download_url = swh_vault_http_cache.download_url(TEST_TYPE, swhid)
+    assert download_url is not None
+    assert requests.get(download_url).content == content

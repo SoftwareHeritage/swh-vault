@@ -1,9 +1,10 @@
-# Copyright (C) 2017-2022  The Software Heritage developers
+# Copyright (C) 2017-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import collections
+from datetime import timedelta
 from email.mime.text import MIMEText
 import logging
 import smtplib
@@ -378,6 +379,25 @@ class VaultBackend(VaultDB):
             return None
         self.update_access_ts(bundle_type, swhid, cur=cur)
         return self.cache.get(bundle_type, swhid)
+
+    @db_transaction()
+    def download_url(
+        self,
+        bundle_type: str,
+        swhid: CoreSWHID,
+        content_disposition: Optional[str] = None,
+        expiry: Optional[timedelta] = None,
+        raise_notfound=True,
+        db=None,
+        cur=None,
+    ) -> Optional[str]:
+        """Obtain a bundle direct download link from the cache if supported"""
+        available = self.is_available(bundle_type, swhid, cur=cur)
+        if not available:
+            if raise_notfound:
+                raise NotFoundExc(f"{bundle_type} {swhid} is not available.")
+            return None
+        return self.cache.download_url(bundle_type, swhid, content_disposition, expiry)
 
     @db_transaction()
     def update_access_ts(self, bundle_type: str, swhid: CoreSWHID, db=None, cur=None):

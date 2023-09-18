@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: swh.vault
-Version: 1.8.2
+Version: 1.9.1
 Summary: Software Heritage vault
 Home-page: https://forge.softwareheritage.org/diffusion/DVAU/
 Author: Software Heritage developers
@@ -16,10 +16,36 @@ Classifier: Operating System :: OS Independent
 Classifier: Development Status :: 5 - Production/Stable
 Requires-Python: >=3.7
 Description-Content-Type: text/x-rst
-Provides-Extra: testing
-Provides-Extra: graph
 License-File: LICENSE
 License-File: AUTHORS
+Requires-Dist: click
+Requires-Dist: fastimport
+Requires-Dist: flask
+Requires-Dist: psycopg2
+Requires-Dist: python-dateutil
+Requires-Dist: sentry-sdk
+Requires-Dist: typing-extensions
+Requires-Dist: swh.core[db,http]>=2
+Requires-Dist: swh.model>=6
+Requires-Dist: swh.objstorage>=2.3.0
+Requires-Dist: swh.scheduler>=1.2
+Requires-Dist: swh.storage>=1.3
+Provides-Extra: testing
+Requires-Dist: attrs; extra == "testing"
+Requires-Dist: dulwich>=0.18.7; extra == "testing"
+Requires-Dist: pytest; extra == "testing"
+Requires-Dist: pytest-httpserver; extra == "testing"
+Requires-Dist: pytest-mock; extra == "testing"
+Requires-Dist: swh.core[testing]; extra == "testing"
+Requires-Dist: swh.loader.core; extra == "testing"
+Requires-Dist: swh.loader.git>=0.8; extra == "testing"
+Requires-Dist: swh.storage[testing]; extra == "testing"
+Requires-Dist: types-click; extra == "testing"
+Requires-Dist: types-python-dateutil; extra == "testing"
+Requires-Dist: types-pyyaml; extra == "testing"
+Requires-Dist: types-requests; extra == "testing"
+Provides-Extra: graph
+Requires-Dist: swh.graph>=1; extra == "graph"
 
 Software Heritage - Vault
 =========================

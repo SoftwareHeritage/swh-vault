@@ -57,6 +57,8 @@ setup(
     entry_points="""
         [swh.cli.subcommands]
         vault=swh.vault.cli
+        [swh.workers]
+        vault.cookers=swh.vault:register_tasks
     """,
     classifiers=[
         "Programming Language :: Python :: 3",

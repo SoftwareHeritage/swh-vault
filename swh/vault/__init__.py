@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import importlib
 import logging
-from typing import Dict
+from typing import Any, Dict
 import warnings
 
 from swh.vault.backend import VaultDB
@@ -60,3 +60,22 @@ def get_vault(cls: str = "remote", **kwargs):
 
 
 get_datastore = VaultDB
+
+
+default_cfg = {
+    "default_interval": "1 day",
+    "min_interval": "1 day",
+    "max_interval": "1 day",
+    "backoff_factor": 1,
+    "max_queue_length": 10000,
+}
+
+
+def register_tasks() -> Dict[str, Any]:
+    return {
+        "task_modules": [f"{__name__}.cooking_tasks"],
+        "task_types": {
+            "vault-cook-bundle": default_cfg,
+            "vault-batch-cook-bundle": default_cfg,
+        },
+    }

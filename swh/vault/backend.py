@@ -159,22 +159,13 @@ class VaultBackend(VaultDB):
         if not cooker.check_exists():
             raise NotFoundExc(f"{bundle_type} {swhid} was not found.")
 
-        cur.execute(
-            """
-            INSERT INTO vault_bundle (type, swhid, sticky)
-            VALUES (%s, %s, %s)""",
-            (bundle_type, str(swhid), sticky),
-        )
-        db.conn.commit()
-
         task_id = self._send_task(bundle_type, swhid)
 
         cur.execute(
             """
-            UPDATE vault_bundle
-            SET task_id = %s
-            WHERE type = %s AND swhid = %s""",
-            (task_id, bundle_type, str(swhid)),
+            INSERT INTO vault_bundle (type, swhid, sticky, task_id)
+            VALUES (%s, %s, %s, %s)""",
+            (bundle_type, str(swhid), sticky, task_id),
         )
 
     @db_transaction()

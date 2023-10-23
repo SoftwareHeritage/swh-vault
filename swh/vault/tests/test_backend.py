@@ -14,6 +14,7 @@ import psycopg2
 import pytest
 import requests
 
+from swh.core.api import APIError
 from swh.core.sentry import init_sentry
 from swh.model.model import Content
 from swh.model.swhids import CoreSWHID
@@ -174,6 +175,20 @@ def test_create_update_access_ts(swh_vault):
 
     assert access_ts_1 < access_ts_2
     assert access_ts_2 < access_ts_3
+
+
+def test_create_scheduler_rpc_failure(swh_vault, mocker):
+    mocker.patch.object(swh_vault, "_send_task").side_effect = APIError(
+        "Could not connect to scheduler RPC service"
+    )
+    # exception should bubble up when requesting to cook a bundle
+    with pytest.raises(APIError):
+        cooking_info = swh_vault.cook(TEST_TYPE, TEST_SWHID)
+
+    # once scheduler rpc issue fixed, task should be created
+    with mock_cooking(swh_vault):
+        cooking_info = swh_vault.cook(TEST_TYPE, TEST_SWHID)
+        assert cooking_info["task_status"] == "new"
 
 
 def test_cook_idempotent(swh_vault, sample_data):

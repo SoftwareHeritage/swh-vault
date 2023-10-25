@@ -13,6 +13,7 @@ import datetime
 import enum
 from functools import partial
 import io
+import os
 import subprocess
 import tarfile
 import tempfile
@@ -402,6 +403,15 @@ def test_graph_revisions(
     with tempfile.TemporaryDirectory("swh-vault-test-bare") as tempdir:
         with tarfile.open(fileobj=io.BytesIO(bundle)) as tf:
             tf.extractall(tempdir)
+
+        if root_object != RootObjects.WEIRD_RELEASE:
+            # check master ref exists in repository
+            master_ref_path = os.path.join(
+                tempdir, f"{cooked_swhid}.git/refs/heads/master"
+            )
+            assert os.path.exists(master_ref_path)
+            with open(master_ref_path, "r") as master_ref:
+                assert master_ref.read() == branches[b"refs/heads/master"].target.hex()
 
         if root_object in (RootObjects.SNAPSHOT, RootObjects.REVISION):
             log_head = "master"

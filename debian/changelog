@@ -1,3 +1,11 @@
+swh-vault (1.9.3-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.9.3     - (tagged by Antoine Lambert
+    <anlambert@softwareheritage.org> on 2023-10-25 13:48:15 +0200)
+  * Upstream changes:     - version 1.9.3
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 25 Oct 2023 11:53:10 +0000
+
 swh-vault (1.9.2-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.9.2     - (tagged by Antoine R. Dumont

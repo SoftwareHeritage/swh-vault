@@ -1,8 +1,11 @@
-swh-vault (1.9.3-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-vault (1.10.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.10.0     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2023-11-08 11:04:18 +0100)
+  * Upstream changes:     - v1.10.0     - use scheduler plugin system to
+    declare vault cooking tasks
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 25 Oct 2023 11:54:47 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 08 Nov 2023 10:09:49 +0000
 
 swh-vault (1.9.3-1~swh1) unstable-swh; urgency=medium
 

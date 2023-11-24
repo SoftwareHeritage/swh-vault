@@ -1,3 +1,54 @@
+[project]
+name = "swh.vault"
+authors = [
+    {name="Software Heritage developers", email="swh-devel@inria.fr"},
+]
+
+description = "Software Heritage vault"
+readme = {file = "README.rst", content-type = "text/x-rst"}
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Development Status :: 5 - Production/Stable",
+]
+dynamic = ["version", "dependencies", "optional-dependencies"]
+
+[tool.setuptools]
+zip-safe = false
+
+[tool.setuptools.packages.find]
+include = ["swh.*"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt", "requirements-swh.txt"]}
+
+[tool.setuptools.dynamic.optional-dependencies]
+graph = {file = ["requirements-swh-graph.txt"]}
+testing = {file = ["requirements-test.txt"]}
+
+[project.entry-points."swh.cli.subcommands"]
+"swh.vault" = "swh.vault.cli"
+
+[project.entry-points."swh.workers"]
+"swh.vault" = "swh.vault:register_tasks"
+
+[project.urls]
+"Homepage" = "https://gitlab.softwareheritage.org/swh/devel/swh-vault"
+"Bug Reports" = "https://gitlab.softwareheritage.org/swh/devel/swh-vault/-/issues"
+"Funding" = "https://www.softwareheritage.org/donate"
+"Documentation" = "https://docs.softwareheritage.org/devel/swh-vault/"
+"Source" = "https://gitlab.softwareheritage.org/swh/devel/swh-vault.git"
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+fallback_version = "0.0.1"
+
 [tool.black]
 target-version = ['py37']
 

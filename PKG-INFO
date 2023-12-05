@@ -1,14 +1,13 @@
 Metadata-Version: 2.1
 Name: swh.vault
-Version: 1.10.1
+Version: 1.11.0
 Summary: Software Heritage vault
-Home-page: https://forge.softwareheritage.org/diffusion/DVAU/
-Author: Software Heritage developers
-Author-email: swh-devel@inria.fr
-Project-URL: Bug Reports, https://forge.softwareheritage.org/maniphest
+Author-email: Software Heritage developers <swh-devel@inria.fr>
+Project-URL: Homepage, https://gitlab.softwareheritage.org/swh/devel/swh-vault
+Project-URL: Bug Reports, https://gitlab.softwareheritage.org/swh/devel/swh-vault/-/issues
 Project-URL: Funding, https://www.softwareheritage.org/donate
-Project-URL: Source, https://forge.softwareheritage.org/source/swh-vault
 Project-URL: Documentation, https://docs.softwareheritage.org/devel/swh-vault/
+Project-URL: Source, https://gitlab.softwareheritage.org/swh/devel/swh-vault.git
 Classifier: Programming Language :: Python :: 3
 Classifier: Intended Audience :: Developers
 Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
@@ -30,6 +29,8 @@ Requires-Dist: swh.model>=6
 Requires-Dist: swh.objstorage>=2.3.0
 Requires-Dist: swh.scheduler>=1.2
 Requires-Dist: swh.storage>=1.3
+Provides-Extra: graph
+Requires-Dist: swh.graph>=1; extra == "graph"
 Provides-Extra: testing
 Requires-Dist: attrs; extra == "testing"
 Requires-Dist: dulwich>=0.18.7; extra == "testing"
@@ -44,8 +45,6 @@ Requires-Dist: types-click; extra == "testing"
 Requires-Dist: types-python-dateutil; extra == "testing"
 Requires-Dist: types-pyyaml; extra == "testing"
 Requires-Dist: types-requests; extra == "testing"
-Provides-Extra: graph
-Requires-Dist: swh.graph>=1; extra == "graph"
 
 Software Heritage - Vault
 =========================

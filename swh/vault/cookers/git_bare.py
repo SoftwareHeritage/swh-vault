@@ -311,7 +311,7 @@ class GitBareCooker(BaseVaultCooker):
                 # refs were already written in a previous step
                 return
             branches = []
-            for (branch_name, branch) in snapshot.branches.items():
+            for branch_name, branch in snapshot.branches.items():
                 if branch is None:
                     logging.error(
                         "%s has dangling branch: %r", snapshot.swhid(), branch_name
@@ -329,7 +329,7 @@ class GitBareCooker(BaseVaultCooker):
         else:
             assert_never(self.obj_type, f"Unexpected root object type: {self.obj_type}")
 
-        for (ref_name, ref_target) in refs.items():
+        for ref_name, ref_target in refs.items():
             path = os.path.join(self.gitdir.encode(), ref_name)
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "wb") as fd:
@@ -392,7 +392,6 @@ class GitBareCooker(BaseVaultCooker):
     def load_objects(self) -> None:
         """Repeatedly loads objects in the todo-lists, until all lists are empty."""
         while self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack:
-
             nb_remaining = (
                 len(self._rel_stack)
                 + len(self._rev_stack)
@@ -682,7 +681,7 @@ class GitBareCooker(BaseVaultCooker):
         contents = self.storage.content_get(obj_ids, "sha1_git")
 
         visible_contents = []
-        for (obj_id, content) in zip(obj_ids, contents):
+        for obj_id, content in zip(obj_ids, contents):
             if content is None:
                 # FIXME: this may also happen for missing content
                 self.write_content(obj_id, SKIPPED_MESSAGE)
@@ -714,7 +713,7 @@ class GitBareCooker(BaseVaultCooker):
                 self.objstorage.get_batch(c.hashes() for c in visible_contents),
             )
 
-        for (content, datum) in contents_and_data:
+        for content, datum in contents_and_data:
             if datum is None:
                 logger.error(
                     "%s is visible, but is missing data. Skipping.", content.swhid()

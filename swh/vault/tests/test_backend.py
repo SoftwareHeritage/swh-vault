@@ -204,7 +204,6 @@ def test_cook_email_pending_done(swh_vault):
     with mock_cooking(swh_vault), patch.object(
         swh_vault, "add_notif_email"
     ) as madd, patch.object(swh_vault, "send_notification") as msend:
-
         swh_vault.cook(TEST_TYPE, TEST_SWHID)
         madd.assert_not_called()
         msend.assert_not_called()

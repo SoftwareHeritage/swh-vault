@@ -259,6 +259,42 @@ def test_send_all_emails(swh_vault):
         m.assert_not_called()
 
 
+def test_send_all_emails_custom_notif(swh_vault_custom_notif):
+    swh_vault = swh_vault_custom_notif
+    with mock_cooking(swh_vault):
+        emails = ("a@example.com", "billg@example.com", "test+42@example.org")
+        for email in emails:
+            swh_vault.cook(TEST_TYPE, TEST_SWHID, email=email)
+
+    swh_vault.set_status(TEST_TYPE, TEST_SWHID, "done")
+
+    with patch.object(swh_vault, "_smtp_send") as m:
+        swh_vault.send_notif(TEST_TYPE, TEST_SWHID)
+
+        sent_emails = {k[0][0] for k in m.call_args_list}
+        assert {k["To"] for k in sent_emails} == set(emails)
+
+        download_url = (
+            "http://test.local/api/1/vault/"
+            f"{TEST_TYPE.replace('_', '-')}/{str(TEST_SWHID)}/raw"
+        )
+
+        for e in sent_emails:
+            assert "nobody@nowhere.local" in e["From"]
+            assert TEST_TYPE in e["Subject"]
+            assert TEST_SWHID.object_id.hex()[:5] in e["Subject"]
+            assert TEST_TYPE in str(e)
+            assert download_url in str(e)
+            assert TEST_SWHID.object_id.hex()[:5] in str(e)
+            assert "--\x20\n" in str(e)  # Well-formated signature!!!
+
+        # Check that the entries have been deleted and recalling the
+        # function does not re-send the e-mails
+        m.reset_mock()
+        swh_vault.send_notif(TEST_TYPE, TEST_SWHID)
+        m.assert_not_called()
+
+
 def test_send_email_error_no_smtp(swh_vault):
     reports = []
     init_sentry(SENTRY_DSN, extra_kwargs={"transport": reports.append})

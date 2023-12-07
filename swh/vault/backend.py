@@ -470,9 +470,12 @@ class VaultBackend(VaultDB):
         # * send this url as part of the cook request and store it in
         #   the table
         # * use this url for the notification e-mail
-        url = "https://archive.softwareheritage.org/api/1/vault/{}/{}/" "raw".format(
-            bundle_type.replace("_", "-"), swhid
+        # UPDATE: for now, let's just retrieve the URL from a config entry, if
+        # any, so we can use it on mirror instances
+        base_url = self.config.get("notification", {}).get(
+            "api_url", "https://archive.softwareheritage.org/api/1"
         )
+        url = f"{base_url}/vault/{bundle_type.replace('_', '-')}/{swhid}/raw"
 
         if status == "done":
             text = NOTIF_EMAIL_BODY_SUCCESS.strip()
@@ -495,7 +498,7 @@ class VaultBackend(VaultDB):
                 "send_notification called on a '{}' bundle".format(status)
             )
 
-        msg["From"] = NOTIF_EMAIL_FROM
+        msg["From"] = self.config.get("notification", {}).get("from", NOTIF_EMAIL_FROM)
         msg["To"] = email
 
         self._smtp_send(msg)

@@ -90,5 +90,14 @@ def swh_vault(swh_vault_config):
 
 
 @pytest.fixture
+def swh_vault_custom_notif(swh_vault_config):
+    notif_cfg = {
+        "from": "Someone from somewhere <nobody@nowhere.local>",
+        "api_url": "http://test.local/api/1",
+    }
+    return get_vault("local", notification=notif_cfg, **swh_vault_config)
+
+
+@pytest.fixture
 def swh_storage(swh_vault):
     return swh_vault.storage

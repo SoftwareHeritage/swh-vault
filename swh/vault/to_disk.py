@@ -6,10 +6,11 @@
 import collections
 import concurrent
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from swh.model import hashutil
 from swh.model.from_disk import DentryPerms, mode_to_perms
+from swh.objstorage.interface import ObjStorageInterface
 from swh.storage.algos.dir_iterators import dir_iterator
 from swh.storage.interface import HashDict, StorageInterface
 
@@ -27,7 +28,9 @@ HIDDEN_MESSAGE = b"This content is hidden."
 
 
 def get_filtered_file_content(
-    storage: StorageInterface, file_data: Dict[str, Any]
+    storage: StorageInterface,
+    file_data: Dict[str, Any],
+    objstorage: Optional[ObjStorageInterface] = None,
 ) -> Dict[str, Any]:
     """Retrieve the file specified by file_data and apply filters for skipped
     and missing content.
@@ -51,7 +54,11 @@ def get_filtered_file_content(
             "sha1": file_data["sha1"],
             "sha1_git": file_data["sha1_git"],
         }
-        data = storage.content_get_data(hashes)
+        data: Optional[bytes]
+        if objstorage is not None:
+            data = objstorage.get(hashes)
+        else:
+            data = storage.content_get_data(hashes)
         if data is None:
             content = SKIPPED_MESSAGE
         else:
@@ -80,6 +87,7 @@ class DirectoryBuilder:
         root: bytes,
         dir_id: bytes,
         thread_pool_size: int = 10,
+        objstorage: Optional[ObjStorageInterface] = None,
     ):
         """Initialize the directory builder.
 
@@ -92,6 +100,7 @@ class DirectoryBuilder:
         self.root = root
         self.dir_id = dir_id
         self.thread_pool_size = thread_pool_size
+        self.objstorage = objstorage
 
     def build(self) -> None:
         """Perform the reconstruction of the directory in the given root."""
@@ -123,7 +132,9 @@ class DirectoryBuilder:
         """Create the files in the tree and fetch their contents."""
 
         def worker(file_data: Dict[str, Any]) -> None:
-            file_data = get_filtered_file_content(self.storage, file_data)
+            file_data = get_filtered_file_content(
+                self.storage, file_data, self.objstorage
+            )
             path = os.path.join(self.root, file_data["path"])
             self._create_file(path, file_data["content"], file_data["perms"])
 

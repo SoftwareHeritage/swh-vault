@@ -178,11 +178,18 @@ def git_loader(
 
 
 @contextlib.contextmanager
-def cook_extract_directory_dircooker(storage, swhid, fsck=True):
+def cook_extract_directory_dircooker(
+    storage, swhid, fsck=True, direct_objstorage=False
+):
     """Context manager that cooks a directory and extract it."""
     backend = unittest.mock.MagicMock()
     backend.storage = storage
-    cooker = DirectoryCooker(swhid, backend=backend, storage=storage)
+    cooker = DirectoryCooker(
+        swhid,
+        backend=backend,
+        storage=storage,
+        objstorage=storage.objstorage if direct_objstorage else None,
+    )
     cooker.fileobj = io.BytesIO()
     assert cooker.check_exists()
     cooker.prepare_bundle()
@@ -195,7 +202,7 @@ def cook_extract_directory_dircooker(storage, swhid, fsck=True):
 
 
 @contextlib.contextmanager
-def cook_extract_directory_gitfast(storage, swhid, fsck=True):
+def cook_extract_directory_gitfast(storage, swhid, fsck=True, direct_objstorage=False):
     """Context manager that cooks a revision containing a directory and extract it,
     using RevisionGitfastCooker"""
     test_repo = _TestRepo()
@@ -388,7 +395,12 @@ TEST_EXECUTABLE = b"\x42\x40\x00\x00\x05"
 
 
 class TestDirectoryCooker:
-    def test_directory_simple(self, git_loader, cook_extract_directory):
+    @pytest.mark.parametrize(
+        "direct_objstorage", [True, False], ids=["use objstorage", "storage only"]
+    )
+    def test_directory_simple(
+        self, git_loader, cook_extract_directory, direct_objstorage
+    ):
         repo = _TestRepo()
         with repo as rp:
             (rp / "file").write_text(TEST_CONTENT)
@@ -405,7 +417,9 @@ class TestDirectoryCooker:
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
             swhid = CoreSWHID(object_type=ObjectType.DIRECTORY, object_id=obj_id)
 
-        with cook_extract_directory(loader.storage, swhid) as p:
+        with cook_extract_directory(
+            loader.storage, swhid, direct_objstorage=direct_objstorage
+        ) as p:
             assert (p / "file").stat().st_mode == 0o100644
             assert (p / "file").read_text() == TEST_CONTENT
             assert (p / "executable").stat().st_mode == 0o100755
@@ -418,7 +432,12 @@ class TestDirectoryCooker:
             directory = from_disk.Directory.from_disk(path=bytes(p))
             assert obj_id_hex == hashutil.hash_to_hex(directory.hash)
 
-    def test_directory_filtered_objects(self, git_loader, cook_extract_directory):
+    @pytest.mark.parametrize(
+        "direct_objstorage", [True, False], ids=["use objstorage", "storage only"]
+    )
+    def test_directory_filtered_objects(
+        self, git_loader, cook_extract_directory, direct_objstorage
+    ):
         repo = _TestRepo()
         with repo as rp:
             file_1, id_1 = hash_content(b"test1")
@@ -457,12 +476,19 @@ class TestDirectoryCooker:
         for hashkey in loader.storage._cql_runner._content_indexes:
             loader.storage._cql_runner._content_indexes[hashkey].pop(cnt3[hashkey])
 
-        with cook_extract_directory(loader.storage, swhid) as p:
+        with cook_extract_directory(
+            loader.storage, swhid, direct_objstorage=direct_objstorage
+        ) as p:
             assert (p / "file").read_bytes() == b"test1"
             assert (p / "hidden_file").read_bytes() == HIDDEN_MESSAGE
             assert (p / "absent_file").read_bytes() == SKIPPED_MESSAGE
 
-    def test_directory_bogus_perms(self, git_loader, cook_extract_directory):
+    @pytest.mark.parametrize(
+        "direct_objstorage", [True, False], ids=["use objstorage", "storage only"]
+    )
+    def test_directory_bogus_perms(
+        self, git_loader, cook_extract_directory, direct_objstorage
+    ):
         # Some early git repositories have 664/775 permissions... let's check
         # if all the weird modes are properly normalized in the directory
         # cooker.
@@ -505,7 +531,9 @@ class TestDirectoryCooker:
             obj_id = hashutil.hash_to_bytes(obj_id_hex)
             swhid = CoreSWHID(object_type=ObjectType.DIRECTORY, object_id=obj_id)
 
-        with cook_extract_directory(loader.storage, swhid) as p:
+        with cook_extract_directory(
+            loader.storage, swhid, direct_objstorage=direct_objstorage
+        ) as p:
             assert (p / "file").stat().st_mode == 0o100644
             assert (p / "executable").stat().st_mode == 0o100755
             assert (p / "wat").stat().st_mode == 0o100644

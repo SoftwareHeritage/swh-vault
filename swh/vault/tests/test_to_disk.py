@@ -129,11 +129,19 @@ def _fill_storage(swh_storage, exclude_cnt3=False, exclude_dir1=False):
     return dir2
 
 
-def test_directory_builder(swh_storage, tmp_path):
+@pytest.mark.parametrize(
+    "use_objstorage", [False, True], ids=["use only storage", "use objstorage"]
+)
+def test_directory_builder(swh_storage, tmp_path, use_objstorage):
     dir2 = _fill_storage(swh_storage)
 
     root = tmp_path / "root"
-    builder = DirectoryBuilder(swh_storage, bytes(root), dir2.id)
+    builder = DirectoryBuilder(
+        storage=swh_storage,
+        root=bytes(root),
+        dir_id=dir2.id,
+        objstorage=swh_storage.objstorage if use_objstorage else None,
+    )
 
     assert not root.exists()
 
@@ -152,11 +160,19 @@ def test_directory_builder(swh_storage, tmp_path):
     assert (root / "content3").open().read() == "baz qux"
 
 
-def test_directory_builder_missing_content(swh_storage, tmp_path):
+@pytest.mark.parametrize(
+    "use_objstorage", [False, True], ids=["use only storage", "use objstorage"]
+)
+def test_directory_builder_missing_content(swh_storage, tmp_path, use_objstorage):
     dir2 = _fill_storage(swh_storage, exclude_cnt3=True)
 
     root = tmp_path / "root"
-    builder = DirectoryBuilder(swh_storage, bytes(root), dir2.id)
+    builder = DirectoryBuilder(
+        storage=swh_storage,
+        root=bytes(root),
+        dir_id=dir2.id,
+        objstorage=swh_storage.objstorage if use_objstorage else None,
+    )
 
     assert not root.exists()
 
@@ -167,11 +183,19 @@ def test_directory_builder_missing_content(swh_storage, tmp_path):
     assert "This content is missing" in (root / "content3").open().read()
 
 
-def test_directory_builder_missing_directory(swh_storage, tmp_path):
+@pytest.mark.parametrize(
+    "use_objstorage", [False, True], ids=["use only storage", "use objstorage"]
+)
+def test_directory_builder_missing_directory(swh_storage, tmp_path, use_objstorage):
     dir2 = _fill_storage(swh_storage, exclude_dir1=True)
 
     root = tmp_path / "root"
-    builder = DirectoryBuilder(swh_storage, bytes(root), dir2.id)
+    builder = DirectoryBuilder(
+        storage=swh_storage,
+        root=bytes(root),
+        dir_id=dir2.id,
+        objstorage=swh_storage.objstorage if use_objstorage else None,
+    )
 
     assert not root.exists()
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2022  The Software Heritage developers
+# Copyright (C) 2017-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -565,7 +565,7 @@ class TestDirectoryCooker:
             swh_storage, "content_get_data", wraps=swh_storage.content_get_data
         )
         objstorage_content_batch = mocker.patch.object(
-            swh_storage.objstorage, "get_batch", wraps=swh_storage.objstorage.get_batch
+            swh_storage.objstorage, "get", wraps=swh_storage.objstorage.get
         )
 
         with cook_extract_directory_git_bare(

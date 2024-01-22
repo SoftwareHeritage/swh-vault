@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2022  The Software Heritage developers
+# Copyright (C) 2021-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -29,6 +29,7 @@ When swh-graph is not available, steps 1 and 2 are merged, because revisions nee
 to be loaded in order to compute the subgraph.
 """
 
+import concurrent
 import datetime
 import enum
 import glob
@@ -39,18 +40,7 @@ import re
 import subprocess
 import tarfile
 import tempfile
-from typing import (
-    Any,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    NoReturn,
-    Optional,
-    Set,
-    Tuple,
-    cast,
-)
+from typing import Any, Dict, Iterable, List, NoReturn, Optional, Set, cast
 import zlib
 
 import sentry_sdk
@@ -69,7 +59,7 @@ from swh.model.model import (
     TargetType,
     TimestampWithTimezone,
 )
-from swh.model.model import Content, Directory, DirectoryEntry
+from swh.model.model import Directory, DirectoryEntry
 from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
@@ -391,6 +381,10 @@ class GitBareCooker(BaseVaultCooker):
 
     def load_objects(self) -> None:
         """Repeatedly loads objects in the todo-lists, until all lists are empty."""
+        executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=self.thread_pool_size
+        )
+        futures = []
         while self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack:
             nb_remaining = (
                 len(self._rel_stack)
@@ -425,8 +419,18 @@ class GitBareCooker(BaseVaultCooker):
 
             content_ids = self._pop(self._cnt_stack, CONTENT_BATCH_SIZE)
             if content_ids:
-                self.load_contents(content_ids)
+                futures += [
+                    executor.submit(self.load_content, content_id)
+                    for content_id in content_ids
+                ]
                 self.nb_loaded += len(content_ids)
+
+        self.backend.set_progress(
+            self.BUNDLE_TYPE,
+            self.swhid,
+            "Fetching contents bytes ...",
+        )
+        concurrent.futures.wait(futures)
 
     def push_revision_subgraph(self, obj_id: Sha1Git) -> None:
         """Fetches the graph of revisions induced by the given ``obj_id`` and adds
@@ -674,52 +678,37 @@ class GitBareCooker(BaseVaultCooker):
             if stack is not None:
                 self._push(stack, [entry.target])
 
-    def load_contents(self, obj_ids: List[Sha1Git]) -> None:
+    def load_content(self, obj_id: Sha1Git) -> None:
         # TODO: add support of filtered objects, somehow?
         # It's tricky, because, by definition, we can't write a git object with
         # the expected hash, so git-fsck *will* choke on it.
-        contents = self.storage.content_get(obj_ids, "sha1_git")
+        content = self.storage.content_get([obj_id], "sha1_git")[0]
 
-        visible_contents = []
-        for obj_id, content in zip(obj_ids, contents):
-            if content is None:
-                # FIXME: this may also happen for missing content
-                self.write_content(obj_id, SKIPPED_MESSAGE)
-                self._expect_mismatched_object_error(obj_id)
-            elif content.status == "visible":
-                visible_contents.append(content)
-            elif content.status == "hidden":
-                self.write_content(obj_id, HIDDEN_MESSAGE)
-                self._expect_mismatched_object_error(obj_id)
-            elif content.status == "absent":
-                assert False, f"content_get returned absent content {content.swhid()}"
+        if content is None:
+            # FIXME: this may also happen for missing content
+            self.write_content(obj_id, SKIPPED_MESSAGE)
+            self._expect_mismatched_object_error(obj_id)
+        elif content.status == "visible":
+            if self.objstorage is None:
+                datum = self.storage.content_get_data(cast(HashDict, content.hashes()))
             else:
-                # TODO: When content.status will have type Literal, replace this with
-                # assert_never
-                assert False, f"{content.swhid} has status: {content.status!r}"
+                datum = self.objstorage.get(content.hashes())
 
-        contents_and_data: Iterator[Tuple[Content, Optional[bytes]]]
-        if self.objstorage is None:
-            contents_and_data = (
-                (
-                    content,
-                    self.storage.content_get_data(cast(HashDict, content.hashes())),
-                )
-                for content in visible_contents
-            )
-        else:
-            contents_and_data = zip(
-                visible_contents,
-                self.objstorage.get_batch(c.hashes() for c in visible_contents),
-            )
-
-        for content, datum in contents_and_data:
             if datum is None:
                 logger.error(
                     "%s is visible, but is missing data. Skipping.", content.swhid()
                 )
-                continue
-            self.write_content(content.sha1_git, datum)
+            else:
+                self.write_content(content.sha1_git, datum)
+        elif content.status == "hidden":
+            self.write_content(obj_id, HIDDEN_MESSAGE)
+            self._expect_mismatched_object_error(obj_id)
+        elif content.status == "absent":
+            assert False, f"content_get returned absent content {content.swhid()}"
+        else:
+            # TODO: When content.status will have type Literal, replace this with
+            # assert_never
+            assert False, f"{content.swhid} has status: {content.status!r}"
 
     def write_content(self, obj_id: Sha1Git, content: bytes) -> None:
         header = git_objects.git_object_header("blob", len(content))

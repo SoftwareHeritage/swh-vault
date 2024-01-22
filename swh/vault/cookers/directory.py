@@ -22,7 +22,9 @@ class DirectoryCooker(BaseVaultCooker):
 
     def prepare_bundle(self):
         with tempfile.TemporaryDirectory(prefix="tmp-vault-directory-") as td:
-            directory_builder = DirectoryBuilder(self.storage, td.encode(), self.obj_id)
+            directory_builder = DirectoryBuilder(
+                self.storage, td.encode(), self.obj_id, self.thread_pool_size
+            )
             directory_builder.build()
             with tarfile.open(fileobj=self.fileobj, mode="w:gz") as tar:
                 tar.add(td, arcname=str(self.swhid))

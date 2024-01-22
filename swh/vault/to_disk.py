@@ -1,12 +1,12 @@
-# Copyright (C) 2016-2020 The Software Heritage developers
+# Copyright (C) 2016-2024 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import collections
-import functools
+import concurrent
 import os
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, List
 
 from swh.model import hashutil
 from swh.model.from_disk import DentryPerms, mode_to_perms
@@ -26,18 +26,18 @@ SKIPPED_MESSAGE = (
 HIDDEN_MESSAGE = b"This content is hidden."
 
 
-def get_filtered_files_content(
-    storage: StorageInterface, files_data: List[Dict]
-) -> Iterator[Dict[str, Any]]:
-    """Retrieve the files specified by files_data and apply filters for skipped
-    and missing contents.
+def get_filtered_file_content(
+    storage: StorageInterface, file_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Retrieve the file specified by file_data and apply filters for skipped
+    and missing content.
 
     Args:
         storage: the storage from which to retrieve the objects
-        files_data: list of file entries as returned by directory_ls()
+        file_data: a file entry as returned by directory_ls()
 
-    Yields:
-        The entries given in files_data with a new 'content' key that points to
+    Returns:
+        The entry given in file_data with a new 'content' key that points to
         the file content in bytes.
 
         The contents can be replaced by a specific message to indicate that
@@ -45,43 +45,42 @@ def get_filtered_files_content(
         their sizes were too big for us to archive it).
 
     """
-    for file_data in files_data:
-        status = file_data["status"]
-        if status == "visible":
-            hashes: HashDict = {
-                "sha1": file_data["sha1"],
-                "sha1_git": file_data["sha1_git"],
-            }
-            data = storage.content_get_data(hashes)
-            if data is None:
-                content = SKIPPED_MESSAGE
-            else:
-                content = data
-        elif status == "absent":
+    status = file_data["status"]
+    if status == "visible":
+        hashes: HashDict = {
+            "sha1": file_data["sha1"],
+            "sha1_git": file_data["sha1_git"],
+        }
+        data = storage.content_get_data(hashes)
+        if data is None:
             content = SKIPPED_MESSAGE
-        elif status == "hidden":
-            content = HIDDEN_MESSAGE
-        elif status is None:
-            content = MISSING_MESSAGE
         else:
-            assert False, (
-                f"unexpected status {status!r} "
-                f"for content {hashutil.hash_to_hex(file_data['target'])}"
-            )
+            content = data
+    elif status == "absent":
+        content = SKIPPED_MESSAGE
+    elif status == "hidden":
+        content = HIDDEN_MESSAGE
+    elif status is None:
+        content = MISSING_MESSAGE
+    else:
+        assert False, (
+            f"unexpected status {status!r} "
+            f"for content {hashutil.hash_to_hex(file_data['target'])}"
+        )
 
-        yield {"content": content, **file_data}
-
-
-def apply_chunked(func, input_list, chunk_size):
-    """Apply func on input_list divided in chunks of size chunk_size"""
-    for i in range(0, len(input_list), chunk_size):
-        yield from func(input_list[i : i + chunk_size])
+    return {"content": content, **file_data}
 
 
 class DirectoryBuilder:
     """Reconstructs the on-disk representation of a directory in the storage."""
 
-    def __init__(self, storage: StorageInterface, root: bytes, dir_id: bytes):
+    def __init__(
+        self,
+        storage: StorageInterface,
+        root: bytes,
+        dir_id: bytes,
+        thread_pool_size: int = 10,
+    ):
         """Initialize the directory builder.
 
         Args:
@@ -92,6 +91,7 @@ class DirectoryBuilder:
         self.storage = storage
         self.root = root
         self.dir_id = dir_id
+        self.thread_pool_size = thread_pool_size
 
     def build(self) -> None:
         """Perform the reconstruction of the directory in the given root."""
@@ -121,12 +121,17 @@ class DirectoryBuilder:
 
     def _create_files(self, files_data: List[Dict[str, Any]]) -> None:
         """Create the files in the tree and fetch their contents."""
-        f = functools.partial(get_filtered_files_content, self.storage)
-        files_data = apply_chunked(f, files_data, 1000)
 
-        for file_data in files_data:
+        def worker(file_data: Dict[str, Any]) -> None:
+            file_data = get_filtered_file_content(self.storage, file_data)
             path = os.path.join(self.root, file_data["path"])
             self._create_file(path, file_data["content"], file_data["perms"])
+
+        executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=min(self.thread_pool_size, len(files_data) + 1)
+        )
+        futures = [executor.submit(worker, file_data) for file_data in files_data]
+        concurrent.futures.wait(futures)
 
     def _create_revisions(self, revs_data: List[Dict[str, Any]]) -> None:
         """Create the revisions in the tree as broken symlinks to the target

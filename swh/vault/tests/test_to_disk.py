@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2022  The Software Heritage developers
+# Copyright (C) 2020-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,7 +7,7 @@ import pytest
 
 from swh.model.from_disk import DentryPerms
 from swh.model.model import Content, Directory, DirectoryEntry, SkippedContent
-from swh.vault.to_disk import DirectoryBuilder, get_filtered_files_content
+from swh.vault.to_disk import DirectoryBuilder, get_filtered_file_content
 
 
 def test_get_filtered_files_content(swh_storage):
@@ -37,7 +37,9 @@ def test_get_filtered_files_content(swh_storage):
         },
     ]
 
-    res = list(get_filtered_files_content(swh_storage, files_data))
+    res = [
+        get_filtered_file_content(swh_storage, file_data) for file_data in files_data
+    ]
 
     assert res == [
         {
@@ -76,7 +78,7 @@ def test_get_filtered_files_content__unknown_status(swh_storage):
     ]
 
     with pytest.raises(AssertionError, match="unexpected status 'blah'"):
-        list(get_filtered_files_content(swh_storage, files_data))
+        [get_filtered_file_content(swh_storage, file_data) for file_data in files_data]
 
 
 def _fill_storage(swh_storage, exclude_cnt3=False, exclude_dir1=False):

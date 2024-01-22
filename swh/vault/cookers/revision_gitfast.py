@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2019  The Software Heritage developers
+# Copyright (C) 2017-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -22,7 +22,7 @@ from swh.model.swhids import ObjectType
 from swh.model.toposort import toposort
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.cookers.utils import revision_log
-from swh.vault.to_disk import get_filtered_files_content
+from swh.vault.to_disk import get_filtered_file_content
 
 
 class RevisionGitfastCooker(BaseVaultCooker):
@@ -82,9 +82,8 @@ class RevisionGitfastCooker(BaseVaultCooker):
         obj_id = file_data["sha1"]
         if obj_id in self.obj_done:
             return
-        contents = list(get_filtered_files_content(self.storage, [file_data]))
-        content = contents[0]["content"]
-        self.write_cmd(BlobCommand(mark=self.mark(obj_id), data=content))
+        content = get_filtered_file_content(self.storage, file_data)
+        self.write_cmd(BlobCommand(mark=self.mark(obj_id), data=content["content"]))
         self.obj_done.add(obj_id)
 
     def _author_tuple_format(self, author, date):

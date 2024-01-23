@@ -6,12 +6,11 @@
 import collections
 import concurrent
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from swh.model import hashutil
 from swh.model.from_disk import DentryPerms, mode_to_perms
 from swh.objstorage.interface import ObjStorageInterface
-from swh.storage.algos.dir_iterators import dir_iterator
 from swh.storage.interface import HashDict, StorageInterface
 
 MISSING_MESSAGE = (
@@ -104,52 +103,48 @@ class DirectoryBuilder:
 
     def build(self) -> None:
         """Perform the reconstruction of the directory in the given root."""
-        # Retrieve data from the database.
-        # Split into files, revisions and directory data.
-        entries = collections.defaultdict(list)
-        for entry in dir_iterator(self.storage, self.dir_id):
-            entries[entry["type"]].append(entry)
 
-        # Recreate the directory's subtree and then the files into it.
-        self._create_tree(entries["dir"])
-        self._create_files(entries["file"])
-        self._create_revisions(entries["rev"])
-
-    def _create_tree(self, directories: List[Dict[str, Any]]) -> None:
-        """Create a directory tree from the given paths
-
-        The tree is created from `root` and each given directory in
-        `directories` will be created.
-        """
-        # Directories are sorted by depth so they are created in the
-        # right order
-        bsep = os.path.sep.encode()
-        directories = sorted(directories, key=lambda x: len(x["path"].split(bsep)))
-        for dir in directories:
-            os.makedirs(os.path.join(self.root, dir["path"]))
-
-    def _create_files(self, files_data: List[Dict[str, Any]]) -> None:
-        """Create the files in the tree and fetch their contents."""
-
-        def worker(file_data: Dict[str, Any]) -> None:
+        def file_fetcher(file_data: Dict[str, Any]) -> None:
             file_data = get_filtered_file_content(
                 self.storage, file_data, self.objstorage
             )
             path = os.path.join(self.root, file_data["path"])
             self._create_file(path, file_data["content"], file_data["perms"])
 
-        executor = concurrent.futures.ThreadPoolExecutor(
-            max_workers=min(self.thread_pool_size, len(files_data) + 1)
-        )
-        futures = [executor.submit(worker, file_data) for file_data in files_data]
+        executor = concurrent.futures.ThreadPoolExecutor(self.thread_pool_size)
+        futures = []
+
+        os.makedirs(self.root, exist_ok=True)
+        queue = collections.deque([(b"", self.dir_id)])
+        while queue:
+            path, dir_id = queue.popleft()
+            dir_entries = self.storage.directory_ls(dir_id)
+            for dir_entry in dir_entries:
+                dir_entry["path"] = os.path.join(path, dir_entry["name"])
+                match dir_entry["type"]:
+                    case "dir":
+                        self._create_tree(dir_entry)
+                        queue.append((dir_entry["path"], dir_entry["target"]))
+                    case "rev":
+                        self._create_revision(dir_entry)
+                    case "file":
+                        futures.append(executor.submit(file_fetcher, dir_entry))
+                    case _:
+                        raise ValueError(
+                            f"Unsupported directory entry type {dir_entry['type']} for "
+                            f"{dir_entry['name']:r} in directory swh:1:dir:{dir_id.hex()}"
+                        )
+
         concurrent.futures.wait(futures)
 
-    def _create_revisions(self, revs_data: List[Dict[str, Any]]) -> None:
-        """Create the revisions in the tree as broken symlinks to the target
+    def _create_tree(self, directory: Dict[str, Any]) -> None:
+        """Create a directory tree from root for the given path."""
+        os.makedirs(os.path.join(self.root, directory["path"]), exist_ok=True)
+
+    def _create_revision(self, rev_data: Dict[str, Any]) -> None:
+        """Create the revision in the tree as a broken symlink to the target
         identifier."""
-        for file_data in revs_data:
-            path = os.path.join(self.root, file_data["path"])
-            os.makedirs(path)
+        os.makedirs(os.path.join(self.root, rev_data["path"]), exist_ok=True)
 
     def _create_file(
         self, path: bytes, content: bytes, mode: int = DentryPerms.content

@@ -34,7 +34,6 @@ import datetime
 import enum
 import glob
 import logging
-import multiprocessing.dummy
 import os.path
 import re
 import subprocess
@@ -105,6 +104,9 @@ class GitBareCooker(BaseVaultCooker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.obj_type = RootObjectType[self.swhid.object_type.name]
+        self.executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=self.thread_pool_size
+        )
 
     def check_exists(self) -> bool:
         """Returns whether the root object is present in the archive."""
@@ -381,9 +383,7 @@ class GitBareCooker(BaseVaultCooker):
 
     def load_objects(self) -> None:
         """Repeatedly loads objects in the todo-lists, until all lists are empty."""
-        executor = concurrent.futures.ThreadPoolExecutor(
-            max_workers=self.thread_pool_size
-        )
+
         futures = []
         while self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack:
             nb_remaining = (
@@ -420,7 +420,7 @@ class GitBareCooker(BaseVaultCooker):
             content_ids = self._pop(self._cnt_stack, CONTENT_BATCH_SIZE)
             if content_ids:
                 futures += [
-                    executor.submit(self.load_content, content_id)
+                    self.executor.submit(self.load_content, content_id)
                     for content_id in content_ids
                 ]
                 self.nb_loaded += len(content_ids)
@@ -644,12 +644,10 @@ class GitBareCooker(BaseVaultCooker):
 
         raw_manifests = self.storage.directory_get_raw_manifest(obj_ids)
 
-        with multiprocessing.dummy.Pool(min(self.thread_pool_size, len(obj_ids))) as p:
-            for _ in p.imap_unordered(
-                lambda obj_id: self.load_directory(obj_id, raw_manifests.get(obj_id)),
-                obj_ids,
-            ):
-                pass
+        concurrent.futures.wait(
+            self.executor.submit(self.load_directory, obj_id, raw_manifests.get(obj_id))
+            for obj_id in obj_ids
+        )
 
     def load_directory(self, obj_id: Sha1Git, raw_manifest: Optional[bytes]) -> None:
         # Load the directory

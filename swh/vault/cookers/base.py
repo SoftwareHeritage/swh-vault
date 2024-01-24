@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2018  The Software Heritage developers
+# Copyright (C) 2016-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,13 +7,14 @@ import abc
 import io
 import logging
 import traceback
-from typing import ClassVar, Set
+from typing import ClassVar, Optional, Set
 
 from psycopg2.extensions import QueryCanceledError
 import sentry_sdk
 
 import swh.model.swhids
 from swh.model.swhids import CoreSWHID, ObjectType
+from swh.objstorage.interface import ObjStorageInterface
 from swh.storage.interface import StorageInterface
 
 MAX_BUNDLE_SIZE = 2**29  # 512 MiB
@@ -71,7 +72,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         backend,
         storage: StorageInterface,
         graph=None,
-        objstorage=None,
+        objstorage: Optional[ObjStorageInterface] = None,
         max_bundle_size: int = MAX_BUNDLE_SIZE,
         thread_pool_size: int = 10,
     ):

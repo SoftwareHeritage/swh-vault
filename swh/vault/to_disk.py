@@ -10,8 +10,8 @@ from typing import Any, Dict, Optional
 
 from swh.model import hashutil
 from swh.model.from_disk import DentryPerms, mode_to_perms
-from swh.objstorage.interface import ObjStorageInterface
-from swh.storage.interface import HashDict, StorageInterface
+from swh.objstorage.interface import ObjStorageInterface, objid_from_dict
+from swh.storage.interface import StorageInterface
 
 MISSING_MESSAGE = (
     b"This content is missing from the Software Heritage archive "
@@ -49,10 +49,7 @@ def get_filtered_file_content(
     """
     status = file_data["status"]
     if status == "visible":
-        hashes: HashDict = {
-            "sha1": file_data["sha1"],
-            "sha1_git": file_data["sha1_git"],
-        }
+        hashes = objid_from_dict(file_data)
         data: Optional[bytes]
         if objstorage is not None:
             data = objstorage.get(hashes)

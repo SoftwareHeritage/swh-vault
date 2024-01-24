@@ -39,7 +39,7 @@ import re
 import subprocess
 import tarfile
 import tempfile
-from typing import Any, Dict, Iterable, List, NoReturn, Optional, Set, cast
+from typing import Any, Dict, Iterable, List, NoReturn, Optional, Set
 import zlib
 
 import sentry_sdk
@@ -61,9 +61,9 @@ from swh.model.model import (
 from swh.model.model import Directory, DirectoryEntry
 from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ObjectType
+from swh.objstorage.interface import objid_from_dict
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
 from swh.storage.algos.snapshot import snapshot_get_all_branches
-from swh.storage.interface import HashDict
 from swh.vault.cookers.base import BaseVaultCooker
 from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE
 
@@ -687,10 +687,11 @@ class GitBareCooker(BaseVaultCooker):
             self.write_content(obj_id, SKIPPED_MESSAGE)
             self._expect_mismatched_object_error(obj_id)
         elif content.status == "visible":
+            hashes = objid_from_dict(content.hashes())
             if self.objstorage is None:
-                datum = self.storage.content_get_data(cast(HashDict, content.hashes()))
+                datum = self.storage.content_get_data(hashes)
             else:
-                datum = self.objstorage.get(content.hashes())
+                datum = self.objstorage.get(hashes)
 
             if datum is None:
                 logger.error(

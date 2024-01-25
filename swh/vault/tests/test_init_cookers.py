@@ -96,6 +96,7 @@ def test_get_cooker_config_ko(
                 "url": "mock://vault-backend",
             },
             "storage": {"cls": "remote", "url": "mock://storage-url"},
+            "objstorage": {"cls": "memory"},
         },
     ],
 )
@@ -108,3 +109,7 @@ def test_get_cooker_nominal(config_ok, tmp_path, monkeypatch):
 
         assert cooker is not None
         assert isinstance(cooker, tuple(COOKER_TYPES[cooker_type]))
+        if config_ok.get("objstorage") or config_ok["vault"].get("objstorage"):
+            assert cooker.objstorage is not None
+        else:
+            assert cooker.objstorage is None

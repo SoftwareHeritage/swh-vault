@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Type
 from swh.core.config import load_named_config
 from swh.core.config import read as read_config
 from swh.model.swhids import CoreSWHID, ObjectType
+from swh.objstorage.factory import get_objstorage
 from swh.storage import get_storage
 from swh.vault.cookers.base import DEFAULT_CONFIG, DEFAULT_CONFIG_PATH, BaseVaultCooker
 from swh.vault.cookers.directory import DirectoryCooker
@@ -72,12 +73,10 @@ def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
             "This vault backend can only be a 'remote' configuration"
         )
 
-    # TODO: Soft-deprecation of args key. Remove when ready.
-    vcfg.update(vcfg.get("args", {}))
-
     # Default to top-level value if any
-    if "storage" not in vcfg:
-        vcfg["storage"] = cfg.get("storage")
+    for key in ("storage", "objstorage"):
+        if key not in vcfg and key in cfg:
+            vcfg[key] = cfg[key]
 
     if not vcfg.get("storage"):
         raise ValueError("invalid configuration: missing 'storage' config entry.")
@@ -123,6 +122,11 @@ def get_cooker(bundle_type: str, swhid: CoreSWHID):
         else:
             graph = None
 
+    if vcfg.get("objstorage"):
+        objstorage = get_objstorage(**vcfg["objstorage"])
+    else:
+        objstorage = None
+
     kwargs = {
         k: v for (k, v) in cfg.items() if k in ("max_bundle_size", "thread_pool_size")
     }
@@ -131,6 +135,7 @@ def get_cooker(bundle_type: str, swhid: CoreSWHID):
         swhid,
         backend=backend,
         storage=storage,
+        objstorage=objstorage,
         graph=graph,
         **kwargs,
     )

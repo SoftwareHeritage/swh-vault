@@ -98,10 +98,24 @@ def test_get_cooker_config_ko(
             "storage": {"cls": "remote", "url": "mock://storage-url"},
             "objstorage": {"cls": "memory"},
         },
+        {
+            "vault": {
+                "cls": "remote",
+                "url": "mock://vault-backend",
+            },
+            "storage": {"cls": "remote", "url": "mock://storage-url"},
+            "graph": {"url": "mock://graph-url"},
+        },
     ],
 )
-def test_get_cooker_nominal(config_ok, tmp_path, monkeypatch):
+def test_get_cooker_nominal(config_ok, tmp_path, monkeypatch, requests_mock):
     """Correct configuration should allow the instantiation of the cookers"""
+    requests_mock.get(
+        "mock://graph-url/stats",
+        json={"num_nodes": 42},
+        headers={"Content-Type": "application/json"},
+    )
+
     for cooker_type in COOKER_TYPES.keys():
         write_config_to_env(config_ok, tmp_path, monkeypatch)
 
@@ -113,3 +127,7 @@ def test_get_cooker_nominal(config_ok, tmp_path, monkeypatch):
             assert cooker.objstorage is not None
         else:
             assert cooker.objstorage is None
+        if config_ok.get("graph") or config_ok["vault"].get("graph"):
+            assert cooker.graph is not None
+        else:
+            assert cooker.graph is None

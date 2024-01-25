@@ -74,7 +74,7 @@ def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
         )
 
     # Default to top-level value if any
-    for key in ("storage", "objstorage"):
+    for key in ("storage", "objstorage", "graph"):
         if key not in vcfg and key in cfg:
             vcfg[key] = cfg[key]
 

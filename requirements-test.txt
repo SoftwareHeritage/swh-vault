@@ -3,6 +3,7 @@ dulwich >= 0.18.7
 pytest
 pytest-httpserver
 pytest-mock
+requests-mock
 swh.core[testing]
 swh.loader.core
 swh.loader.git >= 0.8

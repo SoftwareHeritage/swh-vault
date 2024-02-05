@@ -67,7 +67,7 @@ def pytest_collection_modifyitems(items):
 def swh_vault_config(postgres_vault, tmp_path) -> Dict[str, Any]:
     tmp_path = str(tmp_path)
     return {
-        "db": postgres_vault.dsn,
+        "db": postgres_vault.info.dsn,
         "storage": {
             "cls": "memory",
         },

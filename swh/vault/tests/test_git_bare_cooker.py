@@ -57,7 +57,7 @@ storage_postgresql = factories.postgresql("storage_postgresql_proc")
 @pytest.fixture
 def swh_storage(storage_postgresql):
     return get_storage(
-        "postgresql", db=storage_postgresql.dsn, objstorage={"cls": "memory"}
+        "postgresql", db=storage_postgresql.info.dsn, objstorage={"cls": "memory"}
     )
 
 

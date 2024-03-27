@@ -476,10 +476,15 @@ class GitBareCooker(BaseVaultCooker):
             walker = DFSRevisionsWalker(
                 self.storage, obj_id, state=self._walker_state, ignore_displayname=True
             )
-            for revision in walker:
-                self.write_revision_node(Revision.from_dict(revision))
+            for rev_d in walker:
+                if isinstance(rev_d, Revision):
+                    # TODO: Remove this conditional after swh-storage v3.0.0 is released
+                    revision = rev_d
+                else:
+                    revision = Revision.from_dict(rev_d)
+                self.write_revision_node(revision)
                 self.nb_loaded += 1
-                self._push(self._dir_stack, [revision["directory"]])
+                self._push(self._dir_stack, [revision.directory])
             # Save the state, so the next call to the walker won't return the same
             # revisions
             self._walker_state = walker.export_state()

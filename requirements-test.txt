@@ -1,6 +1,6 @@
 attrs
 dulwich >= 0.18.7
-pytest
+pytest >= 8.1
 pytest-httpserver
 pytest-mock
 requests-mock

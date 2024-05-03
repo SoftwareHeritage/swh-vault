@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2023  The Software Heritage developers
+# Copyright (C) 2017-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -18,7 +18,7 @@ from swh.core.db import BaseDb
 from swh.core.db.common import db_transaction
 from swh.model.swhids import CoreSWHID
 from swh.scheduler import get_scheduler
-from swh.scheduler.utils import create_oneshot_task_dict
+from swh.scheduler.utils import create_oneshot_task
 from swh.storage import get_storage
 from swh.vault.cache import VaultCache
 from swh.vault.cookers import COOKER_TYPES, get_cooker_cls
@@ -139,9 +139,9 @@ class VaultBackend(VaultDB):
 
     def _send_task(self, bundle_type: str, swhid: CoreSWHID):
         """Send a cooking task to the celery scheduler"""
-        task = create_oneshot_task_dict("cook-vault-bundle", bundle_type, str(swhid))
+        task = create_oneshot_task("cook-vault-bundle", bundle_type, str(swhid))
         added_tasks = self.scheduler.create_tasks([task])
-        return added_tasks[0]["id"]
+        return added_tasks[0].id
 
     @db_transaction()
     def create_task(
@@ -295,15 +295,14 @@ class VaultBackend(VaultDB):
         args_batch = [(bundle_type, swhid) for bundle_type, swhid in batch_new]
         # TODO: change once the scheduler handles priority tasks
         tasks = [
-            create_oneshot_task_dict("swh-vault-batch-cooking", *args)
-            for args in args_batch
+            create_oneshot_task("swh-vault-batch-cooking", *args) for args in args_batch
         ]
 
         added_tasks = self.scheduler.create_tasks(tasks)
         tasks_ids_bundle_ids = [
             (task_id, bundle_type, swhid)
             for task_id, (bundle_type, swhid) in zip(
-                [task["id"] for task in added_tasks], batch_new
+                [task.id for task in added_tasks], batch_new
             )
         ]
 

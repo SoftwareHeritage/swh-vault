@@ -39,7 +39,7 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
     Timestamp,
     TimestampWithTimezone,
 )
@@ -1208,10 +1208,10 @@ class TestSnapshotCooker(RepoFixtures):
         snapshot = Snapshot(
             branches={
                 b"refs/tags/v1.1.0": SnapshotBranch(
-                    target=release.id, target_type=TargetType.RELEASE
+                    target=release.id, target_type=SnapshotTargetType.RELEASE
                 ),
                 b"HEAD": SnapshotBranch(
-                    target=revision.id, target_type=TargetType.REVISION
+                    target=revision.id, target_type=SnapshotTargetType.REVISION
                 ),
             }
         )

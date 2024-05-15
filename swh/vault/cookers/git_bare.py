@@ -58,7 +58,7 @@ from swh.model.model import (
     Sha1Git,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
     TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID, ObjectType
@@ -314,7 +314,7 @@ class GitBareCooker(BaseVaultCooker):
             refs = {
                 branch_name: (
                     b"ref: " + branch.target
-                    if branch.target_type == TargetType.ALIAS
+                    if branch.target_type == SnapshotTargetType.ALIAS
                     else hash_to_bytehex(branch.target)
                 )
                 for (branch_name, branch) in branches
@@ -556,19 +556,19 @@ class GitBareCooker(BaseVaultCooker):
                     logging.warning("Dangling branch: %r", branch)
                     continue
                 assert isinstance(branch, SnapshotBranch)  # for mypy
-                if branch.target_type is TargetType.REVISION:
+                if branch.target_type is SnapshotTargetType.REVISION:
                     self.push_revision_subgraph(branch.target)
-                elif branch.target_type is TargetType.RELEASE:
+                elif branch.target_type is SnapshotTargetType.RELEASE:
                     self.push_releases_subgraphs([branch.target])
-                elif branch.target_type is TargetType.ALIAS:
+                elif branch.target_type is SnapshotTargetType.ALIAS:
                     # Nothing to do, this for loop also iterates on the target branch
                     # (if it exists)
                     pass
-                elif branch.target_type is TargetType.DIRECTORY:
+                elif branch.target_type is SnapshotTargetType.DIRECTORY:
                     self._push(self._dir_stack, [branch.target])
-                elif branch.target_type is TargetType.CONTENT:
+                elif branch.target_type is SnapshotTargetType.CONTENT:
                     self._push(self._cnt_stack, [branch.target])
-                elif branch.target_type is TargetType.SNAPSHOT:
+                elif branch.target_type is SnapshotTargetType.SNAPSHOT:
                     if swhid.object_id != obj_id:
                         raise NotImplementedError(
                             f"{swhid} has a snapshot as a branch."

@@ -37,7 +37,7 @@ from swh.model.model import (
     RevisionType,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
     TimestampWithTimezone,
 )
 from swh.storage import get_storage
@@ -290,22 +290,22 @@ def test_graph_revisions(
 
     branches = {
         b"refs/heads/master": SnapshotBranch(
-            target=rev2.id, target_type=TargetType.REVISION
+            target=rev2.id, target_type=SnapshotTargetType.REVISION
         ),
     }
     if tag:
         branches[b"refs/tags/1.0.0"] = SnapshotBranch(
-            target=rel2.id, target_type=TargetType.RELEASE
+            target=rel2.id, target_type=SnapshotTargetType.RELEASE
         )
     if weird_branches:
         branches[b"refs/heads/tree-ref"] = SnapshotBranch(
-            target=dir4.id, target_type=TargetType.DIRECTORY
+            target=dir4.id, target_type=SnapshotTargetType.DIRECTORY
         )
         branches[b"refs/heads/blob-ref"] = SnapshotBranch(
-            target=cnt4.sha1_git, target_type=TargetType.CONTENT
+            target=cnt4.sha1_git, target_type=SnapshotTargetType.CONTENT
         )
         branches[b"refs/tags/1.0.0-weird"] = SnapshotBranch(
-            target=rel4.id, target_type=TargetType.RELEASE
+            target=rel4.id, target_type=SnapshotTargetType.RELEASE
         )
     snp = Snapshot(branches=branches)
 

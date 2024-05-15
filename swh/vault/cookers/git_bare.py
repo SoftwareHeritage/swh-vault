@@ -48,8 +48,11 @@ from swh.core.api.classes import stream_results_optional
 from swh.model import git_objects
 from swh.model.hashutil import hash_to_bytehex, hash_to_hex
 from swh.model.model import (
+    Directory,
+    DirectoryEntry,
     Person,
     Release,
+    ReleaseTargetType,
     Revision,
     RevisionType,
     Sha1Git,
@@ -58,8 +61,6 @@ from swh.model.model import (
     TargetType,
     TimestampWithTimezone,
 )
-from swh.model.model import Directory, DirectoryEntry
-from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.objstorage.interface import objid_from_dict
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
@@ -293,7 +294,7 @@ class GitBareCooker(BaseVaultCooker):
                 b"refs/tags/" + release_name: hash_to_bytehex(self.obj_id),
             }
 
-            if release.target_type.value == ModelObjectType.REVISION.value:
+            if release.target_type.value == ReleaseTargetType.REVISION.value:
                 # Not necessary, but makes it easier to browse
                 refs[b"refs/heads/master"] = hash_to_bytehex(release.target)
             # TODO: synthesize a master branch for other target types
@@ -616,15 +617,15 @@ class GitBareCooker(BaseVaultCooker):
         for release in self.load_releases(obj_ids):
             self.nb_loaded += 1
             assert release.target, "{release.swhid(}) has no target"
-            if release.target_type is ModelObjectType.REVISION:
+            if release.target_type is ReleaseTargetType.REVISION:
                 self.push_revision_subgraph(release.target)
-            elif release.target_type is ModelObjectType.DIRECTORY:
+            elif release.target_type is ReleaseTargetType.DIRECTORY:
                 self._push(self._dir_stack, [release.target])
-            elif release.target_type is ModelObjectType.CONTENT:
+            elif release.target_type is ReleaseTargetType.CONTENT:
                 self._push(self._cnt_stack, [release.target])
-            elif release.target_type is ModelObjectType.RELEASE:
+            elif release.target_type is ReleaseTargetType.RELEASE:
                 self.push_releases_subgraphs([release.target])
-            elif release.target_type is ModelObjectType.SNAPSHOT:
+            elif release.target_type is ReleaseTargetType.SNAPSHOT:
                 raise NotImplementedError(
                     f"{release.swhid()} targets a snapshot: {release.target!r}"
                 )

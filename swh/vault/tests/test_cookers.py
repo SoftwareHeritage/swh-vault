@@ -28,8 +28,12 @@ import pytest
 from swh.loader.git.loader import GitLoader
 from swh.model import from_disk, hashutil
 from swh.model.model import (
+    Content,
+    Directory,
+    DirectoryEntry,
     Person,
     Release,
+    ReleaseTargetType,
     Revision,
     RevisionType,
     SkippedContent,
@@ -39,8 +43,6 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
-from swh.model.model import Content, Directory, DirectoryEntry
-from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.vault.cookers import DirectoryCooker, GitBareCooker, RevisionGitfastCooker
 from swh.vault.tests.vault_testing import hash_content
@@ -1196,7 +1198,7 @@ class TestSnapshotCooker(RepoFixtures):
             author=Person.from_fullname(b"me <test@example.org>"),
             date=date,
             target=revision.id,
-            target_type=ModelObjectType.REVISION,
+            target_type=ReleaseTargetType.REVISION,
             synthetic=True,
             raw_manifest=f"tag {len(malformed_rel_manifest)}\x00".encode()
             + malformed_rel_manifest,

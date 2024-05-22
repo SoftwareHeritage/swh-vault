@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2023  The Software Heritage developers
+# Copyright (C) 2020-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,7 +7,6 @@ from functools import partial
 import os
 from typing import Any, Dict
 
-import pkg_resources.extern.packaging.version
 import pytest
 from pytest_postgresql import factories
 
@@ -21,17 +20,6 @@ os.environ["LC_ALL"] = "C.UTF-8"
 # 022 is usually the default value, but some environments (eg. Debian builds) have
 # a different one.
 os.umask(0o022)
-
-pytest_v = pkg_resources.get_distribution("pytest").parsed_version
-if pytest_v < pkg_resources.extern.packaging.version.parse("3.9"):
-
-    @pytest.fixture
-    def tmp_path():
-        import pathlib
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            yield pathlib.Path(tmpdir)
 
 
 vault_postgresql_proc = factories.postgresql_proc(

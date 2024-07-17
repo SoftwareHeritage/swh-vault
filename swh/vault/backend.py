@@ -201,8 +201,14 @@ class VaultBackend(VaultDB):
         if bundle_type not in COOKER_TYPES:
             raise NotFoundExc(f"{bundle_type} is an unknown type.")
 
-        # If there's a failed bundle entry, delete it first.
-        if info is not None and info["task_status"] == "failed":
+        if info is not None and (
+            info["task_status"] == "failed"
+            or (
+                info["task_status"] == "done"
+                and not self.cache.is_cached(bundle_type, swhid)
+            )
+        ):
+            # If there's a failed bundle entry or bundle no longer in cache, delete it first.
             cur.execute(
                 "DELETE FROM vault_bundle WHERE type = %s AND swhid = %s",
                 (bundle_type, str(swhid)),

@@ -201,9 +201,11 @@ def test_cook_idempotent(swh_vault, sample_data):
 
 
 def test_cook_email_pending_done(swh_vault):
-    with mock_cooking(swh_vault), patch.object(
-        swh_vault, "add_notif_email"
-    ) as madd, patch.object(swh_vault, "send_notification") as msend:
+    with (
+        mock_cooking(swh_vault),
+        patch.object(swh_vault, "add_notif_email") as madd,
+        patch.object(swh_vault, "send_notification") as msend,
+    ):
         swh_vault.cook(TEST_TYPE, TEST_SWHID)
         madd.assert_not_called()
         msend.assert_not_called()
@@ -219,6 +221,7 @@ def test_cook_email_pending_done(swh_vault):
         msend.reset_mock()
 
         swh_vault.set_status(TEST_TYPE, TEST_SWHID, "done")
+        swh_vault.cache.add(TEST_TYPE, TEST_SWHID, b"content")
         swh_vault.cook(TEST_TYPE, TEST_SWHID, email=TEST_EMAIL)
         msend.assert_called_once_with(None, TEST_EMAIL, TEST_TYPE, TEST_SWHID, "done")
         madd.assert_not_called()
@@ -512,3 +515,24 @@ def test_download_url_cache_http_backend(swh_vault_http_cache, mocker, httpserve
     download_url = swh_vault_http_cache.download_url(TEST_TYPE, swhid)
     assert download_url is not None
     assert requests.get(download_url).content == content
+
+
+def test_cook_if_status_done_but_bundle_not_in_cache(swh_vault, mocker):
+    with mock_cooking(swh_vault):
+        swh_vault.cook(TEST_TYPE, TEST_SWHID, email="a@example.com")
+    swh_vault.cache.add(TEST_TYPE, TEST_SWHID, b"content")
+    swh_vault.set_status(TEST_TYPE, TEST_SWHID, "done")
+
+    create_task = mocker.spy(swh_vault, "create_task")
+
+    with mock_cooking(swh_vault):
+        swh_vault.cook(TEST_TYPE, TEST_SWHID, email="a@example.com")
+
+    create_task.assert_not_called()
+
+    swh_vault.cache.delete(TEST_TYPE, TEST_SWHID)
+
+    with mock_cooking(swh_vault):
+        swh_vault.cook(TEST_TYPE, TEST_SWHID, email="a@example.com")
+
+    create_task.assert_called_once_with(TEST_TYPE, TEST_SWHID, False)

@@ -43,8 +43,7 @@ class VaultInterface(Protocol):
         ...
 
     @remote_api_endpoint("progress")
-    def progress(self, bundle_type: str, swhid: CoreSWHID):
-        ...
+    def progress(self, bundle_type: str, swhid: CoreSWHID): ...
 
     # Cookers endpoints
 

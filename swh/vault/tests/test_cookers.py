@@ -224,9 +224,10 @@ def cook_extract_directory_gitfast(storage, swhid, fsck=True, direct_objstorage=
         )
         storage.revision_add([revision])
 
-    with cook_stream_revision_gitfast(
-        storage, revision.swhid()
-    ) as stream, test_repo as p:
+    with (
+        cook_stream_revision_gitfast(storage, revision.swhid()) as stream,
+        test_repo as p,
+    ):
         processor = dulwich.fastexport.GitImportProcessor(test_repo.repo)
         processor.import_stream(stream)
         test_repo.checkout(b"HEAD")

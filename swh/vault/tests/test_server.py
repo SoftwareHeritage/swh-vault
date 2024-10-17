@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2022  The Software Heritage developers
+# Copyright (C) 2020-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -38,12 +38,14 @@ def swh_vault_server_config_file(swh_vault_server_config, monkeypatch, tmp_path)
     return conf_path
 
 
-def test_make_app_from_file_missing():
+def test_make_app_from_file_missing(monkeypatch):
+    monkeypatch.delenv("SWH_CONFIG_FILENAME", raising=False)
     with pytest.raises(ValueError, match="Missing configuration path."):
         make_app_from_configfile()
 
 
-def test_make_app_from_file_does_not_exist(tmp_path):
+def test_make_app_from_file_does_not_exist(tmp_path, monkeypatch):
+    monkeypatch.delenv("SWH_CONFIG_FILENAME", raising=False)
     conf_path = os.path.join(str(tmp_path), "vault-server.yml")
     assert os.path.exists(conf_path) is False
 
@@ -64,8 +66,9 @@ def test_make_app_from_env_variable(swh_vault_server_config_file):
     swh.vault.api.server.vault = None
 
 
-def test_make_app_from_file(swh_vault_server_config, tmp_path):
+def test_make_app_from_file(swh_vault_server_config, tmp_path, monkeypatch):
     """Server initialization happens through path if provided"""
+    monkeypatch.delenv("SWH_CONFIG_FILENAME", raising=False)
     conf_path = os.path.join(str(tmp_path), "vault-server.yml")
     with open(conf_path, "w") as f:
         f.write(yaml.dump(swh_vault_server_config))

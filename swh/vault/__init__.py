@@ -1,36 +1,27 @@
-# Copyright (C) 2018-2022  The Software Heritage developers
+# Copyright (C) 2018-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU Affero General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from __future__ import annotations
 
-import importlib
 import logging
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 import warnings
 
-from swh.vault.backend import VaultDB
+if TYPE_CHECKING:
+    from .interface import VaultInterface
 
 logger = logging.getLogger(__name__)
 
 
-BACKEND_TYPES: Dict[str, str] = {
-    "remote": ".api.client.RemoteVaultClient",
-    "postgresql": ".backend.VaultBackend",
-    "memory": ".in_memory_backend.InMemoryVaultBackend",
-    # deprecated
-    "local": ".backend.VaultBackend",
-}
-
-
-def get_vault(cls: str = "remote", **kwargs):
+def get_vault(cls: str, **kwargs) -> "VaultInterface":
     """
     Get a vault object of class `vault_class` with arguments
     `vault_args`.
 
     Args:
-        cls: vault's class, either 'remote' or 'local'
+        cls: vault's class
         kwargs: arguments to pass to the class' constructor
 
     Returns:
@@ -40,6 +31,8 @@ def get_vault(cls: str = "remote", **kwargs):
         ValueError if passed an unknown storage class.
 
     """
+    from swh.core.config import get_swh_backend_module
+
     if "args" in kwargs:
         warnings.warn(
             'Explicit "args" key is deprecated, use keys directly instead.',
@@ -47,19 +40,16 @@ def get_vault(cls: str = "remote", **kwargs):
         )
         kwargs = kwargs["args"]
 
-    class_path = BACKEND_TYPES.get(cls)
-    if class_path is None:
-        raise ValueError(
-            f"Unknown Vault class `{cls}`. " f"Supported: {', '.join(BACKEND_TYPES)}"
+    if cls == "local":
+        warnings.warn(
+            'The "local" storage class is deprecated, use "postgresql" instead.',
+            DeprecationWarning,
         )
+        cls = "postgresql"
 
-    (module_path, class_name) = class_path.rsplit(".", 1)
-    module = importlib.import_module(module_path, package=__package__)
-    Vault = getattr(module, class_name)
+    _, Vault = get_swh_backend_module("vault", cls)
+    assert Vault is not None
     return Vault(**kwargs)
-
-
-get_datastore = VaultDB
 
 
 default_cfg = {

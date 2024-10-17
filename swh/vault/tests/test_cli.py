@@ -1,4 +1,4 @@
-# Copyright (C) 2021 The Software Heritage developers
+# Copyright (C) 2021-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -143,7 +143,7 @@ vault:
     result = cli_runner.invoke(swhdb, ["-C", cfgfile, "init", module_name])
     assert result.exit_code == 0, f"Unexpected output: {result.output}"
 
-    assert swh_db_module(conninfo) == "vault"
+    assert swh_db_module(conninfo) == "vault:postgresql"
     assert swh_db_version(conninfo) == VaultBackend.current_version
 
     with BaseDb.connect(conninfo).cursor() as cur:

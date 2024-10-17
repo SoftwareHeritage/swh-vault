@@ -32,6 +32,11 @@ testing = {file = ["requirements-test.txt"]}
 [project.entry-points."swh.cli.subcommands"]
 "swh.vault" = "swh.vault.cli"
 
+[project.entry-points."swh.vault.classes"]
+"remote" = "swh.vault.api.client:RemoteVaultClient"
+"postgresql" = "swh.vault.backend:VaultBackend"
+"memory" = "swh.vaul.in_memory_backend.InMemoryVaultBackend"
+
 [project.entry-points."swh.workers"]
 "swh.vault" = "swh.vault:register_tasks"
 

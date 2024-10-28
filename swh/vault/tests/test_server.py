@@ -163,17 +163,15 @@ def test_check_config_missing_vault_configuration() -> None:
 def test_check_config_not_local() -> None:
     """Wrong configuration raises"""
     expected_error = (
-        "The vault backend can only be started with a 'postgresql' configuration"
+        "The vault backend of a vault server cannot be a 'remote' configuration"
     )
     with pytest.raises(EnvironmentError, match=expected_error):
         check_config({"vault": {"cls": "remote"}})
 
 
-@pytest.mark.parametrize("clazz", ["local", "postgresql"])
-def test_check_config_ok(swh_vault_server_config, clazz) -> None:
+def test_check_config_ok(swh_vault_server_config) -> None:
     """Check that the default config is accepted"""
-    config = swh_vault_server_config.copy()
-    config["vault"]["cls"] = clazz
+    assert swh_vault_server_config["vault"]["cls"] == "postgresql"
     assert check_config(swh_vault_server_config) is not None
 
 

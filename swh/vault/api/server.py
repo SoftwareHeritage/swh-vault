@@ -79,13 +79,10 @@ def check_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("missing 'vault' configuration")
 
     vcfg = cfg["vault"]
-    if vcfg["cls"] not in ("local", "postgresql"):
+    if vcfg["cls"] == "remote":
         raise EnvironmentError(
-            "The vault backend can only be started with a 'postgresql' configuration",
+            "The vault backend of a vault server cannot be a 'remote' configuration"
         )
-
-    # TODO: Soft-deprecation of args key. Remove when ready.
-    vcfg.update(vcfg.get("args", {}))
 
     # Default to top-level value if any
     vcfg = {**cfg, **vcfg}

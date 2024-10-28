@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2023  The Software Heritage developers
+# Copyright (C) 2017-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -495,7 +495,7 @@ def swh_vault_config_http_cache(swh_vault_config, httpserver):
 def swh_vault_http_cache(swh_vault_config_http_cache):
     from swh.vault import get_vault
 
-    return get_vault("local", **swh_vault_config_http_cache)
+    return get_vault("postgresql", **swh_vault_config_http_cache)
 
 
 def test_download_url_cache_http_backend(swh_vault_http_cache, mocker, httpserver):

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any, Dict
-import warnings
 
 if TYPE_CHECKING:
     from .interface import VaultInterface
@@ -25,27 +24,13 @@ def get_vault(cls: str, **kwargs) -> "VaultInterface":
         kwargs: arguments to pass to the class' constructor
 
     Returns:
-        an instance of VaultBackend (either local or remote)
+        an instance of VaultBackend
 
     Raises:
         ValueError if passed an unknown storage class.
 
     """
     from swh.core.config import get_swh_backend_module
-
-    if "args" in kwargs:
-        warnings.warn(
-            'Explicit "args" key is deprecated, use keys directly instead.',
-            DeprecationWarning,
-        )
-        kwargs = kwargs["args"]
-
-    if cls == "local":
-        warnings.warn(
-            'The "local" storage class is deprecated, use "postgresql" instead.',
-            DeprecationWarning,
-        )
-        cls = "postgresql"
 
     _, Vault = get_swh_backend_module("vault", cls)
     assert Vault is not None

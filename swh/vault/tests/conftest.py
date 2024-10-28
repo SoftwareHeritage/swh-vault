@@ -74,7 +74,7 @@ def swh_vault_config(postgres_vault, tmp_path) -> Dict[str, Any]:
 
 @pytest.fixture
 def swh_vault(swh_vault_config):
-    return get_vault("local", **swh_vault_config)
+    return get_vault("postgresql", **swh_vault_config)
 
 
 @pytest.fixture
@@ -83,7 +83,7 @@ def swh_vault_custom_notif(swh_vault_config):
         "from": "Someone from somewhere <nobody@nowhere.local>",
         "api_url": "http://test.local/api/1",
     }
-    return get_vault("local", notification=notif_cfg, **swh_vault_config)
+    return get_vault("postgresql", notification=notif_cfg, **swh_vault_config)
 
 
 @pytest.fixture

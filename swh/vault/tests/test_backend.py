@@ -10,6 +10,7 @@ import smtplib
 from unittest.mock import MagicMock, patch
 
 import attr
+from backports.entry_points_selectable import entry_points as get_entry_points
 import psycopg2
 import pytest
 import requests
@@ -536,3 +537,11 @@ def test_cook_if_status_done_but_bundle_not_in_cache(swh_vault, mocker):
         swh_vault.cook(TEST_TYPE, TEST_SWHID, email="a@example.com")
 
     create_task.assert_called_once_with(TEST_TYPE, TEST_SWHID, False)
+
+
+def test_registered_backends():
+
+    entry_points = get_entry_points(group="swh.vault.classes")
+    assert {ep.name for ep in entry_points} == {"remote", "postgresql", "memory"}
+    for ep in entry_points:
+        assert ep.load()

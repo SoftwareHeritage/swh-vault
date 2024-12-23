@@ -6,10 +6,10 @@ pytest >= 8.1
 pytest-httpserver
 pytest-mock
 requests-mock
-swh.core[testing]
+swh.core[testing] >= 4.0.0
 swh.loader.core
 swh.loader.git >= 0.8
-swh.storage[testing]
+swh.storage[testing] >= 3.0.0
 types-click
 types-python-dateutil
 types-pyyaml

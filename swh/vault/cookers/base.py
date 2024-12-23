@@ -9,7 +9,7 @@ import logging
 import traceback
 from typing import ClassVar, Optional, Set
 
-from psycopg2.extensions import QueryCanceledError
+from psycopg.errors import QueryCanceled
 import sentry_sdk
 
 import swh.model.swhids
@@ -133,7 +133,7 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         try:
             try:
                 self.prepare_bundle()
-            except QueryCanceledError:
+            except QueryCanceled:
                 raise PolicyError(
                     "Timeout reached while assembling the requested bundle"
                 )

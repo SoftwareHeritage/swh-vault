@@ -1,7 +1,8 @@
 click
 fastimport
 flask
-psycopg2
+psycopg
+psycopg_pool
 python-dateutil
 sentry-sdk
 typing-extensions

@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import attr
 from backports.entry_points_selectable import entry_points as get_entry_points
-import psycopg2
+import psycopg
 import pytest
 import requests
 
@@ -114,7 +114,7 @@ def test_create_task_simple(swh_vault):
 def test_create_fail_duplicate_task(swh_vault):
     with mock_cooking(swh_vault):
         swh_vault.create_task(TEST_TYPE, TEST_SWHID)
-        with pytest.raises(psycopg2.IntegrityError):
+        with pytest.raises(psycopg.IntegrityError):
             swh_vault.create_task(TEST_TYPE, TEST_SWHID)
 
 

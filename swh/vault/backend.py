@@ -10,8 +10,8 @@ import logging
 import smtplib
 from typing import Any, Dict, List, Optional, Tuple
 
-import psycopg2.extras
-import psycopg2.pool
+from psycopg.rows import dict_row
+import psycopg_pool
 import sentry_sdk
 
 from swh.core.db import BaseDb
@@ -83,11 +83,11 @@ class VaultDB:
                 "in the vault configuration file"
             )
         db_conn = config["db"]
-        self._pool = psycopg2.pool.ThreadedConnectionPool(
-            config.get("min_pool_conns", 1),
-            config.get("max_pool_conns", 10),
-            db_conn,
-            cursor_factory=psycopg2.extras.RealDictCursor,
+        self._pool = psycopg_pool.ConnectionPool(
+            conninfo=db_conn,
+            min_size=config.get("min_pool_conns", 1),
+            max_size=config.get("max_pool_conns", 10),
+            kwargs={"row_factory": dict_row},
         )
         self._db = None
 
@@ -236,10 +236,6 @@ class VaultBackend(VaultDB):
     def batch_cook(
         self, batch: List[Tuple[str, str]], db=None, cur=None
     ) -> Dict[str, int]:
-        # Import execute_values at runtime only, because it requires
-        # psycopg2 >= 2.7 (only available on postgresql servers)
-        from psycopg2.extras import execute_values
-
         for bundle_type, _ in batch:
             if bundle_type not in COOKER_TYPES:
                 raise NotFoundExc(f"{bundle_type} is an unknown type.")
@@ -262,11 +258,10 @@ class VaultBackend(VaultDB):
         )
 
         # Insert all the bundles, return the new ones
-        execute_values(
-            cur,
+        cur.executemany(
             """
             INSERT INTO vault_bundle (type, swhid)
-            VALUES %s ON CONFLICT DO NOTHING""",
+            VALUES (%s, %s) ON CONFLICT DO NOTHING""",
             batch,
         )
 
@@ -281,11 +276,10 @@ class VaultBackend(VaultDB):
 
         # Insert the batch-bundle entries
         batch_id_bundle_ids = [(batch_id, row["id"]) for row in bundles]
-        execute_values(
-            cur,
+        cur.executemany(
             """
             INSERT INTO vault_batch_bundle (batch_id, bundle_id)
-            VALUES %s ON CONFLICT DO NOTHING""",
+            VALUES (%s, %s) ON CONFLICT DO NOTHING""",
             batch_id_bundle_ids,
         )
         db.conn.commit()
@@ -313,12 +307,11 @@ class VaultBackend(VaultDB):
         ]
 
         # Update the task ids
-        execute_values(
-            cur,
+        cur.executemany(
             """
             UPDATE vault_bundle
             SET task_id = s_task_id
-            FROM (VALUES %s) AS sub (s_task_id, s_type, s_swhid)
+            FROM (VALUES (%s, %s, %s)) AS sub (s_task_id, s_type, s_swhid)
             WHERE type = s_type::cook_type AND swhid = s_swhid """,
             tasks_ids_bundle_ids,
         )

@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2024  The Software Heritage developers
+# Copyright (C) 2017-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -108,9 +108,25 @@ class VaultBackend(VaultDB):
 
     def __init__(self, **config):
         super().__init__(**config)
-        self.cache = VaultCache(**config["cache"])
-        self.scheduler = get_scheduler(**config["scheduler"])
-        self.storage = get_storage(**config["storage"])
+
+        # For the migration context case, it's ok to relax the constraint on the
+        # configuration not specifying the cache, scheduler or storage keys, they are
+        # not used. For the actual runtime case, this is a hard requirement. Assertions
+        # where needed has been added, so that should fail asap if not provided.
+        config_cache = config.get("cache")
+        config_scheduler = config.get("scheduler")
+        config_storage = config.get("storage")
+
+        if config_cache and config_scheduler and config_storage:
+            # At runtime (for the rpc server), we must have those instances configured
+            self.cache = VaultCache(**config_cache)
+            self.scheduler = get_scheduler(**config_scheduler)
+            self.storage = get_storage(**config_storage)
+        else:
+            # For the migration/check backend context, unused so relax constraint
+            self.cache = None
+            self.scheduler = None
+            self.storage = None
 
     @db_transaction()
     def progress(
@@ -154,6 +170,10 @@ class VaultBackend(VaultDB):
     ):
         """Create and send a cooking task"""
         cooker_class = get_cooker_cls(bundle_type, swhid.object_type)
+        # Check early as possible the storage instance is configured properly
+        assert (
+            self.storage is not None
+        ), "<storage> configuration entry must be provided."
         cooker = cooker_class(swhid, backend=self, storage=self.storage)
 
         if not cooker.check_exists():
@@ -182,6 +202,8 @@ class VaultBackend(VaultDB):
         )
 
     def put_bundle(self, bundle_type: str, swhid: CoreSWHID, bundle) -> bool:
+        # Check early as possible the cache instance is configured properly
+        assert self.cache is not None, "<cache> configuration entry must be provided."
         self.cache.add(bundle_type, swhid, bundle)
         return True
 
@@ -239,6 +261,11 @@ class VaultBackend(VaultDB):
         # Import execute_values at runtime only, because it requires
         # psycopg2 >= 2.7 (only available on postgresql servers)
         from psycopg2.extras import execute_values
+
+        # Check early as possible the scheduler instance is configured properly
+        assert (
+            self.scheduler is not None
+        ), "Scheduler configuration entry must be provided."
 
         for bundle_type, _ in batch:
             if bundle_type not in COOKER_TYPES:

@@ -71,7 +71,7 @@ def test_cook_directory(bundle_type, cooker_name_suffix, swhid_type, mocker):
 
     runner = click.testing.CliRunner()
 
-    swhid = CoreSWHID.from_string(f"swh:1:{swhid_type}:{'0'*40}")
+    swhid = CoreSWHID.from_string(f"swh:1:{swhid_type}:{'0' * 40}")
 
     with tempfile.NamedTemporaryFile("a", suffix=".yml") as config_fd:
         config_fd.write('{"storage": {}}')
@@ -81,7 +81,7 @@ def test_cook_directory(bundle_type, cooker_name_suffix, swhid_type, mocker):
                 vault_cli_group,
                 [
                     "cook",
-                    f"swh:1:{swhid_type}:{'0'*40}",
+                    f"swh:1:{swhid_type}:{'0' * 40}",
                     "-",
                     "-C",
                     config_fd.name,

@@ -80,6 +80,7 @@ plugins = []
 [[tool.mypy.overrides]]
 module = [
     "backports.entry_points_selectable.*",
+    "fastimport.*",
 ]
 ignore_missing_imports = true
 

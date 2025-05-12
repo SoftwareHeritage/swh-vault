@@ -26,11 +26,11 @@ def test_cook_unsupported_swhid():
 
     result = runner.invoke(vault_cli_group, ["cook", "swh:1:dir:f00b4r", "-"])
     assert isinstance(result.exception, SystemExit)
-    assert "expected core SWHID" in result.stdout
+    assert "expected core SWHID" in result.output
 
     result = runner.invoke(vault_cli_group, ["cook", "swh:1:ori:" + "0" * 40, "-"])
     assert isinstance(result.exception, SystemExit)
-    assert "expected core SWHID" in result.stdout
+    assert "expected core SWHID" in result.output
 
 
 def test_cook_unknown_cooker():
@@ -41,11 +41,11 @@ def test_cook_unknown_cooker():
         ["cook", "swh:1:dir:" + "0" * 40, "-", "--bundle-type", "gitfast"],
     )
     assert isinstance(result.exception, SystemExit)
-    assert "do not have a gitfast cooker" in result.stdout
+    assert "do not have a gitfast cooker" in result.output
 
     result = runner.invoke(vault_cli_group, ["cook", "swh:1:rev:" + "0" * 40, "-"])
     assert isinstance(result.exception, SystemExit)
-    assert "use --bundle-type" in result.stdout
+    assert "use --bundle-type" in result.output
 
 
 @pytest.mark.parametrize(

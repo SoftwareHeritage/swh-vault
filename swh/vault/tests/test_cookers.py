@@ -432,7 +432,9 @@ class TestDirectoryCooker:
             assert (p / "dir1/dir2/file").stat().st_mode == 0o100644
             assert (p / "dir1/dir2/file").read_text() == TEST_CONTENT
 
-            directory = from_disk.Directory.from_disk(path=bytes(p))
+            directory = from_disk.Directory.from_disk(
+                path=bytes(p), max_content_length=None
+            )
             assert obj_id_hex == hashutil.hash_to_hex(directory.hash)
 
     @pytest.mark.parametrize(
@@ -583,7 +585,9 @@ class TestDirectoryCooker:
             assert (p / "dir1/dir2/file").stat().st_mode == 0o100644
             assert (p / "dir1/dir2/file").read_text() == TEST_CONTENT
 
-            directory = from_disk.Directory.from_disk(path=bytes(p))
+            directory = from_disk.Directory.from_disk(
+                path=bytes(p), max_content_length=None
+            )
             assert obj_id_hex == hashutil.hash_to_hex(directory.hash)
 
         if direct_objstorage:

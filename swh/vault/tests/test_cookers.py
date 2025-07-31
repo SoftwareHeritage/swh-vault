@@ -198,7 +198,26 @@ def cook_extract_directory_dircooker(
     cooker.fileobj.seek(0)
     with tempfile.TemporaryDirectory(prefix="tmp-vault-extract-") as td:
         with tarfile.open(fileobj=cooker.fileobj, mode="r") as tar:
-            tar.extractall(td)
+            def is_within_directory(directory, target):
+                
+                abs_directory = os.path.abspath(directory)
+                abs_target = os.path.abspath(target)
+            
+                prefix = os.path.commonprefix([abs_directory, abs_target])
+                
+                return prefix == abs_directory
+            
+            def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+            
+                for member in tar.getmembers():
+                    member_path = os.path.join(path, member.name)
+                    if not is_within_directory(path, member_path):
+                        raise Exception("Attempted Path Traversal in Tar File")
+            
+                tar.extractall(path, members, numeric_owner=numeric_owner) 
+                
+            
+            safe_extract(tar, td)
         yield pathlib.Path(td) / str(swhid)
     cooker.storage = None
 
@@ -258,7 +277,26 @@ def cook_extract_directory_git_bare(storage, swhid, fsck=True, direct_objstorage
     # Extract it
     with tempfile.TemporaryDirectory(prefix="tmp-vault-extract-") as td:
         with tarfile.open(fileobj=cooker.fileobj, mode="r") as tar:
-            tar.extractall(td)
+            def is_within_directory(directory, target):
+                
+                abs_directory = os.path.abspath(directory)
+                abs_target = os.path.abspath(target)
+            
+                prefix = os.path.commonprefix([abs_directory, abs_target])
+                
+                return prefix == abs_directory
+            
+            def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+            
+                for member in tar.getmembers():
+                    member_path = os.path.join(path, member.name)
+                    if not is_within_directory(path, member_path):
+                        raise Exception("Attempted Path Traversal in Tar File")
+            
+                tar.extractall(path, members, numeric_owner=numeric_owner) 
+                
+            
+            safe_extract(tar, td)
 
         # Clone it with Dulwich
         with tempfile.TemporaryDirectory(prefix="tmp-vault-clone-") as clone_dir:
@@ -333,7 +371,26 @@ def cook_extract_git_bare(storage, swhid, fsck=True):
     # Extract it
     with tempfile.TemporaryDirectory(prefix="tmp-vault-extract-") as td:
         with tarfile.open(fileobj=cooker.fileobj, mode="r") as tar:
-            tar.extractall(td)
+            def is_within_directory(directory, target):
+                
+                abs_directory = os.path.abspath(directory)
+                abs_target = os.path.abspath(target)
+            
+                prefix = os.path.commonprefix([abs_directory, abs_target])
+                
+                return prefix == abs_directory
+            
+            def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+            
+                for member in tar.getmembers():
+                    member_path = os.path.join(path, member.name)
+                    if not is_within_directory(path, member_path):
+                        raise Exception("Attempted Path Traversal in Tar File")
+            
+                tar.extractall(path, members, numeric_owner=numeric_owner) 
+                
+            
+            safe_extract(tar, td)
 
         # Clone it with Dulwich
         with tempfile.TemporaryDirectory(prefix="tmp-vault-clone-") as clone_dir:

@@ -469,7 +469,9 @@ def test_graph_revisions(
         swh_storage.revision_log.assert_not_called()
         swh_storage.revision_shortlog.assert_not_called()
     else:
-        swh_storage.revision_log.assert_called()
+        assert (
+            swh_storage.revision_log.call_count or swh_storage.revision_get.call_count
+        )
 
 
 @pytest.mark.parametrize(

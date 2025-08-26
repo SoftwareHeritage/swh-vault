@@ -1,8 +1,9 @@
-# Copyright (C) 2020-2024  The Software Heritage developers
+# Copyright (C) 2020-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
 from functools import partial
 import os
 from typing import Any, Dict
@@ -11,6 +12,7 @@ import pytest
 from pytest_postgresql import factories
 
 from swh.core.db.db_utils import initialize_database_for_module
+from swh.scheduler.model import TaskType
 from swh.vault import get_vault
 from swh.vault.backend import VaultBackend
 
@@ -66,24 +68,39 @@ def swh_vault_config(postgres_vault, tmp_path) -> Dict[str, Any]:
             "allow_delete": True,
         },
         "scheduler": {
-            "cls": "remote",
-            "url": "http://swh-scheduler:5008",
+            "cls": "memory",
         },
     }
 
 
 @pytest.fixture
 def swh_vault(swh_vault_config):
-    return get_vault("postgresql", **swh_vault_config)
+    vault = get_vault("postgresql", **swh_vault_config)
+    vault.scheduler.create_task_type(
+        TaskType(
+            type="cook-vault-bundle",
+            description="Cook a vault bundle",
+            backend_name="swh.vault.cooking_tasks.SWHCookingTask",
+            default_interval=datetime.timedelta(days=64),
+            min_interval=datetime.timedelta(hours=12),
+            max_interval=datetime.timedelta(days=64),
+            backoff_factor=2.0,
+            max_queue_length=None,
+            num_retries=7,
+            retry_delay=datetime.timedelta(hours=2),
+        )
+    )
+    return vault
 
 
 @pytest.fixture
-def swh_vault_custom_notif(swh_vault_config):
+def swh_vault_custom_notif(swh_vault):
     notif_cfg = {
         "from": "Someone from somewhere <nobody@nowhere.local>",
         "api_url": "http://test.local/api/1",
     }
-    return get_vault("postgresql", notification=notif_cfg, **swh_vault_config)
+    swh_vault.config["notification"] = notif_cfg
+    return swh_vault
 
 
 @pytest.fixture

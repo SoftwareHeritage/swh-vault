@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2023  The Software Heritage developers
+# Copyright (C) 2016-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,10 +6,9 @@
 from datetime import timedelta
 from typing import Optional
 
-from swh.model import hashutil
+from swh.model.hashutil import HashDict, MultiHash
 from swh.model.swhids import CoreSWHID
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.interface import ObjId
 
 
 class VaultCache:
@@ -48,6 +47,6 @@ class VaultCache:
         sid = self._get_internal_id(bundle_type, swhid)
         return sid in self.objstorage
 
-    def _get_internal_id(self, bundle_type, swhid: CoreSWHID) -> ObjId:
+    def _get_internal_id(self, bundle_type, swhid: CoreSWHID) -> HashDict:
         key = "{}:{}".format(bundle_type, swhid).encode()
-        return hashutil.MultiHash.from_data(key).digest()
+        return MultiHash.from_data(key).digest()

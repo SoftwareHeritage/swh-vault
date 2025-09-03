@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2024  The Software Heritage developers
+# Copyright (C) 2021-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -62,7 +62,6 @@ from swh.model.model import (
     TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID, ObjectType
-from swh.objstorage.interface import objid_from_dict
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
 from swh.storage.algos.snapshot import snapshot_get_all_branches
 from swh.vault.cookers.base import BaseVaultCooker
@@ -689,7 +688,7 @@ class GitBareCooker(BaseVaultCooker):
             self.write_content(obj_id, SKIPPED_MESSAGE)
             self._expect_mismatched_object_error(obj_id)
         elif content.status == "visible":
-            hashes = objid_from_dict(content.hashes())
+            hashes = content.hashes()
             if self.objstorage is None:
                 datum = self.storage.content_get_data(hashes)
             else:

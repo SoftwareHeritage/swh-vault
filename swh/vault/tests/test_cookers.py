@@ -144,6 +144,7 @@ class _TestRepo:
             message=message,
             annotated=message is not None,
             objectish=target,
+            sign=False,
         )
 
     def merge(self, parent_sha_list, message="Merge branches."):

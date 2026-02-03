@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2024  The Software Heritage developers
+# Copyright (C) 2017-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -118,14 +118,15 @@ class _TestRepo:
             os.path.relpath(path, self.repo_dir)
             for path in glob.glob(self.repo_dir + "/**/*", recursive=True)
         ]
-        self.repo.stage(paths)
+        self.repo.get_worktree().stage(paths)
         message = message.encode() + b"\n"
-        ret = self.repo.do_commit(
+        ret = self.repo.get_worktree().commit(
             message=message,
             committer=self.author,
             commit_timestamp=self.base_date + self.counter,
             commit_timezone=0,
             ref=ref,
+            sign=False,
         )
         self.counter += 1
 

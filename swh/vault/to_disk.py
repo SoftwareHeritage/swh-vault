@@ -1,11 +1,14 @@
-# Copyright (C) 2016-2024  The Software Heritage developers
+# Copyright (C) 2016-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import collections
 import concurrent
+import logging
 import os
+import sys
+import time
 from typing import Any, Dict, Optional
 
 from swh.model import hashutil
@@ -24,6 +27,20 @@ SKIPPED_MESSAGE = (
 )
 
 HIDDEN_MESSAGE = b"This content is hidden."
+
+
+logger = logging.getLogger(__name__)
+
+
+if sys.version_info >= (3, 13):
+
+    class ContentFetchesFailed(ExceptionGroup):
+        pass
+
+else:
+
+    class ContentFetchesFailed(Exception):
+        pass
 
 
 def get_filtered_file_content(
@@ -108,31 +125,62 @@ class DirectoryBuilder:
             path = os.path.join(self.root, file_data["path"])
             self._create_file(path, file_data["content"], file_data["perms"])
 
-        executor = concurrent.futures.ThreadPoolExecutor(self.thread_pool_size)
-        futures = []
+        with concurrent.futures.ThreadPoolExecutor(self.thread_pool_size) as executor:
+            futures = set()
 
-        os.makedirs(self.root, exist_ok=True)
-        queue = collections.deque([(b"", self.dir_id)])
-        while queue:
-            path, dir_id = queue.popleft()
-            dir_entries = self.storage.directory_ls(dir_id)
-            for dir_entry in dir_entries:
-                dir_entry["path"] = os.path.join(path, dir_entry["name"])
-                match dir_entry["type"]:
-                    case "dir":
-                        self._create_tree(dir_entry)
-                        queue.append((dir_entry["path"], dir_entry["target"]))
-                    case "rev":
-                        self._create_revision(dir_entry)
-                    case "file":
-                        futures.append(executor.submit(file_fetcher, dir_entry))
-                    case _:
-                        raise ValueError(
-                            f"Unsupported directory entry type {dir_entry['type']} for "
-                            f"{dir_entry['name']:r} in directory swh:1:dir:{dir_id.hex()}"
+            os.makedirs(self.root, exist_ok=True)
+            queue = collections.deque([(b"", self.dir_id)])
+            while queue:
+                path, dir_id = queue.popleft()
+                dir_entries = self.storage.directory_ls(dir_id)
+
+                for dir_entry in dir_entries:
+                    dir_entry["path"] = os.path.join(path, dir_entry["name"])
+                    match dir_entry["type"]:
+                        case "dir":
+                            self._create_tree(dir_entry)
+                            queue.append((dir_entry["path"], dir_entry["target"]))
+                        case "rev":
+                            self._create_revision(dir_entry)
+                        case "file":
+                            futures.add(executor.submit(file_fetcher, dir_entry))
+                        case _:
+                            raise ValueError(
+                                f"Unsupported directory entry type {dir_entry['type']} for "
+                                f"{dir_entry['name']:r} in directory swh:1:dir:{dir_id.hex()}"
+                            )
+
+            logger.debug("%d fetches triggered", len(futures))
+
+            start = time.monotonic()
+
+            while futures:
+                done, futures = concurrent.futures.wait(
+                    futures, timeout=10, return_when=concurrent.futures.FIRST_EXCEPTION
+                )
+
+                exceptions = []
+                for future in done:
+                    if exc := future.exception():
+                        exceptions.append(exc)
+
+                if exceptions:
+                    for future in futures:
+                        future.cancel()
+
+                    if len(exceptions) == 1:
+                        raise exceptions[0]
+                    else:
+                        raise ContentFetchesFailed(
+                            "Errors while fetching contents", exceptions
                         )
 
-        concurrent.futures.wait(futures)
+                if futures:
+                    logger.info(
+                        "After %2.f seconds: %d fetches pending",
+                        time.monotonic() - start,
+                        len(futures),
+                    )
 
     def _create_tree(self, directory: Dict[str, Any]) -> None:
         """Create a directory tree from root for the given path."""

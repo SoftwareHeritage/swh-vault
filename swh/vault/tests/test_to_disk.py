@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2024  The Software Heritage developers
+# Copyright (C) 2020-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -208,3 +208,26 @@ def test_directory_builder_missing_directory(swh_storage, tmp_path, use_objstora
     }
 
     assert (root / "content3").open().read() == "baz qux"
+
+
+def test_directory_builder_fetch_exception(swh_storage, tmp_path, mocker):
+    class TestException(Exception):
+        pass
+
+    mocker.patch(
+        "swh.vault.to_disk.get_filtered_file_content", side_effect=TestException
+    )
+    dir2 = _fill_storage(swh_storage, exclude_dir1=True)
+
+    root = tmp_path / "root"
+    builder = DirectoryBuilder(
+        storage=swh_storage,
+        root=bytes(root),
+        dir_id=dir2.id,
+        objstorage=swh_storage.objstorage,
+    )
+
+    assert not root.exists()
+
+    with pytest.raises(TestException):
+        builder.build()

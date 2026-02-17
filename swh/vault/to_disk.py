@@ -31,7 +31,6 @@ HIDDEN_MESSAGE = b"This content is hidden."
 
 logger = logging.getLogger(__name__)
 
-
 if sys.version_info >= (3, 13):
 
     class ContentFetchesFailed(ExceptionGroup):
@@ -41,6 +40,38 @@ else:
 
     class ContentFetchesFailed(Exception):
         pass
+
+
+def wait_for_contents(futures: set[concurrent.futures.Future], timeout: float = 10):
+    """Wait for a set of Futures, re-raising exceptions as they happen."""
+    logger.debug("Waiting for %d futures", len(futures))
+    start = time.monotonic()
+
+    while futures:
+        done, futures = concurrent.futures.wait(
+            futures, timeout=timeout, return_when=concurrent.futures.FIRST_EXCEPTION
+        )
+
+        exceptions = []
+        for future in done:
+            if exc := future.exception():
+                exceptions.append(exc)
+
+        if exceptions:
+            for future in futures:
+                future.cancel()
+
+            if len(exceptions) == 1:
+                raise exceptions[0]
+            else:
+                raise ContentFetchesFailed("Errors while fetching contents", exceptions)
+
+        if futures:
+            logger.info(
+                "After %2.f seconds: %d futures pending",
+                time.monotonic() - start,
+                len(futures),
+            )
 
 
 def get_filtered_file_content(
@@ -150,37 +181,7 @@ class DirectoryBuilder:
                                 f"{dir_entry['name']:r} in directory swh:1:dir:{dir_id.hex()}"
                             )
 
-            logger.debug("%d fetches triggered", len(futures))
-
-            start = time.monotonic()
-
-            while futures:
-                done, futures = concurrent.futures.wait(
-                    futures, timeout=10, return_when=concurrent.futures.FIRST_EXCEPTION
-                )
-
-                exceptions = []
-                for future in done:
-                    if exc := future.exception():
-                        exceptions.append(exc)
-
-                if exceptions:
-                    for future in futures:
-                        future.cancel()
-
-                    if len(exceptions) == 1:
-                        raise exceptions[0]
-                    else:
-                        raise ContentFetchesFailed(
-                            "Errors while fetching contents", exceptions
-                        )
-
-                if futures:
-                    logger.info(
-                        "After %2.f seconds: %d fetches pending",
-                        time.monotonic() - start,
-                        len(futures),
-                    )
+            wait_for_contents(futures)
 
     def _create_tree(self, directory: Dict[str, Any]) -> None:
         """Create a directory tree from root for the given path."""

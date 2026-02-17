@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -65,7 +65,7 @@ from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.algos.revisions_walker import DFSRevisionsWalker
 from swh.storage.algos.snapshot import snapshot_get_all_branches
 from swh.vault.cookers.base import BaseVaultCooker
-from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE
+from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE, wait_for_contents
 
 RELEASE_BATCH_SIZE = 10000
 REVISION_BATCH_SIZE = 10000
@@ -384,53 +384,57 @@ class GitBareCooker(BaseVaultCooker):
     def load_objects(self) -> None:
         """Repeatedly loads objects in the todo-lists, until all lists are empty."""
 
-        futures = []
-        while self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack:
-            nb_remaining = (
-                len(self._rel_stack)
-                + len(self._rev_stack)
-                + len(self._dir_stack)
-                + len(self._cnt_stack)
-            )
-            # We assume assume nb_remaining is a lower bound.
-            # When the snapshot was loaded with swh-graph, this should be the exact
-            # value, though.
+        with self.executor:
+            futures: set[concurrent.futures.Future] = set()
+            while (
+                self._rel_stack or self._rev_stack or self._dir_stack or self._cnt_stack
+            ):
+                nb_remaining = (
+                    len(self._rel_stack)
+                    + len(self._rev_stack)
+                    + len(self._dir_stack)
+                    + len(self._cnt_stack)
+                )
+                # We assume assume nb_remaining is a lower bound.
+                # When the snapshot was loaded with swh-graph, this should be the exact
+                # value, though.
+                self.backend.set_progress(
+                    self.BUNDLE_TYPE,
+                    self.swhid,
+                    f"Processing... {self.nb_loaded} objects processed\n"
+                    f"Over {nb_remaining} remaining",
+                )
+
+                release_ids = self._pop(self._rel_stack, RELEASE_BATCH_SIZE)
+                if release_ids:
+                    self.load_releases(release_ids)
+                    self.nb_loaded += len(release_ids)
+
+                revision_ids = self._pop(self._rev_stack, REVISION_BATCH_SIZE)
+                if revision_ids:
+                    self.load_revisions(revision_ids)
+                    self.nb_loaded += len(revision_ids)
+
+                directory_ids = self._pop(self._dir_stack, DIRECTORY_BATCH_SIZE)
+                if directory_ids:
+                    self.load_directories(directory_ids)
+                    self.nb_loaded += len(directory_ids)
+
+                content_ids = self._pop(self._cnt_stack, CONTENT_BATCH_SIZE)
+                if content_ids:
+                    futures.update(
+                        self.executor.submit(self.load_content, content_id)
+                        for content_id in content_ids
+                    )
+                    self.nb_loaded += len(content_ids)
+
             self.backend.set_progress(
                 self.BUNDLE_TYPE,
                 self.swhid,
-                f"Processing... {self.nb_loaded} objects processed\n"
-                f"Over {nb_remaining} remaining",
+                "Fetching contents bytes ...",
             )
 
-            release_ids = self._pop(self._rel_stack, RELEASE_BATCH_SIZE)
-            if release_ids:
-                self.load_releases(release_ids)
-                self.nb_loaded += len(release_ids)
-
-            revision_ids = self._pop(self._rev_stack, REVISION_BATCH_SIZE)
-            if revision_ids:
-                self.load_revisions(revision_ids)
-                self.nb_loaded += len(revision_ids)
-
-            directory_ids = self._pop(self._dir_stack, DIRECTORY_BATCH_SIZE)
-            if directory_ids:
-                self.load_directories(directory_ids)
-                self.nb_loaded += len(directory_ids)
-
-            content_ids = self._pop(self._cnt_stack, CONTENT_BATCH_SIZE)
-            if content_ids:
-                futures += [
-                    self.executor.submit(self.load_content, content_id)
-                    for content_id in content_ids
-                ]
-                self.nb_loaded += len(content_ids)
-
-        self.backend.set_progress(
-            self.BUNDLE_TYPE,
-            self.swhid,
-            "Fetching contents bytes ...",
-        )
-        concurrent.futures.wait(futures)
+            wait_for_contents(futures)
 
     def push_revision_subgraph(self, obj_id: Sha1Git) -> None:
         """Fetches the graph of revisions induced by the given ``obj_id`` and adds

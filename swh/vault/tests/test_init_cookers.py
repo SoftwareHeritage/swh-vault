@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2024  The Software Heritage developers
+# Copyright (C) 2017-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -131,3 +131,30 @@ def test_get_cooker_nominal(config_ok, tmp_path, monkeypatch, requests_mock):
             assert cooker.graph is not None
         else:
             assert cooker.graph is None
+
+
+def test_get_cooker_graph_client_exception(tmp_path, monkeypatch, mocker):
+    write_config_to_env(
+        {
+            "vault": {
+                "cls": "remote",
+                "url": "mock://vault-backend",
+            },
+            "storage": {"cls": "remote", "url": "mock://storage-url"},
+            "graph": {"url": "mock://graph-url"},
+        },
+        tmp_path,
+        monkeypatch,
+    )
+
+    from swh.graph import http_client
+
+    class BuggyRemoteGraphClient(http_client.RemoteGraphClient):
+        def stats(self):
+            raise Exception("error")
+
+    mocker.patch.object(http_client, "RemoteGraphClient", BuggyRemoteGraphClient)
+
+    cooker = get_cooker("git_bare", TEST_SWHID)
+
+    assert cooker.graph is None

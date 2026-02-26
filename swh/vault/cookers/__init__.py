@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Dict, List, Type
 
@@ -30,6 +31,8 @@ COOKER_TYPES: Dict[str, List[Type[BaseVaultCooker]]] = {}
 
 for _cooker_cls in _COOKER_CLS:
     COOKER_TYPES.setdefault(_cooker_cls.BUNDLE_TYPE, []).append(_cooker_cls)
+
+logger = logging.getLogger(__name__)
 
 
 def get_cooker_cls(bundle_type: str, object_type: ObjectType):
@@ -121,6 +124,12 @@ def get_cooker(bundle_type: str, swhid: CoreSWHID):
             )
         else:
             graph = None
+    except Exception:
+        logger.exception(
+            "Could not initialize swh-graph HTTP client, "
+            "graph will not be used by the vault cooker"
+        )
+        graph = None
 
     if vcfg.get("objstorage"):
         objstorage = get_objstorage(**vcfg["objstorage"])

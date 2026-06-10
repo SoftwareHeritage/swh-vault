@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2024  The Software Heritage developers
+# Copyright (C) 2017-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -240,12 +240,10 @@ class VaultBackend(VaultDB):
             if bundle_type not in COOKER_TYPES:
                 raise NotFoundExc(f"{bundle_type} is an unknown type.")
 
-        cur.execute(
-            """
+        cur.execute("""
             INSERT INTO vault_batch (id)
             VALUES (DEFAULT)
-            RETURNING id"""
-        )
+            RETURNING id""")
         batch_id = cur.fetchone()["id"]
 
         # Delete all failed bundles from the batch
@@ -554,9 +552,7 @@ class VaultBackend(VaultDB):
                 {}
             )
             RETURNING type, swhid
-            """.format(
-                cond
-            ),
+            """.format(cond),
             args,
         )
 

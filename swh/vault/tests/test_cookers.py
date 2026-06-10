@@ -785,10 +785,10 @@ class RepoFixtures:
             == ert.repo.refs[b"refs/remotes/origin/master"]
         )
 
-        (c4_id, c5_id) = ert.repo[swhid.object_id.hex().encode()].parents
+        c4_id, c5_id = ert.repo[swhid.object_id.hex().encode()].parents
         assert c5_id == ert.repo.refs[b"refs/remotes/origin/c3"]
 
-        (c2_id, c3_id) = ert.repo[c4_id].parents
+        c2_id, c3_id = ert.repo[c4_id].parents
         assert c3_id == ert.repo.refs[b"refs/remotes/origin/c1"]
 
     def load_repo_triple_merge(self, git_loader):
@@ -830,7 +830,7 @@ class RepoFixtures:
             == ert.repo.refs[b"refs/remotes/origin/master"]
         )
 
-        (c2_id, c3_id, c4_id) = ert.repo[swhid.object_id.hex().encode()].parents
+        c2_id, c3_id, c4_id = ert.repo[swhid.object_id.hex().encode()].parents
         assert c3_id == ert.repo.refs[b"refs/remotes/origin/b1"]
         assert c4_id == ert.repo.refs[b"refs/remotes/origin/b2"]
 
@@ -982,7 +982,7 @@ class RepoFixtures:
         assert t5a.object == (dulwich.objects.Commit, c5_id)
 
         t4a = ert.repo[ert.repo.refs[b"refs/tags/t4a"]]
-        (_, c4_id) = t4a.object
+        _, c4_id = t4a.object
         assert ert.repo[c4_id].message == b"add file4\n"  # TODO: ditto
         (c3_id,) = ert.repo[c4_id].parents
         assert ert.repo[c3_id].message == b"add file3\n"  # TODO: ditto
@@ -991,32 +991,32 @@ class RepoFixtures:
 
 class TestRevisionCooker(RepoFixtures):
     def test_revision_simple(self, git_loader, cook_extract_revision):
-        (loader, swhid) = self.load_repo_simple(git_loader)
+        loader, swhid = self.load_repo_simple(git_loader)
         with cook_extract_revision(loader.storage, swhid) as (ert, p):
             self.check_revision_simple(ert, p, swhid)
 
     def test_revision_two_roots(self, git_loader, cook_extract_revision):
-        (loader, swhid) = self.load_repo_two_roots(git_loader)
+        loader, swhid = self.load_repo_two_roots(git_loader)
         with cook_extract_revision(loader.storage, swhid) as (ert, p):
             self.check_revision_two_roots(ert, p, swhid)
 
     def test_revision_two_double_fork_merge(self, git_loader, cook_extract_revision):
-        (loader, swhid) = self.load_repo_two_double_fork_merge(git_loader)
+        loader, swhid = self.load_repo_two_double_fork_merge(git_loader)
         with cook_extract_revision(loader.storage, swhid) as (ert, p):
             self.check_revision_two_double_fork_merge(ert, p, swhid)
 
     def test_revision_triple_merge(self, git_loader, cook_extract_revision):
-        (loader, swhid) = self.load_repo_triple_merge(git_loader)
+        loader, swhid = self.load_repo_triple_merge(git_loader)
         with cook_extract_revision(loader.storage, swhid) as (ert, p):
             self.check_revision_triple_merge(ert, p, swhid)
 
     def test_revision_filtered_objects(self, git_loader, cook_extract_revision):
-        (loader, swhid) = self.load_repo_filtered_objects(git_loader)
+        loader, swhid = self.load_repo_filtered_objects(git_loader)
         with cook_extract_revision(loader.storage, swhid) as (ert, p):
             self.check_revision_filtered_objects(ert, p, swhid)
 
     def test_revision_null_fields(self, git_loader, cook_extract_revision):
-        (loader, swhid) = self.load_repo_null_fields(git_loader)
+        loader, swhid = self.load_repo_null_fields(git_loader)
         with cook_extract_revision(loader.storage, swhid, fsck=False) as (ert, p):
             self.check_revision_null_fields(ert, p, swhid)
 
@@ -1078,28 +1078,28 @@ class TestRevisionCooker(RepoFixtures):
 
 class TestSnapshotCooker(RepoFixtures):
     def test_snapshot_simple(self, git_loader, cook_extract_snapshot):
-        (loader, main_rev_id) = self.load_repo_simple(git_loader)
+        loader, main_rev_id = self.load_repo_simple(git_loader)
         snp_id = loader.loaded_snapshot_id
         swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
         with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
             self.check_revision_simple(ert, p, main_rev_id)
 
     def test_snapshot_two_roots(self, git_loader, cook_extract_snapshot):
-        (loader, main_rev_id) = self.load_repo_two_roots(git_loader)
+        loader, main_rev_id = self.load_repo_two_roots(git_loader)
         snp_id = loader.loaded_snapshot_id
         swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
         with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
             self.check_revision_two_roots(ert, p, main_rev_id)
 
     def test_snapshot_two_heads(self, git_loader, cook_extract_snapshot):
-        (loader, main_rev_id) = self.load_repo_two_heads(git_loader)
+        loader, main_rev_id = self.load_repo_two_heads(git_loader)
         snp_id = loader.loaded_snapshot_id
         swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
         with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
             self.check_snapshot_two_heads(ert, p, main_rev_id)
 
     def test_snapshot_two_double_fork_merge(self, git_loader, cook_extract_snapshot):
-        (loader, main_rev_id) = self.load_repo_two_double_fork_merge(git_loader)
+        loader, main_rev_id = self.load_repo_two_double_fork_merge(git_loader)
         snp_id = loader.loaded_snapshot_id
         swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
         with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
@@ -1107,7 +1107,7 @@ class TestSnapshotCooker(RepoFixtures):
             self.check_snapshot_two_double_fork_merge(ert, p, main_rev_id)
 
     def test_snapshot_triple_merge(self, git_loader, cook_extract_snapshot):
-        (loader, main_rev_id) = self.load_repo_triple_merge(git_loader)
+        loader, main_rev_id = self.load_repo_triple_merge(git_loader)
         snp_id = loader.loaded_snapshot_id
         swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
         with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
@@ -1115,14 +1115,14 @@ class TestSnapshotCooker(RepoFixtures):
             self.check_snapshot_triple_merge(ert, p, main_rev_id)
 
     def test_snapshot_filtered_objects(self, git_loader, cook_extract_snapshot):
-        (loader, main_rev_id) = self.load_repo_filtered_objects(git_loader)
+        loader, main_rev_id = self.load_repo_filtered_objects(git_loader)
         snp_id = loader.loaded_snapshot_id
         swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
         with cook_extract_snapshot(loader.storage, swhid) as (ert, p):
             self.check_revision_filtered_objects(ert, p, main_rev_id)
 
     def test_snapshot_tags(self, git_loader, cook_extract_snapshot):
-        (loader, main_rev_id) = self.load_repo_tags(git_loader)
+        loader, main_rev_id = self.load_repo_tags(git_loader)
         snp_id = loader.loaded_snapshot_id
         swhid = CoreSWHID(object_type=ObjectType.SNAPSHOT, object_id=snp_id)
         with cook_extract_snapshot(loader.storage, swhid) as (ert, p):

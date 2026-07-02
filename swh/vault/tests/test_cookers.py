@@ -78,10 +78,16 @@ class _TestRepo:
             self.repo_dir = None
 
     def checkout(self, rev_sha):
-        rev = self.repo[rev_sha]
-        dulwich.index.build_index_from_tree(
-            str(self.repo_dir), self.repo.index_path(), self.repo.object_store, rev.tree
-        )
+        if self.tmp_dir is None:
+            dulwich.porcelain.checkout(self.repo, rev_sha, force=True)
+        else:
+            rev = self.repo[rev_sha]
+            dulwich.index.build_index_from_tree(
+                str(self.repo_dir),
+                self.repo.index_path(),
+                self.repo.object_store,
+                rev.tree,
+            )
 
     def git_shell(self, *cmd, stdout=subprocess.DEVNULL, **kwargs):
         name = self.author_name

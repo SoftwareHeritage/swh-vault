@@ -1,12 +1,12 @@
 [project]
 name = "swh.vault"
 authors = [
-    {name="Software Heritage developers", email="swh-devel@inria.fr"},
+    { name = "Software Heritage developers", email = "swh-devel@inria.fr" },
 ]
 
 description = "Software Heritage vault"
-readme = {file = "README.rst", content-type = "text/x-rst"}
-requires-python = ">=3.10"
+readme = { file = "README.rst", content-type = "text/x-rst" }
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Intended Audience :: Developers",
@@ -23,11 +23,11 @@ zip-safe = false
 include = ["swh.*"]
 
 [tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt", "requirements-swh.txt"]}
+dependencies = { file = ["requirements.txt", "requirements-swh.txt"] }
 
 [tool.setuptools.dynamic.optional-dependencies]
-graph = {file = ["requirements-swh-graph.txt"]}
-testing = {file = ["requirements-test.txt"]}
+graph = { file = ["requirements-swh-graph.txt"] }
+testing = { file = ["requirements-test.txt"] }
 
 [project.entry-points."swh.cli.subcommands"]
 "swh.vault" = "swh.vault.cli"
@@ -55,7 +55,7 @@ build-backend = "setuptools.build_meta"
 fallback_version = "0.0.1"
 
 [tool.black]
-target-version = ['py310', 'py311', 'py312']
+target-version = ['py311', 'py312', 'py313']
 
 [tool.isort]
 multi_line_output = 3
@@ -78,10 +78,7 @@ plugins = []
 
 # 3rd party libraries without stubs (yet)
 [[tool.mypy.overrides]]
-module = [
-    "backports.entry_points_selectable.*",
-    "fastimport.*",
-]
+module = ["fastimport.*"]
 ignore_missing_imports = true
 
 [tool.flake8]

@@ -1,12 +1,10 @@
-# Copyright (C) 2017-2023  The Software Heritage developers
+# Copyright (C) 2017-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from datetime import timedelta
-from typing import Any, Dict, List, Optional, Tuple
-
-from typing_extensions import Protocol, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, Tuple, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
 from swh.model.swhids import CoreSWHID

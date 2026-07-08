@@ -1,5 +1,4 @@
 attrs
-backports.entry_points_selectable
 celery-types
 dulwich >= 1.0.0
 pytest >= 8.1

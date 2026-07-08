@@ -1,13 +1,13 @@
-# Copyright (C) 2017-2025  The Software Heritage developers
+# Copyright (C) 2017-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from importlib.metadata import entry_points as get_entry_points
 import re
 import smtplib
 
 import attr
-from backports.entry_points_selectable import entry_points as get_entry_points
 import psycopg
 import pytest
 import requests

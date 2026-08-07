@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2024  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -83,16 +83,16 @@ def test_cook_directory(bundle_type, cooker_name_suffix, swhid_type, mocker):
                     "cook",
                     f"swh:1:{swhid_type}:{'0' * 40}",
                     "-",
-                    "-C",
-                    config_fd.name,
                     "--bundle-type",
                     cooker_name_suffix,
                 ],
+                env={"SWH_CONFIG_FILENAME": config_fd.name},
             )
         else:
             result = runner.invoke(
                 vault_cli_group,
-                ["cook", str(swhid), "-", "-C", config_fd.name],
+                ["cook", str(swhid), "-"],
+                env={"SWH_CONFIG_FILENAME": config_fd.name},
             )
 
     if result.exception is not None:
@@ -140,7 +140,10 @@ vault:
     assert result.exit_code == 0, f"Unexpected output: {result.output}"
 
     # This initializes the schema and data
-    result = cli_runner.invoke(swhdb, ["-C", cfgfile, "init", module_name])
+    result = cli_runner.invoke(
+        swhdb, ["init", module_name], env={"SWH_CONFIG_FILENAME": str(cfgfile)}
+    )
+
     assert result.exit_code == 0, f"Unexpected output: {result.output}"
 
     assert swh_db_module(conninfo) == "vault:postgresql"

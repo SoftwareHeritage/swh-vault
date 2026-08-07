@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Optional
 
 import click
 
-from swh.core.cli import CONTEXT_SETTINGS, AliasedGroup
+from swh.core.cli import CONTEXT_SETTINGS, AliasedGroup, setup_config
 from swh.core.cli import swh as swh_cli_group
 
 if TYPE_CHECKING:
@@ -50,6 +50,7 @@ def vault(ctx):
         exists=True,
         dir_okay=False,
     ),
+    deprecated=True,
     help="Configuration file.",
 )
 @click.argument("swhid", type=SwhidParamType())
@@ -72,7 +73,6 @@ def cook(
     Runs a vault cooker for a single object (identified by a SWHID),
     and outputs it to the given file.
     """
-    from swh.core import config
     from swh.model.swhids import ObjectType
     from swh.objstorage.exc import ObjNotFoundError
     from swh.objstorage.factory import get_objstorage
@@ -81,7 +81,8 @@ def cook(
     from .cookers import get_cooker_cls
     from .in_memory_backend import InMemoryVaultBackend
 
-    conf = config.read(config_file)
+    setup_config(ctx, config_file)
+    conf = ctx.obj["config"]
 
     try:
         from swh.graph.http_client import RemoteGraphClient  # optional dependency

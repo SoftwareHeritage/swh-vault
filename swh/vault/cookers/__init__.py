@@ -9,7 +9,6 @@ import logging
 import os
 from typing import Any, Dict, List, Type
 
-from swh.core.config import load_named_config
 from swh.core.config import read as read_config
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.objstorage.factory import get_objstorage
@@ -104,7 +103,7 @@ def get_cooker(bundle_type: str, swhid: CoreSWHID):
     if "SWH_CONFIG_FILENAME" in os.environ:
         cfg = read_config(os.environ["SWH_CONFIG_FILENAME"], DEFAULT_CONFIG)
     else:
-        cfg = load_named_config(DEFAULT_CONFIG_PATH, DEFAULT_CONFIG)
+        cfg = read_config(DEFAULT_CONFIG_PATH, DEFAULT_CONFIG)
     cooker_cls = get_cooker_cls(bundle_type, swhid.object_type)
 
     cfg = check_config(cfg)

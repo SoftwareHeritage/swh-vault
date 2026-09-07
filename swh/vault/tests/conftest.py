@@ -23,9 +23,11 @@ os.environ["LC_ALL"] = "C.UTF-8"
 # a different one.
 os.umask(0o022)
 
+_xdist_testrunuid = os.environ.get("PYTEST_XDIST_TESTRUNUID", "")
+_xdist_worker = os.environ.get("PYTEST_XDIST_WORKER", "")
 
 vault_postgresql_proc = factories.postgresql_proc(
-    dbname="tests" + os.environ.get("PYTEST_XDIST_WORKER", ""),
+    dbname=f"tests{_xdist_testrunuid}{_xdist_worker}",
     load=[
         partial(initialize_database_for_module, "vault", VaultBackend.current_version)
     ],

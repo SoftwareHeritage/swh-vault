@@ -37,6 +37,7 @@ swh-web's vault interface, which polls the status from the vault backend.
 
    getting-started.rst
    api.rst
+   cooker-configuration.rst
 
 
 Reference Documentation

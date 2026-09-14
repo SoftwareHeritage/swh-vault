@@ -989,6 +989,125 @@ class TestDirectorySizeLimit:
         assert cooker.check_exists()
         cooker.prepare_bundle()
 
+    # --- gitfast ---
+
+    def test_gitfast_refuses_an_oversized_revision(self, swh_storage, mocker):
+        """The bound, at its simplest: a root revision over a shared subtree,
+        refused without walking what it refuses."""
+        directory, expanded = add_shared_subtree_directory(
+            swh_storage, width=10, depth=3
+        )
+        assert expanded == 11110
+        revision = make_shared_subtree_revision(swh_storage, directory)
+        cooker = make_gitfast_cooker(
+            swh_storage, revision.swhid(), max_directory_entries=100
+        )
+        spy = mocker.spy(cooker, "_check_max_directory_entries")
+
+        with pytest.raises(DirectoryTooLargeError) as excinfo:
+            cooker.prepare_bundle()
+
+        message = str(excinfo.value)
+        assert str(revision.swhid()) in message
+        assert "100" in message
+        assert "git_bare" in message
+        cooker.backend.put_bundle.assert_not_called()
+        # stops on the entry that crosses the limit, never the 11110 below it
+        assert spy.call_count == 101
+
+    @pytest.mark.parametrize("delta", [-1, 0, 1])
+    def test_gitfast_shares_the_flat_cookers_limit(self, swh_storage, delta):
+        """A root revision is charged exactly what the flat cookers count."""
+        directory, expanded = add_shared_subtree_directory(
+            swh_storage, width=10, depth=3
+        )
+        revision = make_shared_subtree_revision(swh_storage, directory)
+        cooker = make_gitfast_cooker(
+            swh_storage, revision.swhid(), max_directory_entries=expanded + delta
+        )
+
+        if delta < 0:
+            with pytest.raises(DirectoryTooLargeError):
+                cooker.prepare_bundle()
+            return
+
+        cooker.prepare_bundle()
+        cooker.fileobj.seek(0)
+        stream = gzip.GzipFile(fileobj=cooker.fileobj).read()
+        # width ** (depth + 1) files, one FileModifyCommand each
+        assert sum(1 for line in stream.split(b"\n") if line.startswith(b"M ")) == 10**4
+
+    def test_gitfast_checks_every_revision_not_only_the_root(self, swh_storage):
+        """An empty commit in front of the tree must not buy a free pass."""
+        empty = Directory(entries=())
+        swh_storage.directory_add([empty])
+        rev0 = make_shared_subtree_revision(swh_storage, empty)
+
+        directory, _ = add_shared_subtree_directory(swh_storage, width=10, depth=3)
+        rev1 = make_shared_subtree_revision(swh_storage, directory, parents=(rev0.id,))
+        # a third, empty-diff commit: the one the caller actually asks for
+        rev2 = make_shared_subtree_revision(swh_storage, directory, parents=(rev1.id,))
+
+        cooker = make_gitfast_cooker(
+            swh_storage, rev2.swhid(), max_directory_entries=100
+        )
+        with pytest.raises(DirectoryTooLargeError) as excinfo:
+            cooker.prepare_bundle()
+
+        # the revision that introduced the subtree, not the one requested
+        assert str(rev1.swhid()) in str(excinfo.value)
+        assert str(rev2.swhid()) not in str(excinfo.value)
+
+    def test_gitfast_charges_the_diff_not_the_whole_tree(self, swh_storage):
+        """A growing repository must keep cooking.
+
+        This is why the bound counts the diff rather than calling
+        check_directory_size(rev["directory"]) per revision: that would refuse
+        this revision, whose own tree expands past the limit, although the work
+        it actually asks for is one added entry and the subtree below it.
+        """
+        base, expanded = add_shared_subtree_directory(swh_storage, width=10, depth=3)
+        rev0 = make_shared_subtree_revision(swh_storage, base)
+
+        # one more entry naming a directory that is already in the tree
+        grown = Directory(
+            entries=base.entries
+            + (
+                DirectoryEntry(
+                    name=b"10",
+                    type="dir",
+                    target=base.entries[0].target,
+                    perms=from_disk.DentryPerms.directory,
+                ),
+            )
+        )
+        swh_storage.directory_add([grown])
+        rev1 = make_shared_subtree_revision(swh_storage, grown, parents=(rev0.id,))
+
+        cooker = make_gitfast_cooker(
+            swh_storage, rev1.swhid(), max_directory_entries=expanded
+        )
+        cooker.prepare_bundle()  # must not raise
+
+        cooker.fileobj.seek(0)
+        stream = gzip.GzipFile(fileobj=cooker.fileobj).read()
+        # the added entry names a subtree of 10**3 files, and the 10**4 files
+        # already there are re-emitted because the diff is against the first
+        # parent's tree, not against what the previous bundle wrote
+        assert (
+            sum(1 for line in stream.split(b"\n") if line.startswith(b"M "))
+            == 10**4 + 10**3
+        )
+
+    def test_gitfast_no_limit(self, swh_storage):
+        """``None`` disables the bound, as it does for the flat cookers."""
+        directory, _ = add_shared_subtree_directory(swh_storage, width=4, depth=2)
+        revision = make_shared_subtree_revision(swh_storage, directory)
+        cooker = make_gitfast_cooker(
+            swh_storage, revision.swhid(), max_directory_entries=None
+        )
+        cooker.prepare_bundle()  # must not raise
+
 
 class RepoFixtures:
     """Shared loading and checking methods that can be reused by different types
@@ -1602,4 +1721,3 @@ class TestSnapshotCooker(RepoFixtures):
 
             tree = ert.repo[commit.tree]
             assert tree.as_raw_string() == malformed_dir_manifest
-

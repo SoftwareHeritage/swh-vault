@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2024  The Software Heritage developers
+# Copyright (C) 2017-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -18,9 +18,9 @@ from fastimport.commands import (
 
 from swh.model import hashutil
 from swh.model.from_disk import DentryPerms, mode_to_perms
-from swh.model.swhids import ObjectType
+from swh.model.swhids import CoreSWHID, ObjectType
 from swh.model.toposort import toposort
-from swh.vault.cookers.base import BaseVaultCooker
+from swh.vault.cookers.base import BaseVaultCooker, DirectoryTooLargeError
 from swh.vault.cookers.utils import revision_log
 from swh.vault.to_disk import get_filtered_file_content
 
@@ -146,6 +146,20 @@ class RevisionGitfastCooker(BaseVaultCooker):
         data = self.storage.directory_ls(dir_id) if dir_id is not None else []
         return {f["name"]: f for f in data}
 
+    def _check_max_directory_entries(self, rev, count: int) -> None:
+        """Refuse ``rev`` once ``count`` entries differ from its first parent.
+
+        For a revision with no parent every entry differs, so this is the
+        expanded size of its tree, and one configured value means the same
+        thing here and in the flat cookers.
+        """
+        limit = self.max_directory_entries
+        if limit is not None and count > limit:
+            swhid = CoreSWHID(object_type=ObjectType.REVISION, object_id=rev["id"])
+            raise DirectoryTooLargeError(
+                swhid, f"more than {limit} added or changed files and directories"
+            )
+
     def _compute_file_commands(self, rev, parent=None):
         """Compute all the file commands of a revision.
 
@@ -156,6 +170,7 @@ class RevisionGitfastCooker(BaseVaultCooker):
         cur_dir = rev["directory"]
         parent_dir = parent["directory"] if parent else None
         stack = [(b"", cur_dir, parent_dir)]
+        changed = 0
 
         while stack:
             # Retrieve the current directory and the directory of the parent
@@ -173,6 +188,8 @@ class RevisionGitfastCooker(BaseVaultCooker):
             # has the same type than the one in the current directory.
             for fname, f in prev_dir.items():
                 if fname not in cur_dir or f["type"] != cur_dir[fname]["type"]:
+                    changed += 1
+                    self._check_max_directory_entries(rev, changed)
                     yield FileDeleteCommand(path=os.path.join(root, fname))
 
             # Find subtrees to modify:
@@ -187,6 +204,8 @@ class RevisionGitfastCooker(BaseVaultCooker):
                     or f["sha1"] != prev_dir[fname]["sha1"]
                     or f["perms"] != prev_dir[fname]["perms"]
                 ):
+                    changed += 1
+                    self._check_max_directory_entries(rev, changed)
                     # Issue a blob command for the new blobs if needed.
                     self._compute_blob_command_content(f)
                     yield FileModifyCommand(
@@ -200,6 +219,8 @@ class RevisionGitfastCooker(BaseVaultCooker):
                 elif f["type"] == "rev" and (
                     fname not in prev_dir or f["target"] != prev_dir[fname]["target"]
                 ):
+                    changed += 1
+                    self._check_max_directory_entries(rev, changed)
                     yield FileModifyCommand(
                         path=os.path.join(root, fname),
                         mode=DentryPerms.revision,
@@ -213,6 +234,8 @@ class RevisionGitfastCooker(BaseVaultCooker):
                     if fname in prev_dir and prev_dir[fname]["type"] == "dir":
                         f_prev_target = prev_dir[fname]["target"]
                     if f_prev_target is None or f["target"] != f_prev_target:
+                        changed += 1
+                        self._check_max_directory_entries(rev, changed)
                         stack.append(
                             (os.path.join(root, fname), f["target"], f_prev_target)
                         )

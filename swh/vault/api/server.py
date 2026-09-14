@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2023  The Software Heritage developers
+# Copyright (C) 2016-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -14,6 +14,7 @@ from swh.core.api import error_handler
 from swh.core.config import merge_configs, read_raw_config
 from swh.vault import get_vault as get_swhvault
 from swh.vault.backend import NotFoundExc
+from swh.vault.cookers.base import PolicyError
 from swh.vault.interface import VaultInterface
 
 from .serializers import DECODERS, ENCODERS
@@ -47,6 +48,11 @@ app = VaultServerApp(
 
 @app.errorhandler(NotFoundExc)
 def argument_error_handler(exception):
+    return error_handler(exception, encode_data, status_code=400)
+
+
+@app.errorhandler(PolicyError)
+def policy_error_handler(exception):
     return error_handler(exception, encode_data, status_code=400)
 
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2024  The Software Heritage developers
+# Copyright (C) 2016-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -16,24 +16,40 @@ import swh.model.swhids
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.objstorage.interface import ObjStorageInterface
 from swh.storage.interface import StorageInterface
+from swh.vault.exc import (  # re-exported: these were defined here
+    BundleTooLargeError,
+    DirectoryTooLargeError,
+    PolicyError,
+)
 
 MAX_BUNDLE_SIZE = 2**29  # 512 MiB
+
+__all__ = ["BundleTooLargeError", "DirectoryTooLargeError", "PolicyError"]
+
+# Maximum number of entries a directory tree may expand to before the vault
+# refuses to write it out. Counted once per path, directories included, so this
+# is the number of inodes a checkout creates and not a file count: linux 7.3 is
+# 96035 files but 102317 inodes.
+MAX_DIRECTORY_ENTRIES = 500_000
+
+# Maximum number of bytes of content a directory tree may expand to. Sixteen
+# times the bundle cap, so 8 GiB: past that the gzipped tarball can only fit in
+# MAX_BUNDLE_SIZE if the tree compresses better than 16:1, which source trees do
+# not. The cooking was going to fail on the byte cap anyway; this stops it
+# before the expansion reaches the disk rather than after.
+MAX_DIRECTORY_SIZE = 16 * MAX_BUNDLE_SIZE
+
+# Maximum seconds spent walking one directory tree. Bounds worker occupancy,
+# which neither of the two budgets above does on a slow storage.
+MAX_COOKING_TIME = 3600
+
 DEFAULT_CONFIG_PATH = "vault/cooker"
 DEFAULT_CONFIG = {
     "max_bundle_size": ("int", MAX_BUNDLE_SIZE),
+    "max_directory_entries": ("int", MAX_DIRECTORY_ENTRIES),
+    "max_directory_size": ("int", MAX_DIRECTORY_SIZE),
+    "max_cooking_time": ("int", MAX_COOKING_TIME),
 }
-
-
-class PolicyError(Exception):
-    """Raised when the bundle violates the cooking policy."""
-
-    pass
-
-
-class BundleTooLargeError(PolicyError):
-    """Raised when the bundle is too large to be cooked."""
-
-    pass
 
 
 class BytesIOBundleSizeLimit(io.BytesIO):
@@ -74,6 +90,9 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         graph=None,
         objstorage: Optional[ObjStorageInterface] = None,
         max_bundle_size: int = MAX_BUNDLE_SIZE,
+        max_directory_entries: Optional[int] = MAX_DIRECTORY_ENTRIES,
+        max_directory_size: Optional[int] = MAX_DIRECTORY_SIZE,
+        max_cooking_time: Optional[int] = MAX_COOKING_TIME,
         thread_pool_size: int = 10,
     ):
         """Initialize the cooker.
@@ -94,6 +113,9 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         self.objstorage = objstorage
         self.graph = graph
         self.max_bundle_size = max_bundle_size
+        self.max_directory_entries = max_directory_entries
+        self.max_directory_size = max_directory_size
+        self.max_cooking_time = max_cooking_time
         self.thread_pool_size = thread_pool_size
 
     @classmethod
@@ -109,7 +131,6 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
     def prepare_bundle(self):
         """Implementation of the cooker. Yields chunks of the bundle bytes.
 

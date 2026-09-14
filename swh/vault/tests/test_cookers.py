@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+from typing import Tuple
 import unittest
 import unittest.mock
 
@@ -44,9 +45,20 @@ from swh.model.model import (
     TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID, ObjectType
-from swh.vault.cookers import DirectoryCooker, GitBareCooker, RevisionGitfastCooker
+from swh.vault.cookers import (
+    DirectoryCooker,
+    GitBareCooker,
+    RevisionFlatCooker,
+    RevisionGitfastCooker,
+)
+from swh.vault.cookers.base import DirectoryTooLargeError
 from swh.vault.tests.vault_testing import hash_content
-from swh.vault.to_disk import HIDDEN_MESSAGE, SKIPPED_MESSAGE
+from swh.vault.to_disk import (
+    HIDDEN_MESSAGE,
+    REFUSED_DIRECTORIES,
+    SKIPPED_MESSAGE,
+    DirectoryBuilder,
+)
 
 
 class _TestRepo:
@@ -187,20 +199,55 @@ def git_loader(
     return _create_loader
 
 
+def make_directory_cooker(storage, swhid, **kwargs) -> DirectoryCooker:
+    """A DirectoryCooker with a mocked backend, ready to prepare_bundle()."""
+    backend = unittest.mock.MagicMock()
+    backend.storage = storage
+    cooker = DirectoryCooker(swhid, backend=backend, storage=storage, **kwargs)
+    cooker.fileobj = io.BytesIO()
+    return cooker
+
+
+def make_shared_subtree_revision(
+    storage, root_directory: Directory, parents: Tuple[bytes, ...] = ()
+) -> Revision:
+    date = TimestampWithTimezone.from_datetime(
+        datetime.datetime.now(datetime.timezone.utc)
+    )
+    revision = Revision(
+        directory=root_directory.id,
+        parents=parents,
+        message=b"dummy message",
+        author=Person.from_fullname(b"someone"),
+        committer=Person.from_fullname(b"someone"),
+        date=date,
+        committer_date=date,
+        type=RevisionType.GIT,
+        synthetic=False,
+    )
+    storage.revision_add([revision])
+    return revision
+
+
+def make_gitfast_cooker(storage, swhid, **kwargs) -> RevisionGitfastCooker:
+    """A RevisionGitfastCooker with a mocked backend, ready to prepare_bundle()."""
+    backend = unittest.mock.MagicMock()
+    backend.storage = storage
+    cooker = RevisionGitfastCooker(swhid, backend=backend, storage=storage, **kwargs)
+    cooker.fileobj = io.BytesIO()
+    return cooker
+
+
 @contextlib.contextmanager
 def cook_extract_directory_dircooker(
     storage, swhid, fsck=True, direct_objstorage=False
 ):
     """Context manager that cooks a directory and extract it."""
-    backend = unittest.mock.MagicMock()
-    backend.storage = storage
-    cooker = DirectoryCooker(
+    cooker = make_directory_cooker(
+        storage,
         swhid,
-        backend=backend,
-        storage=storage,
         objstorage=storage.objstorage if direct_objstorage else None,
     )
-    cooker.fileobj = io.BytesIO()
     assert cooker.check_exists()
     cooker.prepare_bundle()
     cooker.fileobj.seek(0)
@@ -300,10 +347,7 @@ def cook_extract_directory(request):
 @contextlib.contextmanager
 def cook_stream_revision_gitfast(storage, swhid):
     """Context manager that cooks a revision and stream its fastexport."""
-    backend = unittest.mock.MagicMock()
-    backend.storage = storage
-    cooker = RevisionGitfastCooker(swhid, backend=backend, storage=storage)
-    cooker.fileobj = io.BytesIO()
+    cooker = make_gitfast_cooker(storage, swhid)
     assert cooker.check_exists()
     cooker.prepare_bundle()
     cooker.fileobj.seek(0)
@@ -625,6 +669,325 @@ class TestDirectoryCooker:
         ) as p:
             assert (p / "submodule").is_dir()
             assert list((p / "submodule").iterdir()) == []
+
+
+def add_shared_subtree_directory(
+    storage, width: int, depth: int
+) -> Tuple[Directory, int]:
+    """Add a heavily-shared directory tree to ``storage``.
+
+    Returns its root and expanded size.
+
+    The construction is a chain of ``depth`` directories,
+    each holding ``width`` entries that all name the *same* directory one level
+    down, the last one holding ``width`` (empty) files. It is ``depth + 2``
+    objects in the archive, but expands to ``width * (1 + width * (1 + ...))``
+    entries, which is what a cooker writing it to disk creates.
+
+    Returns:
+        the root directory, and the number of entries it expands to (ie. the
+        number of files and directories ``DirectoryBuilder`` would create).
+
+    """
+    content = Content.from_data(b"")
+    storage.content_add([content])
+
+    directory = Directory(
+        entries=tuple(
+            DirectoryEntry(
+                name=b"%d" % i,
+                type="file",
+                target=content.sha1_git,
+                perms=from_disk.DentryPerms.content,
+            )
+            for i in range(width)
+        )
+    )
+    storage.directory_add([directory])
+    expanded = width
+
+    for _ in range(depth):
+        directory = Directory(
+            entries=tuple(
+                DirectoryEntry(
+                    name=b"%d" % i,
+                    type="dir",
+                    target=directory.id,
+                    perms=from_disk.DentryPerms.directory,
+                )
+                for i in range(width)
+            )
+        )
+        storage.directory_add([directory])
+        expanded = width * (1 + expanded)
+
+    return directory, expanded
+
+
+class TestDirectorySizeLimit:
+    """Tests ``max_directory_entries``."""
+
+    @pytest.fixture(autouse=True)
+    def _forget_refusals(self):
+        """Clears the refusal cache before and after each test"""
+        REFUSED_DIRECTORIES.clear()
+        yield
+        REFUSED_DIRECTORIES.clear()
+
+    def test_shared_subtree_directory_is_small(self, swh_storage):
+        """Sanity check on the fixture: a handful of objects, huge expansion."""
+        directory, expanded = add_shared_subtree_directory(
+            swh_storage, width=10, depth=3
+        )
+
+        assert expanded == 11110
+        assert len(list(swh_storage.directory_missing([directory.id]))) == 0
+
+    def test_under_limit_cooks(self, swh_storage):
+        directory, expanded = add_shared_subtree_directory(
+            swh_storage, width=4, depth=2
+        )
+
+        cooker = make_directory_cooker(
+            swh_storage, directory.swhid(), max_directory_entries=expanded
+        )
+        cooker.prepare_bundle()
+
+        cooker.fileobj.seek(0)
+        with tarfile.open(fileobj=cooker.fileobj, mode="r") as tar:
+            members = [m for m in tar.getmembers() if m.name != str(directory.swhid())]
+
+        # the limit counts exactly what ends up being written out
+        assert len(members) == expanded
+
+    def test_over_limit_is_refused(self, swh_storage, tmp_path):
+        """One entry past the limit is refused, and nothing past it is written.
+
+        The count runs during the walk that writes, so entries below the limit
+        do land on disk; what must hold is that the one crossing it does not.
+        """
+        directory, expanded = add_shared_subtree_directory(
+            swh_storage, width=4, depth=2
+        )
+
+        builder = DirectoryBuilder(
+            storage=swh_storage,
+            root=str(tmp_path).encode(),
+            dir_id=directory.id,
+            max_directory_entries=expanded - 1,
+        )
+        with pytest.raises(DirectoryTooLargeError) as excinfo:
+            builder.build()
+
+        assert excinfo.value.args == (
+            f"{directory.swhid()} expands to more than {expanded - 1} files "
+            f"and directories, which is more than this bundle type writes out. "
+            f"Cooking one of its sub-directories, or cooking it as a "
+            f"'git_bare' bundle instead, may work.",
+        )
+        assert len(list(tmp_path.rglob("*"))) <= expanded - 1
+
+    def test_refusal_abandons_the_walk(self, swh_storage, mocker):
+        """Counting stops at the limit, so the cost tracks the limit and not
+        the expansion."""
+        directory, expanded = add_shared_subtree_directory(
+            swh_storage, width=10, depth=5
+        )
+        directory_ls = mocker.spy(swh_storage, "directory_ls")
+
+        cooker = make_directory_cooker(
+            swh_storage, directory.swhid(), max_directory_entries=1000
+        )
+        with pytest.raises(DirectoryTooLargeError):
+            cooker.prepare_bundle()
+
+        assert expanded > 1000000
+        assert directory_ls.call_count <= 1000
+
+    def test_no_limit(self, swh_storage):
+        """``max_directory_entries=None`` disables the check, as ``swh vault
+        cook`` does when running locally."""
+        directory, _ = add_shared_subtree_directory(swh_storage, width=5, depth=2)
+
+        cooker = make_directory_cooker(
+            swh_storage, directory.swhid(), max_directory_entries=None
+        )
+        cooker.prepare_bundle()
+
+    def test_missing_directory_is_still_not_found(self, swh_storage):
+        """A missing directory is reported as missing, not as too large."""
+        swhid = CoreSWHID(object_type=ObjectType.DIRECTORY, object_id=b"\x42" * 20)
+
+        cooker = make_directory_cooker(swh_storage, swhid, max_directory_entries=1)
+        assert not cooker.check_exists()
+
+    def test_revision_flat_refuses_oversized(self, swh_storage):
+        """RevisionFlatCooker builds one tree per revision in the log, so the
+        bound has to hold for each of them, and cook() must report the refusal
+        as a failed bundle rather than an Internal Server Error."""
+        directory, _ = add_shared_subtree_directory(swh_storage, width=10, depth=3)
+        revision = make_shared_subtree_revision(swh_storage, directory)
+
+        backend = unittest.mock.MagicMock()
+        backend.storage = swh_storage
+        cooker = RevisionFlatCooker(
+            revision.swhid(),
+            backend=backend,
+            storage=swh_storage,
+            max_directory_entries=100,
+        )
+        cooker.fileobj = io.BytesIO()
+
+        # the revision itself exists, only its tree is unreasonable
+        assert cooker.check_exists()
+        with pytest.raises(DirectoryTooLargeError):
+            cooker.prepare_bundle()
+        assert cooker.fileobj.getvalue() == b""
+
+        cooker.cook()
+        backend.put_bundle.assert_not_called()
+        backend.set_status.assert_called_with("flat", revision.swhid(), "failed")
+        assert "expands to more than" in backend.set_progress.call_args[0][2]
+
+    def test_a_repeated_refusal_is_free(self, swh_storage, mocker):
+        """The second request for a refused directory costs no storage call.
+
+        Without the cache it would cost the same as the first:
+        VaultBackend.cook() deletes the failed bundle and re-creates the task,
+        so nothing upstream remembers."""
+        directory, _ = add_shared_subtree_directory(swh_storage, width=10, depth=4)
+
+        cost = []
+        for _ in range(2):
+            spy = mocker.spy(swh_storage, "directory_ls")
+            cooker = make_directory_cooker(
+                swh_storage, directory.swhid(), max_directory_entries=1000
+            )
+            with pytest.raises(DirectoryTooLargeError):
+                cooker.prepare_bundle()
+            cost.append(spy.call_count)
+            mocker.stopall()
+
+        assert cost[0] > 0
+        assert cost[1] == 0
+
+    def test_check_exists_refuses_a_directory_already_known_too_large(
+        self, swh_storage, mocker
+    ):
+        """Once a cooking has refused a directory, the next request for it is
+        refused when the task would be created, so the caller gets an error
+        instead of a task that will fail later.
+
+        The early check reads the cache and nothing else: it must not walk, or
+        it would reintroduce the preflight pass the count was moved out of.
+        """
+        directory, _ = add_shared_subtree_directory(swh_storage, width=10, depth=4)
+
+        # first request: nothing is known yet, so it is accepted here...
+        cooker = make_directory_cooker(
+            swh_storage, directory.swhid(), max_directory_entries=1000
+        )
+        assert cooker.check_exists()
+        # ...and refused while cooking, which is what fills the cache
+        with pytest.raises(DirectoryTooLargeError):
+            cooker.prepare_bundle()
+
+        # second request: refused up front, without touching the storage
+        spy = mocker.spy(swh_storage, "directory_ls")
+        cooker = make_directory_cooker(
+            swh_storage, directory.swhid(), max_directory_entries=1000
+        )
+        with pytest.raises(DirectoryTooLargeError) as excinfo:
+            cooker.check_exists()
+
+        assert spy.call_count == 0
+        assert str(directory.swhid()) in str(excinfo.value)
+
+    def test_a_refusal_is_only_reused_at_or_below_its_limit(self):
+        """Expanding past 100 says nothing about expanding past a million."""
+        dir_id = b"\x01" * 20
+        REFUSED_DIRECTORIES.record(dir_id, 100, 1000)
+
+        assert REFUSED_DIRECTORIES.refuses(dir_id, 100, 1000)
+        assert REFUSED_DIRECTORIES.refuses(dir_id, 50, 500)
+        # looser in either dimension: we do not record which one was exceeded
+        assert not REFUSED_DIRECTORIES.refuses(dir_id, 1000, 1000)
+        assert not REFUSED_DIRECTORIES.refuses(dir_id, 100, 10000)
+        # an unbounded limit is below nothing
+        assert not REFUSED_DIRECTORIES.refuses(dir_id, None, 1000)
+
+    def test_over_size_is_refused(self, swh_storage):
+        """A tree well under the entry limit can still be enormous in bytes.
+
+        The shared-subtree fixture is the opposite case, all empty files, so
+        this one carries real content: the two budgets catch different trees,
+        which is the whole reason for having both.
+        """
+        content = Content.from_data(b"x" * 4096)
+        swh_storage.content_add([content])
+        directory = Directory(
+            entries=tuple(
+                DirectoryEntry(
+                    name=b"%d" % i,
+                    type="file",
+                    target=content.sha1_git,
+                    perms=from_disk.DentryPerms.content,
+                )
+                for i in range(4)
+            )
+        )
+        swh_storage.directory_add([directory])
+
+        cooker = make_directory_cooker(
+            swh_storage,
+            directory.swhid(),
+            max_directory_entries=1000,
+            max_directory_size=4096,
+        )
+        with pytest.raises(DirectoryTooLargeError) as excinfo:
+            cooker.prepare_bundle()
+
+        assert "4096 bytes" in str(excinfo.value)
+
+    def test_over_time_is_refused(self, swh_storage):
+        """And a tree under both budgets can still take all day."""
+        directory, expanded = add_shared_subtree_directory(
+            swh_storage, width=4, depth=2
+        )
+
+        cooker = make_directory_cooker(
+            swh_storage,
+            directory.swhid(),
+            max_directory_entries=expanded * 10,
+            max_cooking_time=0,
+        )
+        with pytest.raises(DirectoryTooLargeError) as excinfo:
+            cooker.prepare_bundle()
+
+        assert "seconds" in str(excinfo.value)
+
+    def test_a_time_refusal_is_not_remembered(self, swh_storage):
+        """Elapsed time is a property of the day, so a slow walk must not
+        condemn the directory for later requests."""
+        directory, expanded = add_shared_subtree_directory(
+            swh_storage, width=4, depth=2
+        )
+
+        cooker = make_directory_cooker(
+            swh_storage,
+            directory.swhid(),
+            max_directory_entries=expanded * 10,
+            max_cooking_time=0,
+        )
+        with pytest.raises(DirectoryTooLargeError):
+            cooker.prepare_bundle()
+
+        # the same directory, asked for again without the time pressure
+        cooker = make_directory_cooker(
+            swh_storage, directory.swhid(), max_directory_entries=expanded * 10
+        )
+        assert cooker.check_exists()
+        cooker.prepare_bundle()
 
 
 class RepoFixtures:
@@ -1239,3 +1602,4 @@ class TestSnapshotCooker(RepoFixtures):
 
             tree = ert.repo[commit.tree]
             assert tree.as_raw_string() == malformed_dir_manifest
+

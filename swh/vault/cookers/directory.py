@@ -21,7 +21,7 @@ class DirectoryCooker(BaseVaultCooker):
         if list(self.storage.directory_missing([self.obj_id])):
             return False
 
-       # Already known to be too large from a previous task
+        # Already known to be too large from a previous task
         if REFUSED_DIRECTORIES.refuses(
             self.obj_id, self.max_directory_entries, self.max_directory_size
         ):

@@ -273,8 +273,7 @@ class DirectoryBuilder:
             wait_for_contents(futures)
 
     def _check_budget(self, entries: int, size: int, elapsed: float) -> None:
-        """Refuse as soon as any of the three budgets is passed.
-        """
+        """Refuse as soon as any of the three budgets is passed."""
         if self.max_cooking_time is not None and elapsed > self.max_cooking_time:
             # not remembered: how long a walk took is a property of the day,
             # not of an immutable tree

@@ -21,10 +21,7 @@ class DirectoryCooker(BaseVaultCooker):
         if list(self.storage.directory_missing([self.obj_id])):
             return False
 
-        # Refuse at request time a directory already known to be too large, so
-        # the caller gets an error instead of a task that will fail later. This
-        # only reads the cache; a directory nobody has tried yet is accepted here
-        # and refused while cooking, which is what fills it.
+       # Already known to be too large from a previous task
         if REFUSED_DIRECTORIES.refuses(
             self.obj_id, self.max_directory_entries, self.max_directory_size
         ):

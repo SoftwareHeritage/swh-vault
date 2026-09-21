@@ -26,21 +26,11 @@ MAX_BUNDLE_SIZE = 2**29  # 512 MiB
 
 __all__ = ["BundleTooLargeError", "DirectoryTooLargeError", "PolicyError"]
 
-# Maximum number of entries a directory tree may expand to before the vault
-# refuses to write it out. Counted once per path, directories included, so this
-# is the number of inodes a checkout creates and not a file count: linux 7.3 is
-# 96035 files but 102317 inodes.
+# Linux 7.3 is 102317 inodes (including 96035 files)
 MAX_DIRECTORY_ENTRIES = 500_000
 
-# Maximum number of bytes of content a directory tree may expand to. Sixteen
-# times the bundle cap, so 8 GiB: past that the gzipped tarball can only fit in
-# MAX_BUNDLE_SIZE if the tree compresses better than 16:1, which source trees do
-# not. The cooking was going to fail on the byte cap anyway; this stops it
-# before the expansion reaches the disk rather than after.
 MAX_DIRECTORY_SIZE = 16 * MAX_BUNDLE_SIZE
 
-# Maximum seconds spent walking one directory tree. Bounds worker occupancy,
-# which neither of the two budgets above does on a slow storage.
 MAX_COOKING_TIME = 3600
 
 DEFAULT_CONFIG_PATH = "vault/cooker"

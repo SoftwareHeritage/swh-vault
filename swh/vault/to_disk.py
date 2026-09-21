@@ -281,11 +281,6 @@ class DirectoryBuilder:
 
     def _check_budget(self, entries: int, size: int, elapsed: float) -> None:
         """Refuse as soon as any of the three budgets is passed.
-
-        The three are checked together because bounding one alone does not
-        bound the work: a tree just under the entry limit can still be a
-        hundred gigabytes, and one under both can still take all day over a
-        slow storage.
         """
         if self.max_cooking_time is not None and elapsed > self.max_cooking_time:
             # not remembered: how long a walk took is a property of the day,

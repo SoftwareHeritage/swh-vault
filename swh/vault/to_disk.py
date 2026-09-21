@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 if sys.version_info >= (3, 13):
 
-    class ContentFetchesFailed(ExceptionGroup):
+    class ContentFetchesFailed(BaseExceptionGroup):
         pass
 
 else:

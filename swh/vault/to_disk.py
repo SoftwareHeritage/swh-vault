@@ -133,13 +133,6 @@ MAX_REFUSALS_REMEMBERED = 1024
 class _RefusedDirectories:
     """Directories already found to expand past a limit.
 
-    Only refusals are worth remembering. A build that succeeds counts as it
-    writes, so its count costs nothing and there is nothing to reuse. A refusal
-    is paid in full every time the same directory is asked for again:
-    :meth:`swh.vault.backend.VaultBackend.cook` deletes a failed bundle and
-    re-creates the task, so a repeated request really does walk again and
-    re-create up to ``max_directory_entries`` entries on disk before aborting.
-
     An entry records "exceeds this budget", which cannot stop being true of an
     immutable object, so it never needs invalidating. It may be reused only for
     a budget at or below the one it was recorded at: exceeding 100 entries says

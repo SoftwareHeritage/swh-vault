@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2024  The Software Heritage developers
+# Copyright (C) 2020-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -14,7 +14,10 @@ from swh.core.api.serializers import json_dumps, msgpack_dumps, msgpack_loads
 from swh.vault.api.serializers import ENCODERS
 import swh.vault.api.server
 from swh.vault.api.server import app, check_config, get_vault, make_app_from_configfile
+from swh.vault.cookers.base import MAX_DIRECTORY_ENTRIES, MAX_DIRECTORY_SIZE
 from swh.vault.tests.test_backend import TEST_SWHID
+from swh.vault.tests.test_cookers import add_shared_subtree_directory
+from swh.vault.to_disk import REFUSED_DIRECTORIES
 
 
 @pytest.fixture
@@ -114,6 +117,34 @@ def test_client_cook_notfound(cli):
     content = msgpack_loads(resp.data)
     assert content["type"] == "NotFoundExc"
     assert content["args"] == [f"flat {TEST_SWHID} was not found."]
+
+
+def test_client_cook_directory_too_large(cli):
+    """A directory already known to be too large is a bad request, not an
+    Internal Server Error, and not a task that will fail later.
+
+    The count happens while cooking, so the *first* request for a given
+    directory cannot know: it is scheduled, and refused by the cooker. What is
+    asserted here is the second request onwards, which reads the refusal cache
+    and never walks the graph.
+    """
+    directory, _ = add_shared_subtree_directory(get_vault().storage, width=10, depth=4)
+    # stand in for a first request that was scheduled and then refused while
+    # cooking; that path is covered in test_cookers.py
+    REFUSED_DIRECTORIES.record(directory.id, MAX_DIRECTORY_ENTRIES, MAX_DIRECTORY_SIZE)
+
+    resp = cli.post(
+        "/cook",
+        data=json_dumps(
+            {"bundle_type": "flat", "swhid": directory.swhid()},
+            extra_encoders=ENCODERS,
+        ),
+        headers=[("Content-Type", "application/json")],
+    )
+    assert resp.status == "400 BAD REQUEST"
+    content = msgpack_loads(resp.data)
+    assert content["type"] == "DirectoryTooLargeError"
+    assert str(directory.swhid()) in content["args"][0]
 
 
 def test_client_progress_notfound(cli):

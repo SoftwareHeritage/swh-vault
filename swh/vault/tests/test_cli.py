@@ -105,6 +105,7 @@ def test_cook_directory(bundle_type, cooker_name_suffix, swhid_type, mocker):
         graph=None,
         objstorage=None,
         max_bundle_size=None,
+        max_directory_entries=None,
     )
     cooker.cook.assert_called_once_with()
 

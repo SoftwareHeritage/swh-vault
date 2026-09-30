@@ -125,7 +125,9 @@ def cook(
         storage=storage,
         graph=graph,
         objstorage=objstorage,
-        max_bundle_size=None,  # No need for a size limit, we are running locally
+        # No need for any limit, we are running locally
+        max_bundle_size=None,
+        max_directory_entries=None,
     )
     cooker.cook()
 

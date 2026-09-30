@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2019  The Software Heritage developers
+# Copyright (C) 2016-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -35,6 +35,9 @@ class RevisionFlatCooker(BaseVaultCooker):
                     dir_id=revision["directory"],
                     thread_pool_size=self.thread_pool_size,
                     objstorage=self.objstorage,
+                    max_directory_entries=self.max_directory_entries,
+                    max_directory_size=self.max_directory_size,
+                    max_cooking_time=self.max_cooking_time,
                 )
                 directory_builder.build()
             with tarfile.open(fileobj=self.fileobj, mode="w:gz") as tar:

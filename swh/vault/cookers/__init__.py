@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2021  The Software Heritage developers
+# Copyright (C) 2017-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -136,7 +136,16 @@ def get_cooker(bundle_type: str, swhid: CoreSWHID):
         objstorage = None
 
     kwargs = {
-        k: v for (k, v) in cfg.items() if k in ("max_bundle_size", "thread_pool_size")
+        k: v
+        for (k, v) in cfg.items()
+        if k
+        in (
+            "max_bundle_size",
+            "max_directory_entries",
+            "max_directory_size",
+            "max_cooking_time",
+            "thread_pool_size",
+        )
     }
 
     return cooker_cls(

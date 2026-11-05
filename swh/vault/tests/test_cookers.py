@@ -1713,10 +1713,26 @@ class TestSnapshotCooker(RepoFixtures):
         swh_storage.snapshot_add([snapshot])
 
         with cook_extract_snapshot(swh_storage, snapshot.swhid()) as (ert, p):
-            tag = ert.repo[b"refs/tags/v1.1.0"]
-            assert tag.as_raw_string() == malformed_rel_manifest
 
-            commit = ert.repo[tag.object[1]]
+            def read_raw_object(type_, id_):
+                raw = subprocess.check_output(
+                    ["git", "-C", p, "cat-file", type_, id_.decode()]
+                )
+
+                try:
+                    ert.repo[id_]
+                except dulwich.errors.ObjectFormatException:
+                    # dulwich >= 1.2.20 do not support parsing malformed commit and tags
+                    pass
+                else:
+                    assert ert.repo[id_].as_raw_string() == raw
+
+                return raw
+
+            tag = read_raw_object("tag", b"refs/tags/v1.1.0")
+            assert tag == malformed_rel_manifest
+
+            commit = ert.repo[hashutil.hash_to_bytehex(revision.id)]
             assert commit.as_raw_string() == malformed_rev_manifest
 
             tree = ert.repo[commit.tree]
